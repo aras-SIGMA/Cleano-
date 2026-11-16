@@ -1,0 +1,7 @@
+node_modules/
+.env
+certs/*
+!certs/.gitkeep
+uploads/*
+!uploads/.gitkeep
+*.log

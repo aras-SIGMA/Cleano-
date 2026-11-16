@@ -1,0 +1,3 @@
+# Taruh ca.pem dari dashboard Aiven di folder ini.
+# Aiven > service MySQL > Overview > "CA certificate" > Download.
+# Lalu set DB_SSL_CA=./certs/ca.pem pada .env

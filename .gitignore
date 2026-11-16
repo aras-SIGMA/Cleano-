@@ -1,0 +1,12 @@
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# editor
+.vscode/
+*.swp
+
+# secrets — jangan pernah commit
+*.pem
+*.key

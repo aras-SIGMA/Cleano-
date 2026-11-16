@@ -1,0 +1,31 @@
+{
+  "name": "cleano-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Cleano REST API - laundry POS backend (Express + mysql2 + Midtrans Snap)",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node scripts/health-check.js",
+    "db:load": "node scripts/load-schema.js",
+    "db:smoke": "node scripts/smoke-test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "cors": "2.8.6",
+    "dotenv": "18.0.10",
+    "express": "5.3.0",
+    "jsonwebtoken": "9.0.3",
+    "midtrans-client": "1.4.3",
+    "multer": "2.5.0",
+    "mysql2": "3.24.6"
+  }
+}
