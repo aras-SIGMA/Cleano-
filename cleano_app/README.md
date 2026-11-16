@@ -83,8 +83,8 @@ Folder yang akan menyusul: `models/`, `screens/auth/`, `screens/kasir/`,
 - **Android**: `usesCleartextTraffic=true` agar backend `http://` lokal bisa diakses.
   Hapus/ketatkan ini saat backend sudah HTTPS.
 - **iOS**: izin kamera & galeri sudah dideklarasikan di `Info.plist`.
-- **`flutter build web` gagal di path ini** karena folder proyek mengandung `#`
-  (`AAS#1`) — karakter itu diperlakukan sebagai URI fragment oleh kompiler web Dart.
-  `dart analyze`, `flutter test`, dan build Android/iOS tidak terdampak. Kalau suatu saat
-  perlu build web, pindahkan proyek ke path tanpa `#`.
+- **Path proyek jangan mengandung `#`.** Kompiler web Dart memperlakukannya sebagai
+  URI fragment dan `flutter build web` gagal. Proyek ini sekarang di
+  `C:\Personal Project\Cleano` (tanpa `#`) — diperbaiki dari path lama `AAS#1`.
+- **`flutter build web --release`** → output di `build/web/`.
 - **Server Key Midtrans tidak boleh masuk aplikasi ini.** Hanya Client Key.
