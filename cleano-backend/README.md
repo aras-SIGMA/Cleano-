@@ -123,6 +123,7 @@ OK    rollback bersih          orders 3 -> 3
 | POST/PUT | `/api/rewards[/:id]` | kelola reward (kasir) |
 | PATCH | `/api/rewards/:id/toggle` | aktif/nonaktifkan reward (kasir) |
 | POST | `/api/orders` | buat order + foto bukti (`multipart/form-data`, kasir) |
+| GET | `/api/orders?status=&page=&pageSize=` | daftar order; pelanggan hanya miliknya sendiri |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -141,7 +142,8 @@ cleano-backend/
 │   ├── test-auth.js           npm run test:auth
 │   ├── test-lookup.js         npm run test:lookup
 │   ├── test-master.js         npm run test:master
-│   └── test-orders-create.js  npm run test:orders-create
+│   ├── test-orders-create.js  npm run test:orders-create
+│   └── test-orders-list.js    npm run test:orders-list
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
