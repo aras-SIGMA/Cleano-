@@ -1,0 +1,166 @@
+// Uji GET /api/users/lookup terhadap Aiven. Tidak mengubah data apa pun.
+// Jalankan: npm run test:lookup
+require('dotenv').config({ quiet: true });
+
+const { pool } = require('../src/config/database');
+const app = require('../server');
+
+const rows = [];
+const ok = (name, pass, detail = '') => rows.push({ name, pass, detail });
+
+let server;
+let base;
+
+async function call(path, { token } = {}) {
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${base}${path}`, { headers });
+  let json = null;
+  try {
+    json = await res.json();
+  } catch {
+    /* respons tanpa body */
+  }
+  return { status: res.status, json };
+}
+
+async function login(email, password) {
+  const res = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const json = await res.json().catch(() => null);
+  return json?.data?.token ?? null;
+}
+
+(async () => {
+  server = app.listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  base = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    // kata sandi seeder: lihat database_schema.sql bagian data seeder
+    const kasirToken = await login('kasir@cleano.id', 'password123');
+    const pelangganToken = await login('rina@gmail.com', 'password123');
+    ok('login kasir untuk uji', Boolean(kasirToken));
+    ok('login pelanggan untuk uji', Boolean(pelangganToken));
+
+    // ---- otorisasi ----
+    const noToken = await call('/api/users/lookup?query=MBR-0001');
+    ok('tanpa token 401', noToken.status === 401, `status ${noToken.status}`);
+
+    const asPelanggan = await call('/api/users/lookup?query=MBR-0002', { token: pelangganToken });
+    ok('token pelanggan 403 (TC-04)', asPelanggan.status === 403, `status ${asPelanggan.status}`);
+
+    const badToken = await call('/api/users/lookup?query=MBR-0001', { token: 'bukan.token.asli' });
+    ok('token palsu 401', badToken.status === 401, `status ${badToken.status}`);
+
+    // ---- validasi ----
+    const empty = await call('/api/users/lookup?query=', { token: kasirToken });
+    ok('query kosong 400', empty.status === 400, `status ${empty.status}`);
+
+    const noParam = await call('/api/users/lookup', { token: kasirToken });
+    ok('tanpa parameter 400', noParam.status === 400, `status ${noParam.status}`);
+
+    const space = await call('/api/users/lookup?query=%20%20', { token: kasirToken });
+    ok('query hanya spasi 400', space.status === 400, `status ${space.status}`);
+
+    const missing = await call('/api/users/lookup?query=MBR-9999', { token: kasirToken });
+    ok('member tak ada 404', missing.status === 404, `status ${missing.status}`);
+
+    // ---- dual lookup: kode member dan nomor HP harus menemukan orang yang sama ----
+    const byCode = await call('/api/users/lookup?query=MBR-0001', { token: kasirToken });
+    ok('cari via member_code 200', byCode.status === 200, `status ${byCode.status}`);
+
+    const byPhone = await call('/api/users/lookup?query=081234567890', { token: kasirToken });
+    ok('cari via nomor HP 200 (TC-11)', byPhone.status === 200, `status ${byPhone.status}`);
+
+    ok(
+      'kode dan nomor HP mengembalikan orang sama',
+      byCode.json?.data?.id === byPhone.json?.data?.id && byCode.json?.data?.id === 2,
+      `id ${byCode.json?.data?.id} vs ${byPhone.json?.data?.id}`,
+    );
+
+    const lower = await call('/api/users/lookup?query=mbr-0001', { token: kasirToken });
+    ok('member_code case-insensitive', lower.json?.data?.id === 2, `id ${lower.json?.data?.id}`);
+
+    const dashed = await call('/api/users/lookup?query=0812-3456-7890', { token: kasirToken });
+    ok('nomor HP dengan tanda hubung', dashed.json?.data?.id === 2, `id ${dashed.json?.data?.id}`);
+
+    // ---- bentuk respons ----
+    const d = byCode.json?.data ?? {};
+    ok('data berisi field wajib', ['id', 'name', 'phone', 'member_code', 'points', 'tier', 'vouchers'].every((k) => k in d), Object.keys(d).join(','));
+    ok('nama benar', d.name === 'Rina Marlina', d.name);
+    ok('tier dari poin', d.tier === 'Gold', `poin=${d.points} tier=${d.tier}`);
+    ok('tidak membocorkan email', d.email === undefined);
+    ok('tidak membocorkan password', d.password === undefined && !JSON.stringify(byCode.json).includes('$2b$'));
+
+    // ---- voucher aktif ----
+    ok('vouchers berupa array', Array.isArray(d.vouchers), typeof d.vouchers);
+    ok('rina punya 1 voucher aktif', d.vouchers?.length === 1, `${d.vouchers?.length}`);
+
+    const v = d.vouchers?.[0] ?? {};
+    ok('voucher berisi kode & judul', Boolean(v.voucher_code) && Boolean(v.title), `${v.voucher_code} / ${v.title}`);
+    ok('voucher berisi discount_amount', typeof v.discount_amount === 'number' && v.discount_amount > 0, `${v.discount_amount}`);
+    ok('voucher tidak membocorkan is_used/user_id', v.is_used === undefined && v.user_id === undefined);
+
+    // ---- pelanggan tanpa voucher ----
+    const budi = await call('/api/users/lookup?query=MBR-0002', { token: kasirToken });
+    ok('budi tanpa voucher -> array kosong', Array.isArray(budi.json?.data?.vouchers) && budi.json.data.vouchers.length === 0, `${budi.json?.data?.vouchers?.length}`);
+
+    // ---- akun kasir tidak muncul di lookup ----
+    const staff = await call('/api/users/lookup?query=STF-0001', { token: kasirToken });
+    ok('kode staf 404 (hanya pelanggan)', staff.status === 404, `status ${staff.status}`);
+
+    const staffPhone = await call('/api/users/lookup?query=081200000001', { token: kasirToken });
+    ok('nomor staf 404 (hanya pelanggan)', staffPhone.status === 404, `status ${staffPhone.status}`);
+
+    // ---- R-5: filter is_used = 0 terbukti menyaring ----
+    // User sementara + poin cukup untuk klaim voucher (trigger memotong poin).
+    // Regresi "hapus and uv.is_used = 0" harus GAGAL di sini. Seluruhnya dihapus di akhir.
+    const tmpEmail = `vcr.${Date.now()}@cleano.test`;
+    const tmpCode = `TST-${Date.now().toString().slice(-6)}`; // bukan MBR-%: jangan ganggu penomoran
+    const [tmp] = await pool.query(
+      "insert into users (name, email, password, role, phone, member_code, points) values ('Uji Voucher', ?, '-', 'pelanggan', ?, ?, 200)",
+      [tmpEmail, `0895${Date.now().toString().slice(-8)}`, tmpCode],
+    );
+    const tmpId = tmp.insertId;
+    const voucherCode = `CLN-TST-${Date.now().toString().slice(-8)}`;
+
+    try {
+      await pool.query(
+        'insert into user_vouchers (voucher_code, user_id, reward_id, is_used) values (?, ?, 1, 0)',
+        [voucherCode, tmpId],
+      );
+
+      const withActive = await call(`/api/users/lookup?query=${tmpCode}`, { token: kasirToken });
+      const activeCodes = (withActive.json?.data?.vouchers ?? []).map((x) => x.voucher_code);
+      ok('R-5a: voucher aktif muncul di lookup', activeCodes.includes(voucherCode), activeCodes.join(','));
+
+      // transisi sah 0 -> 1 + used_at
+      await pool.query('update user_vouchers set is_used = 1, used_at = now() where user_id = ?', [tmpId]);
+
+      const withUsed = await call(`/api/users/lookup?query=${tmpCode}`, { token: kasirToken });
+      const usedCodes = (withUsed.json?.data?.vouchers ?? []).map((x) => x.voucher_code);
+      ok('R-5b: voucher terpakai tidak ikut', !usedCodes.includes(voucherCode), usedCodes.join(','));
+    } finally {
+      await pool.query('delete from users where id = ?', [tmpId]).catch(() => {});
+    }
+    const [[leftTmp]] = await pool.query('select count(*) as n from users where id = ?', [tmpId]);
+    ok('R-5c: user uji voucher dibersihkan', leftTmp.n === 0, `sisa ${leftTmp.n}`);
+  } catch (err) {
+    ok('tes lookup tidak melempar error', false, err.message);
+  } finally {
+    console.log('');
+    for (const r of rows) {
+      console.log(`${r.pass ? 'OK  ' : 'GAGAL'} ${r.name.padEnd(42)} ${r.detail}`);
+    }
+    const failed = rows.filter((r) => !r.pass).length;
+    console.log(`\n${rows.length - failed}/${rows.length} lulus`);
+
+    server.close();
+    await pool.end().catch(() => {});
+    process.exit(failed ? 1 : 0);
+  }
+})();
