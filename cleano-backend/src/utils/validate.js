@@ -13,4 +13,13 @@ function parse(schema, input) {
   return result.data;
 }
 
-module.exports = { parse };
+// :id dari URL selalu teks. Tanpa ini Number('abc') === NaN ikut ke query dan
+// MySQL membalas "Unknown column 'NaN' in 'where clause'" — 500 yang
+// membocorkan bentuk query. Semua route ber-id memakai helper ini.
+function parseId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw badRequest('ID tidak valid.');
+  return id;
+}
+
+module.exports = { parse, parseId };

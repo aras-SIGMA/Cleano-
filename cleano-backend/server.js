@@ -9,6 +9,9 @@ const cors = require('cors');
 const { pool, ping } = require('./src/config/database');
 const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const serviceRoutes = require('./src/routes/serviceRoutes');
+const machineRoutes = require('./src/routes/machineRoutes');
+const rewardRoutes = require('./src/routes/rewardRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -30,6 +33,9 @@ app.get('/api/health', async (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/machines', machineRoutes);
+app.use('/api/rewards', rewardRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Rute ${req.method} ${req.originalUrl} tidak ditemukan.` });
