@@ -16,7 +16,8 @@
     "test:lookup": "node scripts/test-lookup.js",
     "db:load": "node scripts/load-schema.js",
     "db:smoke": "node scripts/smoke-test.js",
-    "test:master": "node scripts/test-master.js"
+    "test:master": "node scripts/test-master.js",
+    "test:orders-create": "node scripts/test-orders-create.js"
   },
   "keywords": [],
   "author": "",
