@@ -3,11 +3,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
-const { ok, created, badRequest, unauthorized, conflict } = require('../utils/response');
+const { ok, created, unauthorized, conflict } = require('../utils/response');
+const { parse } = require('../utils/validate');
+const { registerBody, loginBody } = require('../validators/authValidator');
 
 const BCRYPT_ROUNDS = 10;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RE = /^[0-9]{8,20}$/;
+const USER_COLS = 'id, name, email, phone, role, member_code, points';
 
 // Tier diturunkan dari poin, sama dengan logika trigger & view (v1.4).
 function tierOf(points) {
@@ -37,23 +38,9 @@ function signToken(row) {
   );
 }
 
-function str(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 // POST /api/auth/register — public
 async function register(req, res) {
-  const name = str(req.body?.name);
-  const email = str(req.body?.email).toLowerCase();
-  const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  const phone = str(req.body?.phone).replace(/[\s-]/g, '');
-
-  if (!name) throw badRequest('Nama wajib diisi.');
-  if (name.length > 100) throw badRequest('Nama maksimal 100 karakter.');
-  if (!EMAIL_RE.test(email)) throw badRequest('Format email tidak valid.');
-  if (email.length > 100) throw badRequest('Email maksimal 100 karakter.');
-  if (password.length < 8) throw badRequest('Password minimal 8 karakter.');
-  if (!PHONE_RE.test(phone)) throw badRequest('Nomor HP harus 8-20 digit angka.');
+  const { name, email, password, phone } = parse(registerBody, req.body);
 
   const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
@@ -73,17 +60,23 @@ async function register(req, res) {
         "insert into users (name, email, password, role, phone, member_code, points) values (?, ?, ?, 'pelanggan', ?, ?, 0)",
         [name, email, hash, phone, memberCode],
       );
+      // baris dibaca di dalam transaksi: setelah commit koneksi bisa dipakai
+      // request lain, dan kegagalan baca tidak boleh membuat user "hilang".
+      const [fresh] = await conn.query(`select ${USER_COLS} from users where id = ?`, [result.insertId]);
+      const user = fresh[0];
+      // token dibuat sebelum commit: setelah commit tidak ada lagi yang boleh
+      // gagal sampai respons terkirim (kalau gagal, user tercipta tapi klien 500).
+      const body = { token: signToken(user), user: publicUser(user) };
       await conn.commit();
-
-      const [created_] = await pool.query('select * from users where id = ?', [result.insertId]);
-      const user = created_[0];
-      return created(res, { token: signToken(user), user: publicUser(user) }, 'Registrasi berhasil.');
+      return created(res, body, 'Registrasi berhasil.');
     } catch (err) {
       await conn.rollback().catch(() => {});
       if (err.code === 'ER_DUP_ENTRY') {
         const msg = String(err.message || '');
-        if (msg.includes('member_code') || msg.includes('uk_users_member')) {
-          if (attempt < 2) continue; // member_code bentrok, coba nomor berikutnya
+        // hanya member_code yang bisa dicoba ulang; email/phone tidak akan berubah
+        if (msg.includes('member_code')) {
+          if (attempt < 2) continue;
+          throw conflict('Gagal membuat kode member, coba lagi.');
         }
         if (msg.includes('email')) throw conflict('Email sudah terdaftar.');
         if (msg.includes('phone')) throw conflict('Nomor HP sudah terdaftar.');
@@ -94,18 +87,13 @@ async function register(req, res) {
       conn.release();
     }
   }
-
-  throw conflict('Gagal membuat kode member, coba lagi.');
 }
 
 // POST /api/auth/login — public
 async function login(req, res) {
-  const email = str(req.body?.email).toLowerCase();
-  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  const { email, password } = parse(loginBody, req.body);
 
-  if (!email || !password) throw badRequest('Email dan password wajib diisi.');
-
-  const [rows] = await pool.query('select * from users where email = ? limit 1', [email]);
+  const [rows] = await pool.query(`select ${USER_COLS}, password from users where email = ? limit 1`, [email]);
   if (!rows.length) throw unauthorized('Email atau password salah.');
 
   const user = rows[0];

@@ -13,6 +13,7 @@
     "dev": "node --watch server.js",
     "check": "node scripts/health-check.js",
     "test:auth": "node scripts/test-auth.js",
+    "test:lookup": "node scripts/test-lookup.js",
     "db:load": "node scripts/load-schema.js",
     "db:smoke": "node scripts/smoke-test.js"
   },
@@ -27,6 +28,7 @@
     "jsonwebtoken": "9.0.3",
     "midtrans-client": "1.4.3",
     "multer": "2.5.0",
-    "mysql2": "3.24.6"
+    "mysql2": "3.24.6",
+    "zod": "4.6.7"
   }
 }

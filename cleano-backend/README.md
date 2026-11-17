@@ -65,6 +65,7 @@ npm run dev    # auto-reload (node --watch)
 npm run check      # env, koneksi Aiven, kelengkapan skema
 npm run db:smoke   # buktikan trigger & guard benar-benar bekerja di Aiven
 npm run test:auth  # uji register/login lewat HTTP, user uji dihapus lagi
+npm run test:lookup # uji users/lookup, tidak mengubah data
 ```
 
 `npm run db:smoke` menjalankan seluruh ujinya di dalam satu transaksi dan men-`ROLLBACK`
@@ -112,6 +113,7 @@ OK    rollback bersih          orders 3 -> 3
 | GET | `/api/health` | status server + koneksi database |
 | POST | `/api/auth/register` | daftar pelanggan baru, `member_code` otomatis |
 | POST | `/api/auth/login` | login, mengembalikan JWT 24 jam + profil |
+| GET | `/api/users/lookup?query=` | cari pelanggan via `member_code` atau nomor HP (kasir) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -127,7 +129,8 @@ cleano-backend/
 │   ├── health-check.js        npm run check
 │   ├── load-schema.js         npm run db:load
 │   ├── smoke-test.js          npm run db:smoke
-│   └── test-auth.js           npm run test:auth
+│   ├── test-auth.js           npm run test:auth
+│   └── test-lookup.js         npm run test:lookup
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
@@ -135,7 +138,9 @@ cleano-backend/
     ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
     ├── utils/response.js      ok/created + HttpError
     ├── controllers/authController.js    register, login
-    └── routes/authRoutes.js
+    ├── controllers/userController.js    lookup pelanggan
+    ├── routes/authRoutes.js
+    └── routes/userRoutes.js
 ```
 
 ## Catatan teknis
