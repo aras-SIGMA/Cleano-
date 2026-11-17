@@ -14,7 +14,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 |---|---|---|---|---|
 | B1 | Auth | `feature/auth-register-login` | `[x]` selesai, 4 commit | TC-01,02,03 |
 | B2 | Users lookup | `feature/users-lookup` | `[x]` selesai, 2 commit | TC-11 |
-| B3 | Master data | `feature/master-data` | `[ ]` | TC-04 |
+| B3 | Master data | `feature/master-data` | `[~]` belum commit | TC-04 |
 | B4 | Order create | `feature/orders-create` | `[ ]` | TC-05,06,07 |
 | B5 | Order list | `feature/orders-list` | `[ ]` | TC-10 |
 | B6 | Order status & estafet | `feature/orders-status` | `[ ]` | TC-09,13 |
@@ -75,15 +75,27 @@ Branch `feature/master-data` · **prasyarat B4**
 | `GET /api/rewards` | semua login (pelanggan: `is_active = 1`) |
 | `POST /api/rewards`, `PUT /:id`, `PATCH /:id/toggle` | kasir |
 
-- [ ] `serviceController.js` + `serviceRoutes.js`
-- [ ] `machineController.js` + `machineRoutes.js`
-- [ ] `rewardController.js` + `rewardRoutes.js`
-- [ ] Tangkap `ER_ROW_IS_REFERENCED_2` → `409` (FK `on delete restrict`)
-- [ ] `GET /api/rewards` memfilter `is_active = 1` bila `role === 'pelanggan'`
-- [ ] `scripts/test-master.js`
+- [x] `serviceController.js` + `serviceRoutes.js`
+- [x] `machineController.js` + `machineRoutes.js`
+- [x] `rewardController.js` + `rewardRoutes.js`
+- [x] Tangkap `ER_ROW_IS_REFERENCED_2` → `409` (FK `on delete restrict`)
+- [x] `GET /api/rewards` memfilter `is_active = 1` bila `role === 'pelanggan'`
+- [x] `scripts/test-master.js` — 59 asersi
 
 **Catatan:** tidak ada `DELETE /api/machines` di PRD — jangan ditambahkan.
 Mesin dinonaktifkan lewat `status = 'maintenance'`.
+
+**Keputusan yang mengikat:**
+- `status = 'digunakan'` **tidak bisa** ditulis lewat API (baik POST maupun PATCH). Status itu milik alur order; mesin yang disetel manual akan tampak terpakai tanpa order dan tidak pernah dilepas.
+- `capacity_kg` hanya boleh diisi saat POST. Spesifikasi unit fisik, bukan kondisi sesaat.
+- `PUT /api/services/:id` mewajibkan semua field. Default hanya berlaku di POST; kalau default dipakai di PUT, field yang tidak dikirim ditimpa diam-diam (mis. layanan tanpa mesin jadi butuh mesin).
+- `PUT /api/rewards/:id` tidak menyentuh `is_active`; status aktif hanya lewat `PATCH /:id/toggle`.
+- Semua route ber-`:id` memakai `parseId()` — `:id` non-angka dibalas 400, bukan 500 yang membocorkan SQL.
+
+**Terbuka:**
+- [ ] `DELETE /api/services/:id` tidak punya padanan "nonaktifkan". Layanan yang sudah dipakai order akan selalu 409 dan tidak bisa disembunyikan dari POS. Pertimbangkan kolom `is_active` bila ini jadi masalah nyata — ubah skema dulu, jangan tambal di backend.
+- [ ] Belum ada paginasi di ketiga endpoint GET. Jumlah layanan/mesin/reward kecil dan terbatas, jadi ditunda.
+- [ ] `capacity_kg` dikembalikan MySQL sebagai string (`"8.00"`), bukan angka. Klien Flutter harus mengonversi. Belum diuji dampaknya ke UI.
 
 ---
 
