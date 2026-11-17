@@ -15,7 +15,8 @@
     "test:auth": "node scripts/test-auth.js",
     "test:lookup": "node scripts/test-lookup.js",
     "db:load": "node scripts/load-schema.js",
-    "db:smoke": "node scripts/smoke-test.js"
+    "db:smoke": "node scripts/smoke-test.js",
+    "test:master": "node scripts/test-master.js"
   },
   "keywords": [],
   "author": "",

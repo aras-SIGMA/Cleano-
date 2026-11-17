@@ -66,12 +66,13 @@ npm run check      # env, koneksi Aiven, kelengkapan skema
 npm run db:smoke   # buktikan trigger & guard benar-benar bekerja di Aiven
 npm run test:auth  # uji register/login lewat HTTP, user uji dihapus lagi
 npm run test:lookup # uji users/lookup, tidak mengubah data
+npm run test:master # uji CRUD layanan/mesin/reward, transaksi + ROLLBACK
 ```
 
 `npm run db:smoke` menjalankan seluruh ujinya di dalam satu transaksi dan men-`ROLLBACK`
 di akhir, jadi data produksi tidak pernah tersentuh.
 
-`npm run test:auth` membuat user sementara di Aiven, menguji 28 skenario, lalu
+`npm run test:auth` membuat user sementara di Aiven, menguji 38 skenario, lalu
 menghapus user tersebut. Saldo poin pelanggan seeder tidak berubah.
 
 Contoh keluaran sehat:
@@ -114,6 +115,13 @@ OK    rollback bersih          orders 3 -> 3
 | POST | `/api/auth/register` | daftar pelanggan baru, `member_code` otomatis |
 | POST | `/api/auth/login` | login, mengembalikan JWT 24 jam + profil |
 | GET | `/api/users/lookup?query=` | cari pelanggan via `member_code` atau nomor HP (kasir) |
+| GET | `/api/services` | daftar layanan (semua login) |
+| POST/PUT/DELETE | `/api/services[/:id]` | kelola layanan (kasir) |
+| GET | `/api/machines` | daftar mesin (semua login) |
+| POST/PATCH | `/api/machines[/:id]` | tambah mesin, ubah status/kapasitas/estimasi (kasir) |
+| GET | `/api/rewards` | daftar reward; pelanggan hanya yang aktif |
+| POST/PUT | `/api/rewards[/:id]` | kelola reward (kasir) |
+| PATCH | `/api/rewards/:id/toggle` | aktif/nonaktifkan reward (kasir) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -130,17 +138,27 @@ cleano-backend/
 │   ├── load-schema.js         npm run db:load
 │   ├── smoke-test.js          npm run db:smoke
 │   ├── test-auth.js           npm run test:auth
-│   └── test-lookup.js         npm run test:lookup
+│   ├── test-lookup.js         npm run test:lookup
+│   └── test-master.js         npm run test:master
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
     ├── middlewares/authMiddleware.js    verifyToken / checkRole
     ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
     ├── utils/response.js      ok/created + HttpError
+    ├── utils/validate.js      zod safeParse -> HttpError 400
+    ├── validators/authValidator.js     skema register/login
+    ├── validators/masterValidator.js   skema layanan/mesin/reward
     ├── controllers/authController.js    register, login
     ├── controllers/userController.js    lookup pelanggan
+    ├── controllers/serviceController.js layanan
+    ├── controllers/machineController.js mesin
+    ├── controllers/rewardController.js  reward
     ├── routes/authRoutes.js
-    └── routes/userRoutes.js
+    ├── routes/userRoutes.js
+    ├── routes/serviceRoutes.js
+    ├── routes/machineRoutes.js
+    └── routes/rewardRoutes.js
 ```
 
 ## Catatan teknis
