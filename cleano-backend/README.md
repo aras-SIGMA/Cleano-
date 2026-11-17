@@ -124,6 +124,8 @@ OK    rollback bersih          orders 3 -> 3
 | PATCH | `/api/rewards/:id/toggle` | aktif/nonaktifkan reward (kasir) |
 | POST | `/api/orders` | buat order + foto bukti (`multipart/form-data`, kasir) |
 | GET | `/api/orders?status=&page=&pageSize=` | daftar order; pelanggan hanya miliknya sendiri |
+| PATCH | `/api/orders/:id/status` | ubah status; melepas mesin + `next_queue_order` (kasir) |
+| PATCH | `/api/orders/:id/confirm-relay` | pasang order antre ke mesin, mulai hitung mundur (kasir) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -143,24 +145,26 @@ cleano-backend/
 │   ├── test-lookup.js         npm run test:lookup
 │   ├── test-master.js         npm run test:master
 │   ├── test-orders-create.js  npm run test:orders-create
-│   └── test-orders-list.js    npm run test:orders-list
+│   ├── test-orders-list.js    npm run test:orders-list
+│   └── test-orders-status.js  npm run test:orders-status
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
     ├── middlewares/authMiddleware.js    verifyToken / checkRole
     ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
     ├── services/orderAllocation.js      aturan alokasi mesin (dipakai bersama)
+    ├── services/orderStatus.js          transisi status + estafet mesin
     ├── utils/response.js      ok/created + HttpError
     ├── utils/validate.js      zod safeParse -> HttpError 400
     ├── validators/authValidator.js     skema register/login
     ├── validators/masterValidator.js   skema layanan/mesin/reward
-    ├── validators/orderValidator.js    skema pembuatan order
+    ├── validators/orderValidator.js    skema order: buat, daftar, status, relay
     ├── controllers/authController.js    register, login
     ├── controllers/userController.js    lookup pelanggan
     ├── controllers/serviceController.js layanan
     ├── controllers/machineController.js mesin
     ├── controllers/rewardController.js  reward
-    ├── controllers/orderController.js   buat order, alokasi mesin, voucher
+    ├── controllers/orderController.js   buat/daftar order, ubah status, estafet
     ├── routes/authRoutes.js
     ├── routes/userRoutes.js
     ├── routes/serviceRoutes.js

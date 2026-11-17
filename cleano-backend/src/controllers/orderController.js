@@ -3,9 +3,14 @@
 const fs = require('fs');
 const { pool } = require('../config/database');
 const { created, ok, badRequest, notFound, HttpError } = require('../utils/response');
-const { parse } = require('../utils/validate');
-const { orderCreateBody, orderListQuery } = require('../validators/orderValidator');
+const { parse, parseId } = require('../utils/validate');
+const {
+  orderCreateBody, orderListQuery, orderStatusBody, confirmRelayBody,
+} = require('../validators/orderValidator');
 const { allocateMachine, estimateQueueWait } = require('../services/orderAllocation');
+const {
+  attemptStatusChange, attemptConfirmRelay, runTx,
+} = require('../services/orderStatus');
 const { snap, enabled } = require('../config/midtrans');
 
 // Kolom respons diambil dari view supaya nama pelanggan/layanan ikut terbawa.
@@ -213,4 +218,34 @@ async function list(req, res) {
   }, 'Daftar order.');
 }
 
-module.exports = { create, attemptOrder, placeOrder, list };
+// PATCH /api/orders/:id/status — kasir
+async function updateStatus(req, res) {
+  const id = parseId(req.params.id);
+  const b = parse(orderStatusBody, req.body);
+
+  const result = await runTx((conn) => attemptStatusChange(conn, { orderId: id, status: b.status }));
+  const [[row]] = await pool.query(`select ${COLS} from vw_order_details where id = ?`, [id]);
+
+  return ok(res, {
+    ...row,
+    // Hanya terisi ketika mesin benar-benar dilepas pada transisi ini. UI memakai
+    // null sebagai "tidak ada estafet", jadi jangan kirim objek kosong.
+    freed_machine_id: result.freedMachineId,
+    next_queue_order: result.nextQueueOrder,
+  }, 'Status order diperbarui.');
+}
+
+// PATCH /api/orders/:id/confirm-relay — kasir
+async function confirmRelay(req, res) {
+  const id = parseId(req.params.id);
+  const b = parse(confirmRelayBody, req.body);
+
+  const result = await runTx((conn) => attemptConfirmRelay(conn, { orderId: id, machineId: b.machine_id }));
+  const [[row]] = await pool.query(`select ${COLS} from vw_order_details where id = ?`, [id]);
+
+  return ok(res, row, `Order mulai dicuci di ${result.machineCode}.`);
+}
+
+module.exports = {
+  create, attemptOrder, placeOrder, list, updateStatus, confirmRelay,
+};

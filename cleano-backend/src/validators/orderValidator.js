@@ -54,4 +54,23 @@ const orderListQuery = z.object({
   ),
 });
 
-module.exports = { orderCreateBody, orderListQuery };
+// Tujuan status dari endpoint PATCH /:id/status. 'proses_cuci' tidak ada di sini
+// karena hanya confirm-relay yang boleh menetapkannya (butuh machine_id).
+const orderStatusBody = z.object({
+  status: z.enum(['siap_diambil', 'selesai', 'batal'], {
+    error: 'Status tujuan hanya boleh siap_diambil, selesai, atau batal.',
+  }),
+});
+
+const confirmRelayBody = z.object({
+  machine_id: z.preprocess(
+    (v) => (v === undefined || v === null || v === '' ? null : Number(v)),
+    z.number({ error: 'ID mesin harus angka.' }).int('ID mesin harus bilangan bulat.')
+      .positive('ID mesin harus lebih dari 0.')
+      .refine((v) => v !== null, 'ID mesin wajib diisi.'),
+  ),
+});
+
+module.exports = {
+  orderCreateBody, orderListQuery, orderStatusBody, confirmRelayBody,
+};
