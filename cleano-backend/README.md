@@ -126,6 +126,7 @@ OK    rollback bersih          orders 3 -> 3
 | GET | `/api/orders?status=&page=&pageSize=` | daftar order; pelanggan hanya miliknya sendiri |
 | PATCH | `/api/orders/:id/status` | ubah status; melepas mesin + `next_queue_order` (kasir) |
 | PATCH | `/api/orders/:id/confirm-relay` | pasang order antre ke mesin, mulai hitung mundur (kasir) |
+| POST | `/api/orders/:id/sync-payment` | cek status ke Midtrans Core, tandai lunas bila settlement (kasir) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -146,7 +147,8 @@ cleano-backend/
 │   ├── test-master.js         npm run test:master
 │   ├── test-orders-create.js  npm run test:orders-create
 │   ├── test-orders-list.js    npm run test:orders-list
-│   └── test-orders-status.js  npm run test:orders-status
+│   ├── test-orders-status.js  npm run test:orders-status
+│   └── test-sync-payment.js    npm run test:sync-payment
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
@@ -154,6 +156,7 @@ cleano-backend/
     ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
     ├── services/orderAllocation.js      aturan alokasi mesin (dipakai bersama)
     ├── services/orderStatus.js          transisi status + estafet mesin
+    ├── services/paymentSync.js          cek status Midtrans, tandai lunas
     ├── utils/response.js      ok/created + HttpError
     ├── utils/validate.js      zod safeParse -> HttpError 400
     ├── validators/authValidator.js     skema register/login
@@ -164,7 +167,7 @@ cleano-backend/
     ├── controllers/serviceController.js layanan
     ├── controllers/machineController.js mesin
     ├── controllers/rewardController.js  reward
-    ├── controllers/orderController.js   buat/daftar order, ubah status, estafet
+    ├── controllers/orderController.js   buat/daftar order, ubah status, estafet, sync bayar
     ├── routes/authRoutes.js
     ├── routes/userRoutes.js
     ├── routes/serviceRoutes.js
