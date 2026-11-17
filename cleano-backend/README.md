@@ -127,6 +127,7 @@ OK    rollback bersih          orders 3 -> 3
 | PATCH | `/api/orders/:id/status` | ubah status; melepas mesin + `next_queue_order` (kasir) |
 | PATCH | `/api/orders/:id/confirm-relay` | pasang order antre ke mesin, mulai hitung mundur (kasir) |
 | POST | `/api/orders/:id/sync-payment` | cek status ke Midtrans Core, tandai lunas bila settlement (kasir) |
+| GET | `/api/dashboard/summary` | lima kartu metrik + tren omzet 7 hari (kasir) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -148,7 +149,8 @@ cleano-backend/
 │   ├── test-orders-create.js  npm run test:orders-create
 │   ├── test-orders-list.js    npm run test:orders-list
 │   ├── test-orders-status.js  npm run test:orders-status
-│   └── test-sync-payment.js    npm run test:sync-payment
+│   ├── test-sync-payment.js    npm run test:sync-payment
+│   └── test-dashboard.js       npm run test:dashboard
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
@@ -168,12 +170,14 @@ cleano-backend/
     ├── controllers/machineController.js mesin
     ├── controllers/rewardController.js  reward
     ├── controllers/orderController.js   buat/daftar order, ubah status, estafet, sync bayar
+    ├── controllers/dashboardController.js ringkasan kartu + tren omzet 7 hari
     ├── routes/authRoutes.js
     ├── routes/userRoutes.js
     ├── routes/serviceRoutes.js
     ├── routes/machineRoutes.js
     ├── routes/rewardRoutes.js
-    └── routes/orderRoutes.js
+    ├── routes/orderRoutes.js
+    └── routes/dashboardRoutes.js
 ```
 
 ## Catatan teknis
