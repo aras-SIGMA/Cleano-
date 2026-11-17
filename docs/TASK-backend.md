@@ -14,8 +14,8 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 |---|---|---|---|---|
 | B1 | Auth | `feature/auth-register-login` | `[x]` selesai, 4 commit | TC-01,02,03 |
 | B2 | Users lookup | `feature/users-lookup` | `[x]` selesai, 2 commit | TC-11 |
-| B3 | Master data | `feature/master-data` | `[~]` belum commit | TC-04 |
-| B4 | Order create | `feature/orders-create` | `[ ]` | TC-05,06,07 |
+| B3 | Master data | `feature/master-data` | `[x]` selesai, di `develop` | TC-04 |
+| B4 | Order create | `feature/orders-create` | `[~]` belum commit | TC-05,06,07 |
 | B5 | Order list | `feature/orders-list` | `[ ]` | TC-10 |
 | B6 | Order status & estafet | `feature/orders-status` | `[ ]` | TC-09,13 |
 | B7 | Sync payment | `feature/orders-sync-payment` | `[ ]` | TC-08 |
@@ -103,21 +103,51 @@ Mesin dinonaktifkan lewat `status = 'maintenance'`.
 
 Branch `feature/orders-create` · **paket terberat**
 
-- [ ] `POST /api/orders` multipart, `upload.single('image')` wajib
-- [ ] Validasi `user_id`, `service_id`, `weight > 0`, `payment_method`
-- [ ] `order_code` `CLN-YYYYMMDD-XXXX` dari `MAX` per tanggal, di dalam transaksi
-- [ ] Voucher: `SELECT ... FOR UPDATE` pada `user_vouchers` milik `user_id`, `is_used = 0`
-- [ ] Mesin: `SELECT id FROM machines WHERE status='tersedia' ORDER BY id LIMIT 1 FOR UPDATE`
-- [ ] Mesin penuh → `status='antre'`, `queue_wait_minutes` dari `MIN(estimated_finish_at)`
-- [ ] `requires_machine = 0` → `status='sedang_diproses'`, `machine_id=NULL`, `queue=0`
-- [ ] INSERT — **trigger** mengisi `subtotal/discount/total`, `paid_at`, `customer_tier_snapshot`,
+- [x] `POST /api/orders` multipart, `upload.single('image')` wajib
+- [x] Validasi `user_id`, `service_id`, `weight > 0`, `payment_method`
+- [x] `order_code` `CLN-YYYYMMDD-XXXX` dari `MAX` per tanggal, di dalam transaksi
+- [x] Voucher: `SELECT ... FOR UPDATE` pada `user_vouchers` milik `user_id`, `is_used = 0`
+- [x] Mesin: `SELECT id FROM machines WHERE status='tersedia' ORDER BY id LIMIT 1 FOR UPDATE`
+- [x] Mesin penuh → `status='antre'`, `queue_wait_minutes` dari `MIN(estimated_finish_at)`
+- [x] `requires_machine = 0` → `status='sedang_diproses'`, `machine_id=NULL`, `queue=0`
+- [x] INSERT — **trigger** mengisi `subtotal/discount/total`, `paid_at`, `customer_tier_snapshot`,
       `points_awarded`, dan menandai voucher terpakai
-- [ ] Midtrans: `snap.createTransaction()` → `UPDATE snap_token, snap_redirect_url`
-- [ ] Retry `ER_LOCK_DEADLOCK` (1213) maksimal 3×
-- [ ] Respons `201` berisi `order_code`, `total_price`, `status`, `snap_redirect_url`
-- [ ] `scripts/test-orders-create.js` (transaksi + `ROLLBACK`)
+- [x] Midtrans: `snap.createTransaction()` → `UPDATE snap_token, snap_redirect_url`
+- [x] Retry `ER_LOCK_DEADLOCK` (1213) maksimal 3×
+- [x] Respons `201` berisi `order_code`, `total_price`, `status`, `snap_redirect_url`
+- [x] `scripts/test-orders-create.js` — 51 asersi
 
 **Jebakan:** jangan kirim `subtotal_price`/`discount_amount`/`total_price` — trigger menolak.
+Sudah diuji: trigger menimpa nilai kiriman klien.
+
+**Keputusan yang mengikat:**
+- Voucher diterima sebagai `voucher_code` (sesuai PRD-02 §4.3), bukan `voucher_id`.
+  Kode dicari dan dikunci di dalam transaksi, lalu `voucher_id` yang di-INSERT.
+- `snap_token` **tidak pernah** masuk respons. Hanya `snap_redirect_url`. Aturan yang
+  sama berlaku untuk B5 — kolom eksplisit, bukan `select *`.
+- `attemptOrder(conn, input)` dipisah dari `placeOrder(input)` supaya skrip uji bisa
+  menjalankannya di dalam transaksi sendiri lalu `ROLLBACK`. Order tidak bisa dihapus
+  (trigger L-07), jadi rollback satu-satunya cara membersihkan hasil uji.
+- Aturan alokasi mesin tinggal di `src/services/orderAllocation.js` karena
+  `confirm-relay` (B6) memakai aturan yang sama. Menyalinnya ke dua controller akan
+  membuat dua versi yang cepat atau lambat berbeda.
+- Retry hanya untuk `ER_LOCK_DEADLOCK` / `ER_LOCK_WAIT_TIMEOUT` / `ER_DUP_ENTRY` pada
+  `order_code`. `ER_DUP_ENTRY` dari `uq_orders_voucher` tidak diulang — itu berarti
+  voucher sudah dipakai order lain.
+- Foto yang sudah tersimpan di disk dihapus kembali bila request ditolak.
+
+**Terbuka:**
+- [ ] `for update` pada SELECT voucher belum diuji balapan. Membuktikannya butuh satu
+      transaksi yang COMMIT, dan order yang sudah commit tidak bisa dihapus. Penjaga
+      nyata jalur ini adalah `uq_orders_voucher` + trigger AFTER INSERT.
+- [ ] Panggilan HTTP Midtrans berjalan **di dalam** transaksi (mengikuti PRD-02 §4.3
+      langkah 5), sehingga lock voucher/mesin ditahan selama round-trip gateway. Kalau
+      latensi Midtrans mulai menahan kasir lain, pindahkan ke pola outbox.
+- [ ] `queue_wait_minutes` dihitung saat order dibuat dan tidak dihitung ulang ketika
+      antrean berubah. B6 yang akan memperbaruinya.
+- [ ] Kegagalan Midtrans setelah INSERT mengembalikan 502 dan order ikut ter-rollback —
+      transaksi Midtrans yang sudah terlanjur dibuat menjadi yatim di sisi gateway.
+      Belum ada rekonsiliasi.
 
 ---
 
