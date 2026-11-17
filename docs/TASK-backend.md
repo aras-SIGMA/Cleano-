@@ -18,7 +18,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B4 | Order create | `feature/orders-create` | `[x]` selesai, di `develop` | TC-05,06,07 |
 | B5 | Order list | `feature/orders-list` | `[x]` selesai, di `develop` | TC-10 |
 | B6 | Order status & estafet | `feature/orders-status` | `[~]` belum commit | TC-09,13 |
-| B7 | Sync payment | `feature/orders-sync-payment` | `[ ]` | TC-08 |
+| B7 | Sync payment | `feature/orders-sync-payment` | `[~]` belum commit | TC-08 |
 | B8 | Dashboard | `feature/dashboard-summary` | `[ ]` | TC-13 |
 | B9 | Rewards redeem | `feature/rewards-redeem` | `[ ]` | TC-12 |
 | B10 | Pengerasan | `feature/hardening` | `[ ]` | — |
@@ -236,11 +236,38 @@ harus ditolak backend — trigger tidak memvalidasi semuanya.
 
 Branch `feature/orders-sync-payment`
 
-- [ ] `POST /api/orders/:id/sync-payment` — `checkRole(['kasir'])`
-- [ ] Panggil Midtrans Core `transaction.status(order_code)`
-- [ ] `settlement`/`capture` → `UPDATE payment_status='lunas', paid_at=now()`
-- [ ] Mode stub (server key kosong) → `503` dengan pesan jelas, bukan sukses palsu
-- [ ] `scripts/test-sync-payment.js`
+- [x] `POST /api/orders/:id/sync-payment` — `checkRole(['kasir'])`
+- [x] Panggil Midtrans Core `transaction.status(order_code)`
+- [x] `settlement`/`capture` → `UPDATE payment_status='lunas', paid_at=now()`
+- [x] Mode stub (server key kosong) → `503` dengan pesan jelas, bukan sukses palsu
+- [x] `scripts/test-sync-payment.js` — 37 asersi (transaksi + `ROLLBACK`)
+
+**Keputusan yang mengikat:**
+- **`capture` hanya lunas bila `fraud_status = 'accept'`.** Kartu kredit bisa
+  `capture` lalu ditahan pemeriksaan fraud. `capture + challenge` berarti uang belum
+  tentu sampai, jadi order tetap `belum_bayar`. `settlement` selalu lunas.
+- **`paid_at` tidak pernah ditulis backend.** Trigger `BEFORE UPDATE` yang menstempelnya;
+  menulisnya sendiri ditolak L-04. Sudah diuji dengan mutasi yang menambahkan `paid_at = now()`
+  — seluruh kasus lunas langsung gagal.
+- **`enabled` diperiksa sebelum transaksi dibuka.** Tanpa server key, `503`, bukan sukses palsu.
+- **Order sudah lunas tidak memanggil gateway.** Dua klik tombol tidak menghasilkan dua
+  round-trip dan dua pesan berbeda.
+- **Order tunai ditolak `400`**, bukan 404 — ordernya ada, transaksi Midtrans-nya yang tidak.
+- **Order `batal` tidak bisa dilunasi.** Statusnya final dan uangnya tidak punya transaksi
+  yang bisa dipertanggungjawabkan.
+- **`WHERE payment_status = 'belum_bayar'`** pada UPDATE menutup balapan dua sinkronisasi
+  bersamaan tanpa menahan kunci selama round-trip gateway. Baris order sengaja dibaca tanpa
+  `FOR UPDATE` karena panggilan HTTP berjalan di antaranya.
+- Midtrans `404` (transaksi tidak pernah dibuat) → `409`. Gangguan lain → `502`.
+
+**Terbuka:**
+- [ ] Tidak ada rekonsiliasi untuk order `midtrans` yang `snap.createTransaction` gagal setelah
+      INSERT: ordernya ada di DB, transaksinya tidak ada di gateway, dan `sync-payment`
+      akan selamanya `409`.
+- [ ] `expire`/`deny`/`cancel` dari gateway tidak mengubah apa pun di order. Order tetap
+      `belum_bayar` dan status order tidak ikut batal — keputusan bisnis belum ada.
+- [ ] `refund` tidak ditangani. L-05 melarang `lunas → belum_bayar`, jadi refund harus
+      lewat kolom terpisah bila nanti dibutuhkan.
 
 ---
 

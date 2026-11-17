@@ -19,7 +19,8 @@
     "test:master": "node scripts/test-master.js",
     "test:orders-create": "node scripts/test-orders-create.js",
     "test:orders-list": "node scripts/test-orders-list.js",
-    "test:orders-status": "node scripts/test-orders-status.js"
+    "test:orders-status": "node scripts/test-orders-status.js",
+    "test:sync-payment": "node scripts/test-sync-payment.js"
   },
   "keywords": [],
   "author": "",

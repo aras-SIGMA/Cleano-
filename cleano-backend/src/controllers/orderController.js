@@ -11,6 +11,7 @@ const { allocateMachine, estimateQueueWait } = require('../services/orderAllocat
 const {
   attemptStatusChange, attemptConfirmRelay, runTx,
 } = require('../services/orderStatus');
+const { attemptSyncPayment } = require('../services/paymentSync');
 const { snap, enabled } = require('../config/midtrans');
 
 // Kolom respons diambil dari view supaya nama pelanggan/layanan ikut terbawa.
@@ -246,6 +247,33 @@ async function confirmRelay(req, res) {
   return ok(res, row, `Order mulai dicuci di ${result.machineCode}.`);
 }
 
+// POST /api/orders/:id/sync-payment — kasir
+async function syncPayment(req, res) {
+  const id = parseId(req.params.id);
+
+  // Mode stub: tanpa server key, Midtrans tidak bisa dihubungi. Jangan pernah
+  // membalas sukses palsu — kasir akan mengira pelanggan sudah lunas.
+  if (!enabled) {
+    throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
+  }
+
+  const result = await runTx((conn) => attemptSyncPayment(conn, id));
+  const [[row]] = await pool.query(`select ${COLS} from vw_order_details where id = ?`, [id]);
+
+  const pesan = result.changed
+    ? 'Pembayaran dikonfirmasi lunas.'
+    : result.alreadyPaid
+      ? 'Order ini sudah lunas.'
+      : `Midtrans melaporkan status "${result.transactionStatus}", belum lunas.`;
+
+  return ok(res, {
+    ...row,
+    transaction_status: result.transactionStatus,
+    fraud_status: result.fraudStatus,
+    changed: result.changed,
+  }, pesan);
+}
+
 module.exports = {
-  create, attemptOrder, placeOrder, list, updateStatus, confirmRelay,
+  create, attemptOrder, placeOrder, list, updateStatus, confirmRelay, syncPayment,
 };
