@@ -2,9 +2,9 @@
 
 const fs = require('fs');
 const { pool } = require('../config/database');
-const { created, badRequest, notFound, HttpError } = require('../utils/response');
+const { created, ok, badRequest, notFound, HttpError } = require('../utils/response');
 const { parse } = require('../utils/validate');
-const { orderCreateBody } = require('../validators/orderValidator');
+const { orderCreateBody, orderListQuery } = require('../validators/orderValidator');
 const { allocateMachine, estimateQueueWait } = require('../services/orderAllocation');
 const { snap, enabled } = require('../config/midtrans');
 
@@ -162,4 +162,55 @@ async function create(req, res) {
   }
 }
 
-module.exports = { create, attemptOrder, placeOrder };
+// GET /api/orders — semua login. Pelanggan hanya melihat ordernya sendiri.
+//
+// Kolom eksplisit, tanpa select *: view memuat snap_token dan snap_redirect_url,
+// dan keduanya kredensial pembayaran. snap_token tidak pernah dikirim ke siapa
+// pun; snap_redirect_url hanya ke kasir yang memang menjalankan pembayaran.
+const LIST_COLS_KASIR = `id, order_code, user_id, customer_name, customer_phone, member_code,
+  customer_tier, service_id, service_name, price_per_kg, requires_machine, machine_id, machine_code,
+  machine_finish_at, weight, subtotal_price, discount_amount, total_price, payment_method,
+  payment_status, paid_at, snap_redirect_url, status, queue_wait_minutes, points_awarded,
+  image_url, notes, voucher_id, voucher_code, created_at, updated_at`;
+
+const LIST_COLS_PELANGGAN = `id, order_code, service_id, service_name, machine_id, machine_code,
+  machine_finish_at, weight, subtotal_price, discount_amount, total_price, payment_method,
+  payment_status, status, queue_wait_minutes, points_awarded, image_url, notes,
+  voucher_code, created_at, updated_at`;
+
+async function list(req, res) {
+  const q = parse(orderListQuery, req.query);
+  const isKasir = req.user.role === 'kasir';
+
+  // user_id diambil dari token, tidak pernah dari query string — kalau dari
+  // query, pelanggan cukup mengubah angkanya untuk membaca order orang lain.
+  const where = [];
+  const values = [];
+  if (!isKasir) { where.push('user_id = ?'); values.push(req.user.id); }
+  if (q.status) { where.push('status = ?'); values.push(q.status); }
+
+  const whereSql = where.length ? `where ${where.join(' and ')}` : '';
+  const offset = (q.page - 1) * q.pageSize;
+
+  const [[{ total }]] = await pool.query(
+    `select count(*) as total from vw_order_details ${whereSql}`, values,
+  );
+
+  const [rows] = await pool.query(
+    `select ${isKasir ? LIST_COLS_KASIR : LIST_COLS_PELANGGAN}
+       from vw_order_details ${whereSql}
+      order by created_at desc, id desc
+      limit ? offset ?`,
+    [...values, q.pageSize, offset],
+  );
+
+  return ok(res, {
+    items: rows,
+    page: q.page,
+    pageSize: q.pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / q.pageSize)),
+  }, 'Daftar order.');
+}
+
+module.exports = { create, attemptOrder, placeOrder, list };

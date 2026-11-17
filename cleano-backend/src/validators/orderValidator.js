@@ -35,4 +35,23 @@ const orderCreateBody = z.object({
   ),
 });
 
-module.exports = { orderCreateBody };
+// Query string selalu teks, jadi angka di-koersi. Batas pageSize 100 agar satu
+// permintaan tidak bisa memaksa MySQL mengirim seluruh riwayat order.
+const orderListQuery = z.object({
+  status: z.enum(['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil', 'selesai', 'batal'], {
+    error: 'Status order tidak dikenal.',
+  }).optional(),
+  page: z.preprocess(
+    (v) => (v === undefined || v === '' ? 1 : Number(v)),
+    z.number({ error: 'Halaman harus angka.' }).int('Halaman harus bilangan bulat.')
+      .positive('Halaman minimal 1.'),
+  ),
+  pageSize: z.preprocess(
+    (v) => (v === undefined || v === '' ? 20 : Number(v)),
+    z.number({ error: 'pageSize harus angka.' }).int('pageSize harus bilangan bulat.')
+      .positive('pageSize minimal 1.')
+      .max(100, 'pageSize maksimal 100.'),
+  ),
+});
+
+module.exports = { orderCreateBody, orderListQuery };

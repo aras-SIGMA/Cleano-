@@ -15,8 +15,8 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B1 | Auth | `feature/auth-register-login` | `[x]` selesai, 4 commit | TC-01,02,03 |
 | B2 | Users lookup | `feature/users-lookup` | `[x]` selesai, 2 commit | TC-11 |
 | B3 | Master data | `feature/master-data` | `[x]` selesai, di `develop` | TC-04 |
-| B4 | Order create | `feature/orders-create` | `[~]` belum commit | TC-05,06,07 |
-| B5 | Order list | `feature/orders-list` | `[ ]` | TC-10 |
+| B4 | Order create | `feature/orders-create` | `[x]` selesai, di `develop` | TC-05,06,07 |
+| B5 | Order list | `feature/orders-list` | `[~]` belum commit | TC-10 |
 | B6 | Order status & estafet | `feature/orders-status` | `[ ]` | TC-09,13 |
 | B7 | Sync payment | `feature/orders-sync-payment` | `[ ]` | TC-08 |
 | B8 | Dashboard | `feature/dashboard-summary` | `[ ]` | TC-13 |
@@ -155,13 +155,34 @@ Sudah diuji: trigger menimpa nilai kiriman klien.
 
 Branch `feature/orders-list`
 
-- [ ] `GET /api/orders` membaca `vw_order_details`
-- [ ] Filter `?status=` (validasi terhadap enum)
-- [ ] Role `pelanggan` → `WHERE user_id = req.user.id`
-- [ ] **`SELECT` kolom eksplisit** — `snap_token` & `snap_redirect_url` tidak boleh terkirim
+- [x] `GET /api/orders` membaca `vw_order_details`
+- [x] Filter `?status=` (validasi terhadap enum)
+- [x] Role `pelanggan` → `WHERE user_id = req.user.id`
+- [x] **`SELECT` kolom eksplisit** — `snap_token` & `snap_redirect_url` tidak boleh terkirim
       ke pelanggan
-- [ ] Pagination `?page=&pageSize=` default 20, maks 100
-- [ ] `scripts/test-orders-list.js` — termasuk pelanggan A tidak bisa melihat order B
+- [x] Pagination `?page=&pageSize=` default 20, maks 100
+- [x] `scripts/test-orders-list.js` — 34 asersi, termasuk pelanggan A tidak bisa melihat order B
+
+**Keputusan yang mengikat:**
+- `user_id` **selalu** diambil dari token, tidak pernah dari query string. Kalau dari query,
+  pelanggan cukup mengubah angkanya untuk membaca order orang lain. Sudah diuji dengan
+  `?user_id=<milik budi>` memakai token rina.
+- Dua daftar kolom terpisah: `LIST_COLS_KASIR` dan `LIST_COLS_PELANGGAN`. Pelanggan tidak
+  menerima `snap_redirect_url`, `customer_name`, `customer_phone`, `member_code`,
+  `price_per_kg`, `requires_machine`, `voucher_id`. `snap_token` tidak pernah dikirim ke
+  siapa pun, termasuk kasir.
+- Urutan `created_at desc, id desc`. `id` ikut diurutkan supaya paginasi stabil ketika dua
+  order punya `created_at` identik — tanpa itu ada baris yang terlewat atau muncul dua kali.
+- Hitung total memakai `vw_order_details` dengan `where` yang sama seperti query datanya.
+  Menghitung dari tabel `orders` tanpa filter membuat `total`/`totalPages` membocorkan
+  jumlah order pelanggan lain.
+- Respons berbentuk `{ items, page, pageSize, total, totalPages }`, bukan array telanjang,
+  supaya UI bisa menampilkan "halaman 1 dari N" tanpa menebak.
+
+**Terbuka:**
+- [ ] Belum ada filter `?search=` untuk kode order atau nama pelanggan. Ditunda.
+- [ ] `GET /api/orders` memakai `offset`, jadi halaman tinggi makin lambat pada data besar.
+      Cukup untuk volume satu outlet; ganti ke keyset pagination bila perlu.
 
 ---
 
