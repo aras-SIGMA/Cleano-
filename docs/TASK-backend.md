@@ -16,8 +16,8 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B2 | Users lookup | `feature/users-lookup` | `[x]` selesai, 2 commit | TC-11 |
 | B3 | Master data | `feature/master-data` | `[x]` selesai, di `develop` | TC-04 |
 | B4 | Order create | `feature/orders-create` | `[x]` selesai, di `develop` | TC-05,06,07 |
-| B5 | Order list | `feature/orders-list` | `[~]` belum commit | TC-10 |
-| B6 | Order status & estafet | `feature/orders-status` | `[ ]` | TC-09,13 |
+| B5 | Order list | `feature/orders-list` | `[x]` selesai, di `develop` | TC-10 |
+| B6 | Order status & estafet | `feature/orders-status` | `[~]` belum commit | TC-09,13 |
 | B7 | Sync payment | `feature/orders-sync-payment` | `[ ]` | TC-08 |
 | B8 | Dashboard | `feature/dashboard-summary` | `[ ]` | TC-13 |
 | B9 | Rewards redeem | `feature/rewards-redeem` | `[ ]` | TC-12 |
@@ -190,17 +190,45 @@ Branch `feature/orders-list`
 
 Branch `feature/orders-status`
 
-- [ ] `PATCH /api/orders/:id/status` — validasi transisi yang sah
-- [ ] `proses_cuci` → `siap_diambil`: bebaskan mesin (`tersedia`, `estimated_finish_at=NULL`)
-- [ ] Ambil antrean terdepan `ORDER BY created_at ASC, id ASC LIMIT 1`
-- [ ] Respons sertakan `next_queue_order` untuk modal 1-ketukan
-- [ ] `PATCH /api/orders/:id/confirm-relay` — kunci mesin `FOR UPDATE`, set `digunakan` +
+- [x] `PATCH /api/orders/:id/status` — validasi transisi yang sah
+- [x] `proses_cuci` → `siap_diambil`: bebaskan mesin (`tersedia`, `estimated_finish_at=NULL`)
+- [x] Ambil antrean terdepan `ORDER BY created_at ASC, id ASC LIMIT 1`
+- [x] Respons sertakan `next_queue_order` untuk modal 1-ketukan
+- [x] `PATCH /api/orders/:id/confirm-relay` — kunci mesin `FOR UPDATE`, set `digunakan` +
       `estimated_finish_at`, order → `proses_cuci`
-- [ ] `siap_diambil` → `selesai` memicu poin (dikerjakan trigger, backend tidak menyentuh)
-- [ ] `scripts/test-orders-status.js` (transaksi + `ROLLBACK`)
+- [x] `siap_diambil` → `selesai` memicu poin (dikerjakan trigger, backend tidak menyentuh)
+- [x] `scripts/test-orders-status.js` — 36 asersi (transaksi + `ROLLBACK`)
 
 **Jebakan:** `trg_before_update_order` menjaga sebagian field. Transisi status yang tidak sah
 harus ditolak backend — trigger tidak memvalidasi semuanya.
+
+**Keputusan yang mengikat:**
+- `TRANSITIONS` menutup keenam nilai enum: `antre → batal`, `proses_cuci → siap_diambil|batal`,
+  `sedang_diproses → siap_diambil|batal`, `siap_diambil → selesai|batal`, `selesai` dan `batal`
+  final. Status yang tidak ada di tabel tidak pernah lolos.
+- **`proses_cuci` tidak bisa jadi tujuan `PATCH /:id/status`.** Endpoint itu tidak membawa
+  `machine_id`, jadi order tidak boleh masuk drum tanpa mesin. Hanya `confirm-relay` yang
+  menetapkannya. Dijaga dua lapis: validator `z.enum` dan `TRANSITIONS` (tidak ada `proses_cuci`
+  sebagai tujuan di status mana pun).
+- **Mesin hanya dilepas bila `order.status === 'proses_cuci' && order.machine_id`.** Tanpa syarat
+  status, `siap_diambil → selesai` ikut membebaskan mesin yang sudah dipakai order lain, dan order
+  itu kehilangan drumnya. Sudah diuji dengan mesin yang sengaja `digunakan` oleh order lain.
+- `machine_id` **dipertahankan** di order setelah mesin dilepas — riwayat "dicuci di MC-01" masih
+  dibaca portal pelanggan.
+- Urutan kunci selalu order dulu, baru mesin, di kedua endpoint. Urutan sebaliknya membuka
+  deadlock melingkar antara `status` dan `confirm-relay`.
+- `next_queue_order` hanya terisi saat transisi ini benar-benar melepas mesin; `null` berarti
+  "tidak ada estafet", sehingga UI tidak perlu membedakan objek kosong.
+- `attemptStatusChange`/`attemptConfirmRelay` dipisah dari transaksinya (pola sama dengan B4)
+  supaya skrip uji bisa `ROLLBACK`. Order tidak bisa dihapus (trigger L-07).
+
+**Terbuka:**
+- [ ] `queue_wait_minutes` tidak dihitung ulang saat antrean berubah — masih sisa temuan B4.
+- [ ] Estafet tidak memeriksa `services.requires_machine`; order layanan tanpa mesin tetap bisa
+      dikonfirmasi ke drum lewat `confirm-relay`. Belum ada di PRD; perlu keputusan.
+- [ ] `selesai` untuk order `midtrans` yang belum lunas tetap diizinkan. Trigger poin mensyaratkan
+      `lunas`, jadi poin tidak masuk, tapi statusnya sudah final dan tidak bisa dikembalikan.
+      Bergantung pada B7.
 
 ---
 
