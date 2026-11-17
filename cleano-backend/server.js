@@ -13,6 +13,7 @@ const serviceRoutes = require('./src/routes/serviceRoutes');
 const machineRoutes = require('./src/routes/machineRoutes');
 const rewardRoutes = require('./src/routes/rewardRoutes');
 const orderRoutes = require('./src/routes/orderRoutes');
+const dashboardRoutes = require('./src/routes/dashboardRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -38,6 +39,7 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/machines', machineRoutes);
 app.use('/api/rewards', rewardRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Rute ${req.method} ${req.originalUrl} tidak ditemukan.` });

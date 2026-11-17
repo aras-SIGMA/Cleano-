@@ -20,7 +20,8 @@
     "test:orders-create": "node scripts/test-orders-create.js",
     "test:orders-list": "node scripts/test-orders-list.js",
     "test:orders-status": "node scripts/test-orders-status.js",
-    "test:sync-payment": "node scripts/test-sync-payment.js"
+    "test:sync-payment": "node scripts/test-sync-payment.js",
+    "test:dashboard": "node scripts/test-dashboard.js"
   },
   "keywords": [],
   "author": "",

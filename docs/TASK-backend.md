@@ -19,7 +19,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B5 | Order list | `feature/orders-list` | `[x]` selesai, di `develop` | TC-10 |
 | B6 | Order status & estafet | `feature/orders-status` | `[~]` belum commit | TC-09,13 |
 | B7 | Sync payment | `feature/orders-sync-payment` | `[~]` belum commit | TC-08 |
-| B8 | Dashboard | `feature/dashboard-summary` | `[ ]` | TC-13 |
+| B8 | Dashboard | `feature/dashboard-summary` | `[~]` belum commit | TC-13 |
 | B9 | Rewards redeem | `feature/rewards-redeem` | `[ ]` | TC-12 |
 | B10 | Pengerasan | `feature/hardening` | `[ ]` | — |
 
@@ -275,10 +275,33 @@ Branch `feature/orders-sync-payment`
 
 Branch `feature/dashboard-summary`
 
-- [ ] `GET /api/dashboard/summary` — `checkRole(['kasir'])`
-- [ ] Gabung `vw_dashboard_summary` + `vw_daily_revenue_7days`
-- [ ] **Isi 7 tanggal** — view tidak memunculkan hari tanpa transaksi
-- [ ] `scripts/test-dashboard.js`
+- [x] `GET /api/dashboard/summary` — `checkRole(['kasir'])`
+- [x] Gabung `vw_dashboard_summary` + `vw_daily_revenue_7days`
+- [x] **Isi 7 tanggal** — view tidak memunculkan hari tanpa transaksi
+- [x] `scripts/test-dashboard.js` — 27 asersi
+
+**Keputusan yang mengikat:**
+- **Tujuh tanggal dihitung MySQL, bukan Node.** Sesi database berjalan `+07:00`; kalau
+  rentang tanggal disusun dengan `Date` di Node, zona waktu mesin server bisa menggeser
+  hasilnya satu hari dan grafik menampilkan hari yang salah. Sudah diuji dengan membandingkan
+  tanggal terakhir terhadap `curdate()` milik MySQL sendiri.
+- **`with recursive` + `left join`** supaya hari tanpa transaksi tetap muncul bernilai 0.
+  Tanpa ini grafik batang akan bolong — `vw_daily_revenue_7days` hanya memuat tanggal yang
+  punya order lunas.
+- **Tanpa `coalesce`.** Kolom yang tidak punya pasangan bernilai `NULL`, dan `Number(null)`
+  sudah `0`. `coalesce` di SQL hanya duplikasi. Mutasi yang mengembalikan `null` membuktikan
+  tesnya menangkap, bukan mutasi yang sia-sia.
+- Semua angka dikonversi ke `number` di controller. `SUM()`/`COUNT()` kembali sebagai string
+  desimal, dan `fl_chart` butuh angka — konversi di klien berarti setiap layar mengulanginya.
+- Bentuk respons datar: lima kartu di akar objek, tren di `revenue_7_days`. Tidak ada
+  pembungkus `summary`/`trend` tambahan yang hanya menambah satu lapis akses.
+
+**Terbuka:**
+- [ ] Tidak ada parameter tanggal. Dashboard selalu 7 hari terakhir; laporan rentang bebas
+      belum diminta.
+- [ ] `today_revenue` memakai `date(paid_at) = curdate()`, jadi `idx_orders_payment_paid`
+      tidak terpakai penuh (fungsi pada kolom). Cukup untuk volume satu outlet.
+- [ ] Ekspor CSV/PDF (PRD-03 §3.1) belum ada endpoint-nya.
 
 ---
 
