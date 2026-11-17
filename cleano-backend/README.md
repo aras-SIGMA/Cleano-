@@ -62,12 +62,16 @@ npm run dev    # auto-reload (node --watch)
 ## Verifikasi
 
 ```bash
-npm run check    # env, koneksi Aiven, kelengkapan skema
-npm run db:smoke # buktikan trigger & guard benar-benar bekerja di Aiven
+npm run check      # env, koneksi Aiven, kelengkapan skema
+npm run db:smoke   # buktikan trigger & guard benar-benar bekerja di Aiven
+npm run test:auth  # uji register/login lewat HTTP, user uji dihapus lagi
 ```
 
 `npm run db:smoke` menjalankan seluruh ujinya di dalam satu transaksi dan men-`ROLLBACK`
 di akhir, jadi data produksi tidak pernah tersentuh.
+
+`npm run test:auth` membuat user sementara di Aiven, menguji 28 skenario, lalu
+menghapus user tersebut. Saldo poin pelanggan seeder tidak berubah.
 
 Contoh keluaran sehat:
 
@@ -106,6 +110,8 @@ OK    rollback bersih          orders 3 -> 3
 | Method | Path | Keterangan |
 |---|---|---|
 | GET | `/api/health` | status server + koneksi database |
+| POST | `/api/auth/register` | daftar pelanggan baru, `member_code` otomatis |
+| POST | `/api/auth/login` | login, mengembalikan JWT 24 jam + profil |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -120,12 +126,16 @@ cleano-backend/
 ├── scripts/
 │   ├── health-check.js        npm run check
 │   ├── load-schema.js         npm run db:load
-│   └── smoke-test.js          npm run db:smoke
+│   ├── smoke-test.js          npm run db:smoke
+│   └── test-auth.js           npm run test:auth
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
     ├── middlewares/authMiddleware.js    verifyToken / checkRole
-    └── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
+    ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
+    ├── utils/response.js      ok/created + HttpError
+    ├── controllers/authController.js    register, login
+    └── routes/authRoutes.js
 ```
 
 ## Catatan teknis

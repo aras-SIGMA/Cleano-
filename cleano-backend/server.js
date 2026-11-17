@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 
 const { pool, ping } = require('./src/config/database');
+const authRoutes = require('./src/routes/authRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -26,6 +27,8 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+app.use('/api/auth', authRoutes);
+
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Rute ${req.method} ${req.originalUrl} tidak ditemukan.` });
 });
@@ -40,19 +43,24 @@ app.use((err, req, res, next) => {
   res.status(status).json({ success: false, message });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Cleano API listening on http://localhost:${PORT}`);
-});
+let server = null;
 
 function shutdown(signal) {
   console.log(`${signal} diterima, menutup server...`);
+  if (!server) process.exit(0);
   server.close(async () => {
     await pool.end().catch(() => {});
     process.exit(0);
   });
 }
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+// hanya bind port & pasang handler shutdown kalau dijalankan langsung (bukan dipakai tes)
+if (require.main === module) {
+  server = app.listen(PORT, () => {
+    console.log(`Cleano API listening on http://localhost:${PORT}`);
+  });
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+}
 
 module.exports = app;
