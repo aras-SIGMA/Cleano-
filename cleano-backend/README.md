@@ -122,6 +122,7 @@ OK    rollback bersih          orders 3 -> 3
 | GET | `/api/rewards` | daftar reward; pelanggan hanya yang aktif |
 | POST/PUT | `/api/rewards[/:id]` | kelola reward (kasir) |
 | PATCH | `/api/rewards/:id/toggle` | aktif/nonaktifkan reward (kasir) |
+| POST | `/api/orders` | buat order + foto bukti (`multipart/form-data`, kasir) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -139,26 +140,31 @@ cleano-backend/
 │   ├── smoke-test.js          npm run db:smoke
 │   ├── test-auth.js           npm run test:auth
 │   ├── test-lookup.js         npm run test:lookup
-│   └── test-master.js         npm run test:master
+│   ├── test-master.js         npm run test:master
+│   └── test-orders-create.js  npm run test:orders-create
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
     ├── middlewares/authMiddleware.js    verifyToken / checkRole
     ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
+    ├── services/orderAllocation.js      aturan alokasi mesin (dipakai bersama)
     ├── utils/response.js      ok/created + HttpError
     ├── utils/validate.js      zod safeParse -> HttpError 400
     ├── validators/authValidator.js     skema register/login
     ├── validators/masterValidator.js   skema layanan/mesin/reward
+    ├── validators/orderValidator.js    skema pembuatan order
     ├── controllers/authController.js    register, login
     ├── controllers/userController.js    lookup pelanggan
     ├── controllers/serviceController.js layanan
     ├── controllers/machineController.js mesin
     ├── controllers/rewardController.js  reward
+    ├── controllers/orderController.js   buat order, alokasi mesin, voucher
     ├── routes/authRoutes.js
     ├── routes/userRoutes.js
     ├── routes/serviceRoutes.js
     ├── routes/machineRoutes.js
-    └── routes/rewardRoutes.js
+    ├── routes/rewardRoutes.js
+    └── routes/orderRoutes.js
 ```
 
 ## Catatan teknis
