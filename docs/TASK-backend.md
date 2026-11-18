@@ -20,7 +20,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B6 | Order status & estafet | `feature/orders-status` | `[~]` belum commit | TC-09,13 |
 | B7 | Sync payment | `feature/orders-sync-payment` | `[~]` belum commit | TC-08 |
 | B8 | Dashboard | `feature/dashboard-summary` | `[~]` belum commit | TC-13 |
-| B9 | Rewards redeem | `feature/rewards-redeem` | `[ ]` | TC-12 |
+| B9 | Rewards redeem | `feature/rewards-redeem` | `[~]` belum commit | TC-12 |
 | B10 | Pengerasan | `feature/hardening` | `[ ]` | — |
 
 Total **10 paket**. B1–B9 fitur, B10 sebelum deploy.
@@ -309,12 +309,39 @@ Branch `feature/dashboard-summary`
 
 Branch `feature/rewards-redeem`
 
-- [ ] `POST /api/rewards/redeem` — `checkRole(['pelanggan'])`, body `reward_id`
-- [ ] `voucher_code` `CLN-VCR-` + 4 alfanumerik acak, ulang 3× bila `ER_DUP_ENTRY`
-- [ ] **Jangan potong poin manual** — trigger memotong
-- [ ] Tangkap `SQLSTATE 45000` dari trigger → `400` dengan `err.message`
-- [ ] `GET /api/rewards/my-vouchers` — JOIN `rewards`, pisahkan aktif vs terpakai
-- [ ] `scripts/test-rewards.js` (transaksi + `ROLLBACK`, poin dipulihkan)
+- [x] `POST /api/rewards/redeem` — `checkRole(['pelanggan'])`, body `reward_id`
+- [x] `voucher_code` `CLN-VCR-` + 4 alfanumerik acak, ulang 3× bila `ER_DUP_ENTRY`
+- [x] **Jangan potong poin manual** — trigger memotong
+- [x] Tangkap `SQLSTATE 45000` dari trigger → `400` dengan `err.message`
+- [x] `GET /api/rewards/my-vouchers` — JOIN `rewards`, pisahkan aktif vs terpakai
+- [x] `scripts/test-rewards.js` — 49 asersi (transaksi + `ROLLBACK`)
+
+**Keputusan yang mengikat:**
+- **Backend tidak memeriksa dan tidak memotong poin.** `trg_before_insert_user_voucher`
+  yang membaca `is_active` dan saldo, menolak dengan `SIGNAL 45000`, lalu memotong poinnya.
+  Duplikasi berarti dua tempat memutuskan hal yang sama dan yang kedua bisa berbeda pendapat.
+  Mutasi M1 yang menambahkan potongan poin kedua menggagalkan tes (150 → 95, seharusnya 100).
+- **`SQLSTATE 45000` dipetakan ke `400` di error handler global**, bukan per-controller.
+  Sebelumnya semua penolakan trigger jadi `500` — pelanggan melihat "kesalahan server" untuk
+  hal yang sebenarnya salah input. `err.sqlMessage` adalah pesan yang ditulis trigger dan
+  sudah berbahasa Indonesia. Mutasi M7 mengembalikannya ke 500 dan tes menangkapnya.
+- **Baris user dikunci `FOR UPDATE`** sebelum INSERT. Tanpa itu dua klaim bersamaan
+  sama-sama membaca saldo lama, keduanya lolos pemeriksaan trigger, lalu potongan kedua
+  membuat `points` negatif dan ditolak `chk_users_points` dengan pesan SQL yang tidak berguna.
+  Diuji tanpa `COMMIT`: koneksi lain menahan kunci, klaim kedua harus menunggu.
+- **`user_id` selalu dari token**, baik di `redeem` maupun `my-vouchers`. `user_id` di body
+  dan di query string diabaikan — sudah diuji dengan keduanya.
+- **Kode voucher dibuat backend.** Format `CLN-VCR-XXXX`, alfabet tanpa `0/O/1/I/L` karena
+  kode ini dibaca dan diketik manual dari kartu pelanggan.
+- **`rute /my-vouchers` didaftarkan sebelum `/:id`** supaya "my-vouchers" tidak dibaca sebagai id.
+- `active`/`history` dipisah di service, sesuai PRD-04 §3.3 yang menampilkan dua sub-bagian.
+
+**Terbuka:**
+- [ ] `my-vouchers` mengembalikan seluruh riwayat tanpa paginasi. Pelanggan lama bisa
+      mengumpulkan ratusan voucher terpakai.
+- [ ] QR code voucher digambar di klien dari string `CLN-VCR-XXXX`; backend tidak mengirim
+      `png`. Cukup, karena PRD-04 §3.3 memang menampilkan kode teks di bawah QR.
+- [ ] Tidak ada endpoint pembatalan klaim. Salah klaim = poin hangus (sesuai L-02).
 
 ---
 

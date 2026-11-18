@@ -102,6 +102,17 @@ const rewardPutBody = z.object({
   discount_amount: rewardFields.discount_amount,
 });
 
+// Klaim voucher oleh pelanggan. Hanya reward_id: kode voucher dibuat backend,
+// dan poin dipotong trigger — keduanya tidak boleh ditentukan klien.
+const rewardRedeemBody = z.object({
+  reward_id: z.preprocess(
+    (v) => (v === undefined || v === null || v === '' ? null : Number(v)),
+    z.number({ error: 'ID reward harus angka.' }).int('ID reward harus bilangan bulat.')
+      .positive('ID reward harus lebih dari 0.')
+      .refine((v) => v !== null, 'ID reward wajib diisi.'),
+  ),
+});
+
 module.exports = {
   serviceCreateBody,
   servicePutBody,
@@ -109,4 +120,5 @@ module.exports = {
   machinePatchBody,
   rewardCreateBody,
   rewardPutBody,
+  rewardRedeemBody,
 };

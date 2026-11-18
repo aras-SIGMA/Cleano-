@@ -3,7 +3,9 @@
 const { pool } = require('../config/database');
 const { ok, created, notFound } = require('../utils/response');
 const { parse, parseId } = require('../utils/validate');
-const { rewardCreateBody, rewardPutBody } = require('../validators/masterValidator');
+const { rewardCreateBody, rewardPutBody, rewardRedeemBody } = require('../validators/masterValidator');
+const { attemptRedeem, fetchMyVouchers } = require('../services/rewardRedeem');
+const { runTx } = require('../services/orderStatus');
 
 const COLS = 'id, title, description, points_required, discount_amount, is_active, created_at';
 
@@ -57,4 +59,27 @@ async function toggle(req, res) {
   return ok(res, rows[0], rows[0].is_active ? 'Reward diaktifkan.' : 'Reward dinonaktifkan.');
 }
 
-module.exports = { list, create, update, toggle };
+// POST /api/rewards/redeem — pelanggan
+async function redeem(req, res) {
+  const b = parse(rewardRedeemBody, req.body);
+  // user_id dari token, tidak pernah dari body: kalau dari body, pelanggan bisa
+  // menukar poin milik akun lain.
+  const result = await runTx((conn) => attemptRedeem(conn, { userId: req.user.id, rewardId: b.reward_id }));
+
+  return created(res, {
+    ...result.voucher,
+    points_before: result.pointsBefore,
+    points_after: result.pointsAfter,
+  }, `Voucher ${result.voucher.voucher_code} berhasil diklaim.`);
+}
+
+// GET /api/rewards/my-vouchers — pelanggan
+// user_id dari token, jadi pelanggan tidak bisa membaca voucher orang lain.
+async function myVouchers(req, res) {
+  const data = await fetchMyVouchers(pool, req.user.id);
+  return ok(res, data, 'Voucher saya.');
+}
+
+module.exports = {
+  list, create, update, toggle, redeem, myVouchers,
+};
