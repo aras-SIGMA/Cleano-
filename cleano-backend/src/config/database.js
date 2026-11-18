@@ -3,12 +3,23 @@
 const path = require('path');
 const fs = require('fs');
 const mysql = require('mysql2/promise');
+const { createLogger } = require('../utils/logger');
+
+const log = createLogger('db');
 
 // Aiven wajib SSL. CA bisa dikirim sebagai path file atau isi PEM langsung.
+//
+// Tanpa CA, koneksi tetap terenkripsi tetapi sertifikat server tidak
+// diverifikasi — artinya penyadap dengan sertifikat karangan bisa menyamar
+// sebagai database. Itu cukup untuk pengembangan, tidak untuk produksi.
+// Karena itu DB_SSL_VERIFY=true menolak jalan tanpa CA yang benar-benar ada,
+// supaya mode longgar tidak ikut terbawa ke produksi tanpa disadari.
 function buildSsl() {
   if (process.env.DB_SSL !== 'true') return undefined;
 
   const caSetting = process.env.DB_SSL_CA || '';
+  const wajibVerifikasi = process.env.DB_SSL_VERIFY === 'true';
+
   if (caSetting.trim().startsWith('-----BEGIN')) {
     return { ca: caSetting, rejectUnauthorized: true };
   }
@@ -18,8 +29,17 @@ function buildSsl() {
     return { ca: fs.readFileSync(caPath, 'utf8'), rejectUnauthorized: true };
   }
 
-  // tanpa CA: tetap terenkripsi, tapi sertifikat tidak diverifikasi
-  console.warn('[db] DB_SSL_CA tidak ditemukan, koneksi TLS tanpa verifikasi sertifikat.');
+  if (wajibVerifikasi) {
+    throw new Error(
+      `DB_SSL_VERIFY=true tetapi CA tidak ditemukan di "${caSetting || '(DB_SSL_CA kosong)'}". `
+      + 'Unduh ca.pem dari dashboard Aiven (service > Overview > CA Certificate) '
+      + 'lalu simpan sebagai cleano-backend/certs/ca.pem.',
+    );
+  }
+
+  log.warn('DB_SSL_CA tidak ditemukan, koneksi TLS tanpa verifikasi sertifikat', {
+    hint: 'set DB_SSL_VERIFY=true untuk menolak mode ini di produksi',
+  });
   return { rejectUnauthorized: false };
 }
 
@@ -45,7 +65,7 @@ const pool = mysql.createPool({
 const TZ_OFFSET = process.env.DB_TIMEZONE || '+07:00';
 pool.on('connection', (conn) => {
   conn.query(`set time_zone = '${TZ_OFFSET}'`, (err) => {
-    if (err) console.error(`[db] gagal set time_zone ${TZ_OFFSET}: ${err.code || err.message}`);
+    if (err) log.error('gagal set time_zone', { offset: TZ_OFFSET, code: err.code, message: err.message });
   });
 });
 
