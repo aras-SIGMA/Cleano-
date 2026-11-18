@@ -37,6 +37,9 @@ Lalu isi `.env`:
 | `DB_NAME` | `cleano_db` (dibuat otomatis oleh skema) |
 | `DB_SSL_CA` | taruh `ca.pem` hasil unduh dari Aiven ke `certs/` |
 | `DB_SSL_VERIFY` | `true` di produksi — menolak jalan bila `ca.pem` tidak ada |
+| `TRUST_PROXY_HOPS` | jumlah hop proxy (1 untuk Railway/Render/nginx, 0 tanpa proxy) |
+| `AUTH_LOGIN_LIMIT` | percobaan login per 15 menit per IP (bawaan 10) |
+| `AUTH_REGISTER_LIMIT` | pendaftaran per jam per IP (bawaan 5) |
 | `DB_TIMEZONE` | `+07:00` (opsional, default `+07:00`) |
 | `JWT_SECRET` | string acak panjang |
 | `MIDTRANS_SERVER_KEY` | Midtrans Sandbox > Settings > Access Keys |
@@ -202,6 +205,10 @@ cleano-backend/
 - **Rate limit hanya di `/auth/login` dan `/auth/register`** (`src/middlewares/rateLimit.js`),
   bawaan 10/15 menit dan 5/jam per IP. Disimpan di memori proses; bila nanti berjalan lebih
   dari satu instance, ganti store ke Redis agar batasnya tidak terbagi per proses.
+- **`TRUST_PROXY_HOPS` wajib diisi saat di belakang reverse proxy.** Tanpa itu `req.ip`
+  berisi IP proxy dan semua pengguna berbagi satu ember — satu penyerang mengunci seluruh
+  pengguna. Isi jumlah hop, bukan `true`: `true` mempercayai `X-Forwarded-For` apa adanya
+  sehingga klien bisa memalsukan IP dan melewati batas.
 - **Batas body JSON 1 MB** (`JSON_BODY_LIMIT`). Upload foto memakai jalur multipart terpisah
   yang dibatasi `MAX_IMAGE_MB`.
 - **Log satu baris JSON** (`src/utils/logger.js`). Semua `console.*` di `src/` sudah diganti,

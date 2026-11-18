@@ -7,11 +7,10 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 
-const { createLogger } = require('./src/utils/logger');
+const { createLogger, describe } = require('./src/utils/logger');
 const { pool, ping } = require('./src/config/database');
 
 const log = createLogger('server');
-const { describe } = log;
 const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const serviceRoutes = require('./src/routes/serviceRoutes');
@@ -22,6 +21,16 @@ const dashboardRoutes = require('./src/routes/dashboardRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+
+// Di belakang reverse proxy (Railway, Render, nginx, Cloudflare), IP asli ada di
+// X-Forwarded-For dan req.ip berisi IP proxy. Tanpa ini SEMUA pengguna berbagi
+// satu ember rate limit: setelah 10 percobaan login dari siapa pun, seluruh
+// pengguna terkunci 15 menit.
+//
+// Nilainya jumlah hop proxy yang boleh dipercaya, bukan `true`. `true` berarti
+// mempercayai X-Forwarded-For apa adanya, sehingga klien bisa memalsukan IP dan
+// melewati batas. Bawaan 0 = tidak ada proxy (pengembangan langsung).
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 0);
 
 // Header keamanan. CSP dimatikan karena API ini tidak menyajikan HTML —
 // halaman yang dilindungi CSP adalah aplikasi Flutter/web, bukan respons JSON.

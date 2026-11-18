@@ -9,7 +9,10 @@ const rateLimit = require('express-rate-limit');
 // Dihitung per IP, di memori proses. Cukup untuk satu instance; kalau nanti
 // dijalankan lebih dari satu, ganti store ke Redis supaya batasnya tidak
 // terbagi per proses.
-function limiter(windowMinutes, max, message) {
+function limiter(windowMinutes, max, pesan) {
+  // Pesan diberi durasi dari parameter yang sama, supaya tidak bisa berbeda
+  // dari jendela sebenarnya saat angkanya diubah.
+  const message = typeof pesan === 'function' ? pesan(windowMinutes) : pesan;
   return rateLimit({
     windowMs: windowMinutes * 60 * 1000,
     limit: max,
@@ -38,14 +41,14 @@ const num = (v, fallback) => {
 const loginLimiter = limiter(
   15,
   num(process.env.AUTH_LOGIN_LIMIT, 10),
-  'Terlalu banyak percobaan masuk. Coba lagi dalam 15 menit.',
+  (m) => `Terlalu banyak percobaan masuk. Coba lagi dalam ${m} menit.`,
 );
 
 // Registrasi lebih ketat: 5 akun per jam per IP. Satu orang tidak perlu lebih.
 const registerLimiter = limiter(
   60,
   num(process.env.AUTH_REGISTER_LIMIT, 5),
-  'Terlalu banyak pendaftaran dari alamat ini. Coba lagi nanti.',
+  (m) => `Terlalu banyak pendaftaran dari alamat ini. Coba lagi dalam ${m} menit.`,
 );
 
 module.exports = { loginLimiter, registerLimiter };

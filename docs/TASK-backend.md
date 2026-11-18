@@ -356,7 +356,8 @@ Branch `feature/hardening` · sebelum deploy
 - [x] Batas ukuran body `express.json()` — `JSON_BODY_LIMIT`, bawaan `1mb`
 - [x] Log terstruktur — `src/utils/logger.js`, satu baris JSON, semua `console.*` diganti
 - [x] `npm audit` bersih — 0 kerentanan
-- [x] `scripts/test-hardening.js` — 20 asersi
+- [x] `TRUST_PROXY_HOPS` — ember rate limit terpisah per IP di belakang proxy
+- [x] `scripts/test-hardening.js` — 26 asersi
 
 **Keputusan yang mengikat:**
 - **`DB_SSL_VERIFY=true` menolak jalan tanpa CA.** Tanpa penanda ini, koneksi tetap
@@ -366,6 +367,11 @@ Branch `feature/hardening` · sebelum deploy
 - **Rate limit per IP di memori proses.** Cukup untuk satu instance. Bila nanti
   berjalan lebih dari satu, store harus diganti ke Redis — kalau tidak, batasnya
   terbagi per proses dan efektif menjadi N kali lipat.
+- **`TRUST_PROXY_HOPS` berisi jumlah hop, bukan `true`.** Di belakang proxy, `req.ip`
+  berisi IP proxy; tanpa setting ini semua pengguna berbagi satu ember dan satu
+  penyerang mengunci seluruhnya. `true` juga salah: Express mengambil entri paling
+  kiri `X-Forwarded-For` yang ditulis klien sendiri, sehingga IP bisa dipalsukan
+  untuk mendapat ember baru tiap permintaan.
 - **Limiter ikut menghitung permintaan yang ditolak validasi.** Kalau tidak, penyerang
   cukup mengirim body salah agar tebakannya tidak dihitung.
 - **Batas bisa dinaikkan lewat env** karena `test-auth` memanggil login/register puluhan
