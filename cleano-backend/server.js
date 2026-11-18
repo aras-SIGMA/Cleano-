@@ -5,8 +5,13 @@ require('dotenv').config({ quiet: true });
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 
+const { createLogger } = require('./src/utils/logger');
 const { pool, ping } = require('./src/config/database');
+
+const log = createLogger('server');
+const { describe } = log;
 const authRoutes = require('./src/routes/authRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const serviceRoutes = require('./src/routes/serviceRoutes');
@@ -18,8 +23,19 @@ const dashboardRoutes = require('./src/routes/dashboardRoutes');
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(cors());
-app.use(express.json());
+// Header keamanan. CSP dimatikan karena API ini tidak menyajikan HTML —
+// halaman yang dilindungi CSP adalah aplikasi Flutter/web, bukan respons JSON.
+app.use(helmet({ contentSecurityPolicy: false }));
+
+// Flutter mobile tidak mengirim Origin, jadi `cors()` terbuka aman untuk API
+// yang dijaga token. Batas origin dari env dipakai saat web dilayani terpisah.
+const origins = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+app.use(cors(origins.length ? { origin: origins } : {}));
+
+// Batas ukuran body. Tanpa ini satu permintaan 100 MB menghabiskan memori
+// proses sebelum validasi sempat menolaknya. 1 MB jauh di atas body terbesar
+// yang sah (order + voucher_code), dan upload foto punya jalur multipart sendiri.
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
 // foto bukti drop-off disajikan statis (PRD-02 §5 non-goals)
 app.use('/uploads', express.static(path.resolve(__dirname, process.env.UPLOAD_DIR || 'uploads')));
@@ -57,17 +73,31 @@ app.use((err, req, res, next) => {
   const status = err.status
     || (fromTrigger ? 400 : null)
     || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
+  const tooLarge = err.type === 'entity.too.large';
+
   const message = err.code === 'LIMIT_FILE_SIZE'
     ? `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`
-    : (fromTrigger ? err.sqlMessage || err.message : err.message) || 'Terjadi kesalahan pada server.';
-  if (status >= 500) console.error(err);
+    : tooLarge
+      ? `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.`
+      : (fromTrigger ? err.sqlMessage || err.message : err.message) || 'Terjadi kesalahan pada server.';
+
+  if (status >= 500) {
+    log.error('permintaan gagal', { ...describe(err), method: req.method, path: req.originalUrl });
+  } else if (fromTrigger) {
+    // Penolakan aturan bisnis: berguna untuk melihat pelanggan mana yang
+    // kehabisan poin, tanpa membanjiri log error.
+    log.warn('aturan bisnis menolak', {
+      method: req.method, path: req.originalUrl, message, userId: req.user?.id,
+    });
+  }
+
   res.status(status).json({ success: false, message });
 });
 
 let server = null;
 
 function shutdown(signal) {
-  console.log(`${signal} diterima, menutup server...`);
+  log.info('menutup server', { signal });
   if (!server) process.exit(0);
   server.close(async () => {
     await pool.end().catch(() => {});
@@ -78,7 +108,7 @@ function shutdown(signal) {
 // hanya bind port & pasang handler shutdown kalau dijalankan langsung (bukan dipakai tes)
 if (require.main === module) {
   server = app.listen(PORT, () => {
-    console.log(`Cleano API listening on http://localhost:${PORT}`);
+    log.info('cleano api siap', { port: PORT });
   });
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -36,6 +36,7 @@ Lalu isi `.env`:
 | `DB_PASSWORD` | Aiven > Users > avnadmin |
 | `DB_NAME` | `cleano_db` (dibuat otomatis oleh skema) |
 | `DB_SSL_CA` | taruh `ca.pem` hasil unduh dari Aiven ke `certs/` |
+| `DB_SSL_VERIFY` | `true` di produksi — menolak jalan bila `ca.pem` tidak ada |
 | `DB_TIMEZONE` | `+07:00` (opsional, default `+07:00`) |
 | `JWT_SECRET` | string acak panjang |
 | `MIDTRANS_SERVER_KEY` | Midtrans Sandbox > Settings > Access Keys |
@@ -153,18 +154,20 @@ cleano-backend/
 │   ├── test-orders-status.js  npm run test:orders-status
 │   ├── test-sync-payment.js    npm run test:sync-payment
 │   ├── test-dashboard.js       npm run test:dashboard
-│   └── test-rewards.js         npm run test:rewards
+│   ├── test-rewards.js         npm run test:rewards
+│   └── test-hardening.js       npm run test:hardening
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
     ├── middlewares/authMiddleware.js    verifyToken / checkRole
+    ├── middlewares/rateLimit.js         batas percobaan login/register
     ├── middlewares/uploadMiddleware.js  Multer 2 MB, JPG/PNG/WEBP
     ├── services/orderAllocation.js      aturan alokasi mesin (dipakai bersama)
-    ├── services/orderStatus.js          transisi status + estafet mesin
+    ├── services/orderStatus.js          transisi status + estafet mesin + runTx
     ├── services/paymentSync.js          cek status Midtrans, tandai lunas
     ├── services/rewardRedeem.js         klaim voucher + daftar voucher pelanggan
+    ├── utils/logger.js        log satu baris JSON
     ├── utils/response.js      ok/created + HttpError
-    ├── utils/tx.js            runTx: transaksi + retry deadlock
     ├── utils/validate.js      zod safeParse -> HttpError 400
     ├── validators/authValidator.js     skema register/login
     ├── validators/masterValidator.js   skema layanan/mesin/reward/klaim
@@ -192,8 +195,17 @@ cleano-backend/
   `now()`/`curdate()`/`DATE(paid_at)` tetap UTC dan semua transaksi setelah pukul 17:00 WIB
   tercatat di tanggal berikutnya. Karena itu `pool.on('connection')` men-`set time_zone`.
 - **`DB_SSL=true` wajib untuk Aiven.** Bila `certs/ca.pem` belum ada, koneksi tetap TLS
-  tetapi sertifikat tidak diverifikasi (muncul peringatan di log). Lengkapi `ca.pem` sebelum
-  produksi.
+  tetapi sertifikat tidak diverifikasi (muncul peringatan di log). Set `DB_SSL_VERIFY=true`
+  di produksi supaya aplikasi **menolak jalan** tanpa CA — mode longgar tidak bisa ikut
+  terbawa diam-diam.
+- **Header keamanan dari `helmet`.** CSP dimatikan karena API ini hanya mengirim JSON.
+- **Rate limit hanya di `/auth/login` dan `/auth/register`** (`src/middlewares/rateLimit.js`),
+  bawaan 10/15 menit dan 5/jam per IP. Disimpan di memori proses; bila nanti berjalan lebih
+  dari satu instance, ganti store ke Redis agar batasnya tidak terbagi per proses.
+- **Batas body JSON 1 MB** (`JSON_BODY_LIMIT`). Upload foto memakai jalur multipart terpisah
+  yang dibatasi `MAX_IMAGE_MB`.
+- **Log satu baris JSON** (`src/utils/logger.js`). Semua `console.*` di `src/` sudah diganti,
+  supaya baris log bisa dibaca mesin dan tidak bercampur dengan output framework.
 - **Upload dibatasi** 2 MB, hanya JPG/PNG/WEBP.
 - **Integritas transaksi ditegakkan di level database** (harga tidak bisa diubah, voucher
   sekali pakai, order tidak bisa dihapus, poin idempoten). Backend tidak perlu — dan tidak

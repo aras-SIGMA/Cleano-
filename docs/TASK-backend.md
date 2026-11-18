@@ -21,7 +21,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B7 | Sync payment | `feature/orders-sync-payment` | `[~]` belum commit | TC-08 |
 | B8 | Dashboard | `feature/dashboard-summary` | `[~]` belum commit | TC-13 |
 | B9 | Rewards redeem | `feature/rewards-redeem` | `[~]` belum commit | TC-12 |
-| B10 | Pengerasan | `feature/hardening` | `[ ]` | — |
+| B10 | Pengerasan | `feature/hardening` | `[~]` belum commit | - |
 
 Total **10 paket**. B1–B9 fitur, B10 sebelum deploy.
 
@@ -349,12 +349,40 @@ Branch `feature/rewards-redeem`
 
 Branch `feature/hardening` · sebelum deploy
 
-- [ ] Rate limit `POST /api/auth/login` dan `/register`
-- [ ] Helmet / header keamanan
-- [ ] `certs/ca.pem` + `rejectUnauthorized: true`
-- [ ] Batas ukuran body `express.json()`
-- [ ] Log terstruktur (sekarang hanya `console.error`)
-- [ ] `npm audit` bersih
+- [x] Rate limit `POST /api/auth/login` dan `/register` — 10/15 menit dan 5/jam per IP,
+      diatur `AUTH_LOGIN_LIMIT` / `AUTH_REGISTER_LIMIT`
+- [x] Helmet / header keamanan — CSP dimatikan karena API hanya mengirim JSON
+- [ ] `certs/ca.pem` + `rejectUnauthorized: true` — **mekanisme siap, berkas belum ada**
+- [x] Batas ukuran body `express.json()` — `JSON_BODY_LIMIT`, bawaan `1mb`
+- [x] Log terstruktur — `src/utils/logger.js`, satu baris JSON, semua `console.*` diganti
+- [x] `npm audit` bersih — 0 kerentanan
+- [x] `scripts/test-hardening.js` — 20 asersi
+
+**Keputusan yang mengikat:**
+- **`DB_SSL_VERIFY=true` menolak jalan tanpa CA.** Tanpa penanda ini, koneksi tetap
+  terenkripsi tapi sertifikat server tidak diverifikasi — penyadap dengan sertifikat
+  karangan bisa menyamar sebagai database. Larangan berhenti (fail-closed) lebih baik
+  daripada peringatan di log yang tidak dibaca.
+- **Rate limit per IP di memori proses.** Cukup untuk satu instance. Bila nanti
+  berjalan lebih dari satu, store harus diganti ke Redis — kalau tidak, batasnya
+  terbagi per proses dan efektif menjadi N kali lipat.
+- **Limiter ikut menghitung permintaan yang ditolak validasi.** Kalau tidak, penyerang
+  cukup mengirim body salah agar tebakannya tidak dihitung.
+- **Batas bisa dinaikkan lewat env** karena `test-auth` memanggil login/register puluhan
+  kali dari IP yang sama; `test-hardening` menurunkannya ke 2 untuk menguji penolakan.
+- **Log tidak menyalin seluruh objek error.** `describe()` mengambil nama, pesan, kode,
+  `sqlState`, `errno`, `status`, dan stack saja. Error MySQL membawa properti `sql`,
+  `sqlMessage`, dan kadang parameter query — menyalin objeknya utuh berisiko menuliskan
+  isi tabel ke log.
+
+**Terbuka:**
+- [ ] `certs/ca.pem` harus diunduh manual dari dashboard Aiven
+      (service → Overview → CA Certificate) dan disimpan di `cleano-backend/certs/`.
+      Tidak ada URL publik; CA bersifat per-project dan butuh login.
+- [ ] Rate limit masih in-memory. Belum perlu sampai ada lebih dari satu instance.
+- [ ] `npm audit` hanya melihat kerentanan yang sudah punya CVE. Tidak menggantikan
+      tinjauan dependensi saat menambah paket baru.
+- [ ] Belum ada rotasi `JWT_SECRET`; token lama tetap sah sampai kedaluwarsa (24 jam).
 
 ---
 
