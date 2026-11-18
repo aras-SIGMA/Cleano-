@@ -128,6 +128,8 @@ OK    rollback bersih          orders 3 -> 3
 | PATCH | `/api/orders/:id/confirm-relay` | pasang order antre ke mesin, mulai hitung mundur (kasir) |
 | POST | `/api/orders/:id/sync-payment` | cek status ke Midtrans Core, tandai lunas bila settlement (kasir) |
 | GET | `/api/dashboard/summary` | lima kartu metrik + tren omzet 7 hari (kasir) |
+| POST | `/api/rewards/redeem` | klaim voucher; poin dipotong trigger (pelanggan) |
+| GET | `/api/rewards/my-vouchers` | voucher milik sendiri, aktif + riwayat (pelanggan) |
 | GET | `/uploads/:file` | penyajian statis foto bukti drop-off |
 
 ## Struktur
@@ -150,7 +152,8 @@ cleano-backend/
 │   ├── test-orders-list.js    npm run test:orders-list
 │   ├── test-orders-status.js  npm run test:orders-status
 │   ├── test-sync-payment.js    npm run test:sync-payment
-│   └── test-dashboard.js       npm run test:dashboard
+│   ├── test-dashboard.js       npm run test:dashboard
+│   └── test-rewards.js         npm run test:rewards
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong
@@ -159,16 +162,18 @@ cleano-backend/
     ├── services/orderAllocation.js      aturan alokasi mesin (dipakai bersama)
     ├── services/orderStatus.js          transisi status + estafet mesin
     ├── services/paymentSync.js          cek status Midtrans, tandai lunas
+    ├── services/rewardRedeem.js         klaim voucher + daftar voucher pelanggan
     ├── utils/response.js      ok/created + HttpError
+    ├── utils/tx.js            runTx: transaksi + retry deadlock
     ├── utils/validate.js      zod safeParse -> HttpError 400
     ├── validators/authValidator.js     skema register/login
-    ├── validators/masterValidator.js   skema layanan/mesin/reward
+    ├── validators/masterValidator.js   skema layanan/mesin/reward/klaim
     ├── validators/orderValidator.js    skema order: buat, daftar, status, relay
     ├── controllers/authController.js    register, login
     ├── controllers/userController.js    lookup pelanggan
     ├── controllers/serviceController.js layanan
     ├── controllers/machineController.js mesin
-    ├── controllers/rewardController.js  reward
+    ├── controllers/rewardController.js  reward + klaim voucher pelanggan
     ├── controllers/orderController.js   buat/daftar order, ubah status, estafet, sync bayar
     ├── controllers/dashboardController.js ringkasan kartu + tren omzet 7 hari
     ├── routes/authRoutes.js

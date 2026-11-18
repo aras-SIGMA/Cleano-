@@ -47,10 +47,19 @@ app.use((req, res) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  const status = err.status || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
+  // SIGNAL SQLSTATE '45000' dari trigger = penolakan aturan bisnis, bukan
+  // kerusakan server. Tanpa ini pelanggan melihat 500 untuk hal yang sebenarnya
+  // salah input (poin kurang, promo nonaktif). err.sqlMessage adalah pesan yang
+  // ditulis trigger, jadi sudah berbahasa Indonesia dan layak ditampilkan.
+  const fromTrigger = err.sqlState === '45000' || err.errno === 1644
+    || err.code === 'ER_SIGNAL_EXCEPTION';
+
+  const status = err.status
+    || (fromTrigger ? 400 : null)
+    || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
   const message = err.code === 'LIMIT_FILE_SIZE'
     ? `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`
-    : err.message || 'Terjadi kesalahan pada server.';
+    : (fromTrigger ? err.sqlMessage || err.message : err.message) || 'Terjadi kesalahan pada server.';
   if (status >= 500) console.error(err);
   res.status(status).json({ success: false, message });
 });

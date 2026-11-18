@@ -8,9 +8,7 @@ const {
   orderCreateBody, orderListQuery, orderStatusBody, confirmRelayBody,
 } = require('../validators/orderValidator');
 const { allocateMachine, estimateQueueWait } = require('../services/orderAllocation');
-const {
-  attemptStatusChange, attemptConfirmRelay, runTx,
-} = require('../services/orderStatus');
+const { runTx, attemptStatusChange, attemptConfirmRelay } = require('../services/orderStatus');
 const { attemptSyncPayment } = require('../services/paymentSync');
 const { snap, enabled } = require('../config/midtrans');
 
