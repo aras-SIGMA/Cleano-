@@ -37,8 +37,13 @@ const orderCreateBody = z.object({
 
 // Query string selalu teks, jadi angka di-koersi. Batas pageSize 100 agar satu
 // permintaan tidak bisa memaksa MySQL mengirim seluruh riwayat order.
+//
+// `aktif` bukan status di tabel: itu nama grup untuk semua order yang belum
+// final. PRD-03 §4 meminta `GET /api/orders?status=aktif` untuk daftar ringkas
+// dashboard, dan tanpa ini permintaannya dijawab 400. Pemetaan grup ke kolom
+// ada di controller supaya validator tetap hanya berisi daftar nilai yang sah.
 const orderListQuery = z.object({
-  status: z.enum(['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil', 'selesai', 'batal'], {
+  status: z.enum(['aktif', 'antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil', 'selesai', 'batal'], {
     error: 'Status order tidak dikenal.',
   }).optional(),
   page: z.preprocess(

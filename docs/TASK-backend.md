@@ -17,19 +17,26 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | B3 | Master data | `feature/master-data` | `[x]` selesai, di `develop` | TC-04 |
 | B4 | Order create | `feature/orders-create` | `[x]` selesai, di `develop` | TC-05,06,07 |
 | B5 | Order list | `feature/orders-list` | `[x]` selesai, di `develop` | TC-10 |
-| B6 | Order status & estafet | `feature/orders-status` | `[~]` belum commit | TC-09,13 |
-| B7 | Sync payment | `feature/orders-sync-payment` | `[~]` belum commit | TC-08 |
-| B8 | Dashboard | `feature/dashboard-summary` | `[~]` belum commit | TC-13 |
-| B9 | Rewards redeem | `feature/rewards-redeem` | `[~]` belum commit | TC-12 |
-| B10 | Pengerasan | `feature/hardening` | `[~]` belum commit | - |
+| B6 | Order status & estafet | `feature/orders-status` | `[x]` selesai, PR #4 | TC-09,13 |
+| B7 | Sync payment | `feature/orders-sync-payment` | `[x]` selesai, PR #5 | TC-08 |
+| B8 | Dashboard | `feature/dashboard-summary` | `[x]` selesai, PR #6 | TC-13 |
+| B9 | Rewards redeem | `feature/rewards-redeem` | `[x]` selesai, PR #7 | TC-12 |
+| B10 | Pengerasan | `feature/hardening` | `[x]` selesai, PR #8 | - |
+| B11 | Penutup BE (profil, filter aktif, antrean, normalisasi HP) | `feature/auth-duplicate-check` | `[x]` selesai, belum merge | TC-01,02,03,11 |
 
-Total **10 paket**. B1–B9 fitur, B10 sebelum deploy.
+Total **10 paket** + B11. B1–B10 sudah di `develop`; B11 menunggu merge.
+Yang tersisa di bawah setiap paket adalah **celah yang diketahui**, bukan
+deliverable yang belum dikerjakan.
+
+Cakupan akhir: **16/16 endpoint PRD-02** + `GET /api/users/me` (dibutuhkan
+PRD-04 §3.1/§3.3, tidak ada di PRD-02) + `?status=aktif` (PRD-03 §4).
 
 ---
 
 ## B1 — Auth
 
-Branch `feature/auth-register-login` · 4 commit lokal, belum merge
+Branch `feature/auth-register-login` · sudah di `develop` (PR #1). Perbaikan
+lanjutan deteksi duplikat ada di `feature/auth-duplicate-check`.
 
 - [x] `POST /api/auth/register` — validasi, bcrypt 10 round, `member_code` `MBR-XXXX` berurutan
 - [x] `POST /api/auth/login` — JWT 24 jam, payload `{id, member_code, role}`
@@ -37,10 +44,14 @@ Branch `feature/auth-register-login` · 4 commit lokal, belum merge
 - [x] `server.js` tidak bind port saat di-`require`
 - [x] `src/validators/authValidator.js` — skema zod, batas mengikuti kolom v1.4
 - [x] `src/utils/validate.js` — hasil zod → `HttpError` 400
-- [x] `scripts/test-auth.js` — 38 asersi
+- [x] `scripts/test-auth.js` — 44 asersi
+- [x] Deteksi duplikat membaca tabel (`select … where email = ? or phone = ?`), tidak
+      lagi menebak kolom dari teks `err.message`. Perbaikan lanjutan di
+      `feature/auth-duplicate-check`; pesan driver memuat *nilai* yang didaftarkan,
+      jadi alamat seperti `member_code@gmail.com` dulu membuat bentrok email
+      dijawab "Gagal membuat kode member, coba lagi."
 
 **Terbuka:**
-- [ ] Pesan duplikat masih dibedakan dari teks `err.message` (`msg.includes('email')`). Format pesan driver bergantung versi; cabang `uk_users_member` sudah jadi bukti. Ganti dengan `SELECT` cek duplikat di dalam transaksi yang sama. Pindah ke B10.
 - [ ] Batas 128 karakter password mencegah CPU terbuang, tapi bcrypt tetap memotong di 72 byte — dua password yang hanya berbeda di ekor dianggap sama. Tidak masalah untuk POS; jangan dianggap jaminan keamanan.
 
 ---
@@ -53,12 +64,14 @@ Branch `feature/users-lookup` · ditumpuk di atas B1 · 2 commit
 - [x] Cari via `member_code` (case-insensitive) atau `phone` (toleran spasi/strip)
 - [x] Respons: `id, name, phone, member_code, points, tier, vouchers[]`
 - [x] Voucher aktif saja (`is_used = 0`), JOIN `rewards`
-- [x] `scripts/test-lookup.js` — 30 asersi
+- [x] `scripts/test-lookup.js` — 44 asersi
 
 **Terbuka:**
-- [ ] Nomor `+62...` dan `62...` → `404`. Normalisasi ke `08...` sebelum query.
+- [x] ~~Nomor `+62...` dan `62...` → `404`.~~ Selesai: `src/utils/phone.js`
+      menormalkan ketiga awalan ke `08...` sebelum query.
 - [ ] `created_at` voucher tidak dipakai siapa pun — hapus.
-- [ ] `tierOf` diimpor dari `authController` — pindah ke `src/utils/tier.js`.
+- [ ] `tierOf` hidup di `authController`; `userController` mengimpornya balik.
+      Pindahkan ke `src/utils/tier.js` bila controller auth mulai dipecah.
 
 ---
 
@@ -143,8 +156,9 @@ Sudah diuji: trigger menimpa nilai kiriman klien.
 - [ ] Panggilan HTTP Midtrans berjalan **di dalam** transaksi (mengikuti PRD-02 §4.3
       langkah 5), sehingga lock voucher/mesin ditahan selama round-trip gateway. Kalau
       latensi Midtrans mulai menahan kasir lain, pindahkan ke pola outbox.
-- [ ] `queue_wait_minutes` dihitung saat order dibuat dan tidak dihitung ulang ketika
-      antrean berubah. B6 yang akan memperbaruinya.
+- [x] ~~`queue_wait_minutes` dihitung saat order dibuat dan tidak dihitung ulang.~~
+      Selesai di B11: `refreshQueueWaits` dipanggil saat mesin dilepas dan saat
+      `confirm-relay` memakai mesin.
 - [ ] Kegagalan Midtrans setelah INSERT mengembalikan 502 dan order ikut ter-rollback —
       transaksi Midtrans yang sudah terlanjur dibuat menjadi yatim di sisi gateway.
       Belum ada rekonsiliasi.
@@ -156,12 +170,14 @@ Sudah diuji: trigger menimpa nilai kiriman klien.
 Branch `feature/orders-list`
 
 - [x] `GET /api/orders` membaca `vw_order_details`
-- [x] Filter `?status=` (validasi terhadap enum)
+- [x] `?status=` — validasi terhadap enum, plus grup `aktif`
+      (`antre` + `proses_cuci` + `sedang_diproses` + `siap_diambil`) untuk dashboard
+      kasir (PRD-03 §4)
 - [x] Role `pelanggan` → `WHERE user_id = req.user.id`
 - [x] **`SELECT` kolom eksplisit** — `snap_token` & `snap_redirect_url` tidak boleh terkirim
       ke pelanggan
 - [x] Pagination `?page=&pageSize=` default 20, maks 100
-- [x] `scripts/test-orders-list.js` — 34 asersi, termasuk pelanggan A tidak bisa melihat order B
+- [x] `scripts/test-orders-list.js` — 40 asersi, termasuk pelanggan A tidak bisa melihat order B
 
 **Keputusan yang mengikat:**
 - `user_id` **selalu** diambil dari token, tidak pernah dari query string. Kalau dari query,
@@ -197,7 +213,9 @@ Branch `feature/orders-status`
 - [x] `PATCH /api/orders/:id/confirm-relay` — kunci mesin `FOR UPDATE`, set `digunakan` +
       `estimated_finish_at`, order → `proses_cuci`
 - [x] `siap_diambil` → `selesai` memicu poin (dikerjakan trigger, backend tidak menyentuh)
-- [x] `scripts/test-orders-status.js` — 36 asersi (transaksi + `ROLLBACK`)
+- [x] `scripts/test-orders-status.js` — 41 asersi (transaksi + `ROLLBACK`)
+- [x] `queue_wait_minutes` dihitung ulang setiap kali mesin dilepas **atau** dipakai
+      lewat `confirm-relay` (`refreshQueueWaits` di `orderStatus.js`)
 
 **Jebakan:** `trg_before_update_order` menjaga sebagian field. Transisi status yang tidak sah
 harus ditolak backend — trigger tidak memvalidasi semuanya.
@@ -223,9 +241,12 @@ harus ditolak backend — trigger tidak memvalidasi semuanya.
   supaya skrip uji bisa `ROLLBACK`. Order tidak bisa dihapus (trigger L-07).
 
 **Terbuka:**
-- [ ] `queue_wait_minutes` tidak dihitung ulang saat antrean berubah — masih sisa temuan B4.
-- [ ] Estafet tidak memeriksa `services.requires_machine`; order layanan tanpa mesin tetap bisa
-      dikonfirmasi ke drum lewat `confirm-relay`. Belum ada di PRD; perlu keputusan.
+- [ ] `queue_wait_minutes` hanya dihitung ulang saat ada order yang memicu perubahan
+      lewat API. Kalau mesin dibiarkan `digunakan` melewati `estimated_finish_at`
+      tanpa ada transisi status, angkanya tetap basi sampai ada order berikutnya.
+      Pembersih terjadwal di luar jam kerja adalah jalan keluarnya, bukan backend.
+- [ ] Estafet tidak memeriksa `services.requires_machine` — **sudah diperbaiki di B11**:
+      `confirm-relay` menolak order yang layanannya `requires_machine = 0`.
 - [ ] `selesai` untuk order `midtrans` yang belum lunas tetap diizinkan. Trigger poin mensyaratkan
       `lunas`, jadi poin tidak masuk, tapi statusnya sudah final dan tidak bisa dikembalikan.
       Bergantung pada B7.
@@ -301,7 +322,6 @@ Branch `feature/dashboard-summary`
       belum diminta.
 - [ ] `today_revenue` memakai `date(paid_at) = curdate()`, jadi `idx_orders_payment_paid`
       tidak terpakai penuh (fungsi pada kolom). Cukup untuk volume satu outlet.
-- [ ] Ekspor CSV/PDF (PRD-03 §3.1) belum ada endpoint-nya.
 
 ---
 
@@ -314,7 +334,7 @@ Branch `feature/rewards-redeem`
 - [x] **Jangan potong poin manual** — trigger memotong
 - [x] Tangkap `SQLSTATE 45000` dari trigger → `400` dengan `err.message`
 - [x] `GET /api/rewards/my-vouchers` — JOIN `rewards`, pisahkan aktif vs terpakai
-- [x] `scripts/test-rewards.js` — 49 asersi (transaksi + `ROLLBACK`)
+- [x] `scripts/test-rewards.js` — 50 asersi (transaksi + `ROLLBACK`)
 
 **Keputusan yang mengikat:**
 - **Backend tidak memeriksa dan tidak memotong poin.** `trg_before_insert_user_voucher`
@@ -389,6 +409,48 @@ Branch `feature/hardening` · sebelum deploy
 - [ ] `npm audit` hanya melihat kerentanan yang sudah punya CVE. Tidak menggantikan
       tinjauan dependensi saat menambah paket baru.
 - [ ] Belum ada rotasi `JWT_SECRET`; token lama tetap sah sampai kedaluwarsa (24 jam).
+
+---
+
+## B11 — Penutup backend
+
+Branch `feature/auth-duplicate-check` · perbaikan temuan audit + celah yang
+memblokir Flutter.
+
+- [x] Deteksi duplikat email/phone dibaca dari tabel, bukan ditebak dari teks
+      `err.message` (pesan driver memuat *nilai* yang didaftarkan, sehingga alamat
+      seperti `member_code@gmail.com` dulu dijawab "Gagal membuat kode member")
+- [x] `GET /api/users/me` — `id, name, phone, email, role, member_code, points, tier`
+- [x] `?status=aktif` — grup `antre + proses_cuci + sedang_diproses + siap_diambil`
+- [x] Normalisasi nomor `+62…` / `62…` / `08…` → satu bentuk sebelum lookup
+- [x] `confirm-relay` menolak order yang layanannya `requires_machine = 0`
+- [x] `queue_wait_minutes` dihitung ulang saat mesin dilepas dan saat dipakai
+- [x] `scripts/test-auth.js` 44 · `test-lookup.js` 44 · `test-orders-list.js` 40 ·
+      `test-orders-status.js` 41 asersi
+
+**Keputusan yang mengikat:**
+- **`/api/users/me` tidak memakai JWT untuk poin.** Token hanya membawa
+  `{id, member_code, role}`. Poin dan tier berubah tanpa login ulang (order
+  `selesai` menambah poin), jadi keduanya dibaca dari DB setiap permintaan.
+  Menaruhnya di token berarti pelanggan melihat saldo lama sampai 24 jam.
+  Diuji dengan mengubah `points` di DB lalu memanggil `/me` dengan token lama.
+- **`aktif` adalah nama grup di lapisan API, bukan nilai enum.** Kolom `orders.status`
+  tetap enam nilai. Pemetaan grup → `IN (...)` ada di controller, bukan di
+  validator, supaya validator tetap berisi daftar nilai yang benar-benar sah.
+- **`refreshQueueWaits` dipanggil di dua tempat**, bukan satu: pelepasan mesin
+  (`status` → `siap_diambil`) dan pemakaian mesin (`confirm-relay`). Keduanya
+  mengubah `MIN(estimated_finish_at)` sehingga estimasi antrean berubah.
+- **Normalisasi nomor hanya untuk pencarian.** `normalizePhone` mengembalikan
+  masukan apa adanya bila bukan angka, supaya pencarian `member_code` tidak
+  ikut diubah. Validator registrasi tetap jadi penjaga bentuk nomor yang disimpan.
+- **`confirm-relay` memeriksa `requires_machine` sebelum mengunci mesin**, dan
+  pemeriksaan status `antre` tetap lebih dulu. Urutan ini membuat pesan galat
+  menunjuk alasan yang benar.
+
+**Terbuka:**
+- [ ] `queue_wait_minutes` hanya segar saat ada transisi lewat API. Mesin yang
+      melewati `estimated_finish_at` tanpa transisi membuat angkanya basi sampai
+      order berikutnya. Butuh pembersih terjadwal, bukan perubahan backend.
 
 ---
 

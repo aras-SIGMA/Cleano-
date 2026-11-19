@@ -72,15 +72,29 @@ async function register(req, res) {
     } catch (err) {
       await conn.rollback().catch(() => {});
       if (err.code === 'ER_DUP_ENTRY') {
-        const msg = String(err.message || '');
-        // hanya member_code yang bisa dicoba ulang; email/phone tidak akan berubah
-        if (msg.includes('member_code')) {
-          if (attempt < 2) continue;
-          throw conflict('Gagal membuat kode member, coba lagi.');
+        // Kolom yang bentrok dibaca dari tabel, bukan ditebak dari err.message.
+        // Pesan driver berbentuk "Duplicate entry '<nilai>' for key 'users.email'"
+        // — memuat *nilai* yang didaftarkan, bukan hanya nama kolom. Jadi alamat
+        // seperti member_code@gmail.com membuat `msg.includes('member_code')`
+        // bernilai benar, dan pendaftaran yang jelas bentrok email dijawab
+        // "Gagal membuat kode member, coba lagi." sambil mengulang tiga kali.
+        // Bentuk pesan juga bergantung versi driver, jadi tebakan teks akan
+        // retak lagi di pembaruan berikutnya.
+        const [dup] = await conn.query(
+          'select email from users where email = ? or phone = ?',
+          [email, phone],
+        );
+        // `some`, bukan baris pertama: kalau email dan phone masing-masing
+        // dipakai dua user berbeda, urutan baris tidak dijamin.
+        if (dup.length) {
+          const emailTaken = dup.some((r) => r.email.toLowerCase() === email);
+          throw conflict(emailTaken
+            ? 'Email sudah terdaftar.'
+            : 'Nomor HP sudah terdaftar.');
         }
-        if (msg.includes('email')) throw conflict('Email sudah terdaftar.');
-        if (msg.includes('phone')) throw conflict('Nomor HP sudah terdaftar.');
-        throw conflict('Email atau nomor HP sudah terdaftar.');
+        // Bukan email/phone berarti member_code: satu-satunya kolom unik lain.
+        if (attempt < 2) continue;
+        throw conflict('Gagal membuat kode member, coba lagi.');
       }
       throw err;
     } finally {

@@ -88,6 +88,17 @@ async function login(email, password) {
     const dashed = await call('/api/users/lookup?query=0812-3456-7890', { token: kasirToken });
     ok('nomor HP dengan tanda hubung', dashed.json?.data?.id === 2, `id ${dashed.json?.data?.id}`);
 
+    // ---- awalan WhatsApp (+62 / 62) ----
+    // Kasir menyalin nomor dari chat, bukan dari kartu. Tanpa normalisasi,
+    // +6281234567890 dicocokkan apa adanya ke kolom phone '081234567890' -> 404.
+    const plus62 = await call('/api/users/lookup?query=%2B6281234567890', { token: kasirToken });
+    ok('nomor +62 menemukan pelanggan', plus62.json?.data?.id === 2,
+      `status ${plus62.status} id ${plus62.json?.data?.id}`);
+
+    const bare62 = await call('/api/users/lookup?query=6281234567890', { token: kasirToken });
+    ok('nomor 62 tanpa plus menemukan pelanggan', bare62.json?.data?.id === 2,
+      `status ${bare62.status} id ${bare62.json?.data?.id}`);
+
     // ---- bentuk respons ----
     const d = byCode.json?.data ?? {};
     ok('data berisi field wajib', ['id', 'name', 'phone', 'member_code', 'points', 'tier', 'vouchers'].every((k) => k in d), Object.keys(d).join(','));
@@ -108,6 +119,42 @@ async function login(email, password) {
     // ---- pelanggan tanpa voucher ----
     const budi = await call('/api/users/lookup?query=MBR-0002', { token: kasirToken });
     ok('budi tanpa voucher -> array kosong', Array.isArray(budi.json?.data?.vouchers) && budi.json.data.vouchers.length === 0, `${budi.json?.data?.vouchers?.length}`);
+
+    // ---- GET /api/users/me ----
+    // Token hanya berisi id/member_code/role, jadi poin & tier harus dibaca ulang
+    // dari DB. Portal pelanggan (PRD-04 §3.1) menampilkan keduanya di header.
+    const meNoToken = await call('/api/users/me');
+    ok('me tanpa token 401', meNoToken.status === 401, `status ${meNoToken.status}`);
+
+    const mePelanggan = await call('/api/users/me', { token: pelangganToken });
+    ok('me pelanggan 200', mePelanggan.status === 200, `status ${mePelanggan.status}`);
+    const me = mePelanggan.json?.data ?? {};
+    ok('me mengembalikan pengguna yang login', me.id === 2, `id ${me.id}`);
+    ok('me berisi poin terbaru', me.points === 150, `poin ${me.points}`);
+    ok('me berisi tier dari poin', me.tier === 'Gold', `tier ${me.tier}`);
+    ok('me berisi member_code', me.member_code === 'MBR-0001', `${me.member_code}`);
+    ok('me tidak membocorkan password', me.password === undefined
+      && !JSON.stringify(mePelanggan.json).includes('$2b$'));
+
+    // Kasir juga perlu membaca profilnya sendiri; endpoint ini tanpa checkRole.
+    const meKasir = await call('/api/users/me', { token: kasirToken });
+    ok('me kasir 200 (tanpa batas role)', meKasir.status === 200, `status ${meKasir.status}`);
+    ok('me kasir role kasir', meKasir.json?.data?.role === 'kasir', `${meKasir.json?.data?.role}`);
+
+    // Poin harus ikut berubah tanpa login ulang — inti alasan endpoint ini ada.
+    const [[poinAsli]] = await pool.query('select points from users where id = 2');
+    try {
+      await pool.query('update users set points = 320 where id = 2');
+      const meBaru = await call('/api/users/me', { token: pelangganToken });
+      ok('me membaca poin terkini, bukan dari token', meBaru.json?.data?.points === 320,
+        `poin ${meBaru.json?.data?.points}`);
+      ok('tier ikut naik jadi Platinum', meBaru.json?.data?.tier === 'Platinum',
+        `tier ${meBaru.json?.data?.tier}`);
+    } finally {
+      await pool.query('update users set points = ? where id = 2', [poinAsli.points]);
+    }
+    const [[poinPulih]] = await pool.query('select points from users where id = 2');
+    ok('poin rina dikembalikan', poinPulih.points === poinAsli.points, `poin ${poinPulih.points}`);
 
     // ---- akun kasir tidak muncul di lookup ----
     const staff = await call('/api/users/lookup?query=STF-0001', { token: kasirToken });

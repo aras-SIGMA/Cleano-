@@ -77,12 +77,27 @@ async function call(path, { method = 'GET', body, token } = {}) {
       body: { name: 'User Uji', email, password: pass, phone: `0899${stamp}` },
     });
     ok('register email duplikat 409', dupEmail.status === 409, `status ${dupEmail.status}`);
+    ok('register email duplikat sebut email', /email sudah terdaftar/i.test(dupEmail.json?.message ?? ''), dupEmail.json?.message);
 
     const dupPhone = await call('/api/auth/register', {
       method: 'POST',
       body: { name: 'User Uji', email: `lain.${stamp}@cleano.test`, password: pass, phone },
     });
     ok('register phone duplikat 409', dupPhone.status === 409, `status ${dupPhone.status}`);
+    // Pesan harus menunjuk kolom yang benar. Sebelumnya cabangnya ditentukan
+    // dari teks err.message, yang berisi nama index driver — bukan nama kolom —
+    // jadi email dan phone bisa tertukar tanpa ada uji yang gagal.
+    ok('register phone duplikat sebut nomor HP', /nomor hp sudah terdaftar/i.test(dupPhone.json?.message ?? ''), dupPhone.json?.message);
+
+    // Dua-duanya duplikat sekaligus: tetap 409 dengan salah satu pesan yang
+    // benar, tidak boleh jatuh ke jalur "gagal membuat kode member".
+    const dupBoth = await call('/api/auth/register', {
+      method: 'POST',
+      body: { name: 'User Uji', email, password: pass, phone },
+    });
+    ok('register email+phone duplikat 409', dupBoth.status === 409, `status ${dupBoth.status}`);
+    ok('register duplikat tidak salah sebut member_code',
+      !/kode member/i.test(dupBoth.json?.message ?? ''), dupBoth.json?.message);
 
     // ---- login ----
     const badPass = await call('/api/auth/login', { method: 'POST', body: { email, password: 'salahbanget' } });
@@ -200,6 +215,27 @@ async function call(path, { method = 'GET', body, token } = {}) {
     });
     ok('register HP bertanda hubung 201', norm.status === 201, `status ${norm.status}`);
     ok('HP tersimpan tanpa tanda hubung', norm.json?.data?.user?.phone === dashedPhone.replace(/-/g, ''), norm.json?.data?.user?.phone);
+
+    // ---- kolom bentrok tidak boleh ditebak dari pesan driver ----
+    // Pesan ER_DUP_ENTRY berbentuk "Duplicate entry '<nilai>' for key
+    // 'users.email'" — nilai yang didaftarkan ikut masuk ke pesan, bukan cuma
+    // nama kolom. Alamat yang memuat kata 'member_code' karena itu dulu membuat
+    // cabangnya salah: bentrok email dijawab "Gagal membuat kode member, coba
+    // lagi." setelah tiga percobaan. Ditaruh paling akhir supaya user tambahan
+    // di sini tidak menggeser nomor urut yang diperiksa uji sebelumnya.
+    const aneh = `member_code.phone.${stamp}@cleano.test`;
+    const a1 = await call('/api/auth/register', {
+      method: 'POST',
+      body: { name: 'Uji Alamat Aneh', email: aneh, password: pass, phone: `0893${stamp}` },
+    });
+    ok('register email memuat kata member_code 201', a1.status === 201, `status ${a1.status}`);
+    const a2 = await call('/api/auth/register', {
+      method: 'POST',
+      body: { name: 'Uji Alamat Aneh', email: aneh, password: pass, phone: `0892${stamp}` },
+    });
+    ok('duplikat email memuat kata member_code tetap disebut email',
+      a2.status === 409 && /email sudah terdaftar/i.test(a2.json?.message ?? ''),
+      `${a2.status} ${a2.json?.message}`);
   } catch (err) {
     ok('tes auth tidak melempar error', false, err.message);
   } finally {

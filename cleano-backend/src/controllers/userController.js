@@ -2,7 +2,23 @@
 
 const { pool } = require('../config/database');
 const { ok, badRequest, notFound } = require('../utils/response');
-const { tierOf } = require('./authController');
+const { normalizePhone } = require('../utils/phone');
+const { tierOf, publicUser } = require('./authController');
+
+// GET /api/users/me — semua login
+// Token hanya membawa id, member_code, role (PRD-02 §3.1). Poin dan tier tidak
+// ikut di dalamnya karena keduanya berubah tanpa login ulang — pelanggan yang
+// baru menyelesaikan order akan melihat saldo lama sampai token kedaluwarsa.
+// Portal pelanggan (PRD-04 §3.1, §3.3) butuh angka terbaru, jadi dibaca di sini.
+async function me(req, res) {
+  const [rows] = await pool.query(
+    'select id, name, email, phone, role, member_code, points from users where id = ? limit 1',
+    [req.user.id],
+  );
+  if (!rows.length) throw notFound('Pengguna tidak ditemukan.');
+
+  return ok(res, publicUser(rows[0]), 'Profil pengguna.');
+}
 
 // GET /api/users/lookup?query=MBR-0001 | 081234567890 — kasir saja
 // Dipakai layar POS untuk mencari pelanggan lewat QR member atau nomor HP (TC-11).
@@ -10,7 +26,9 @@ async function lookup(req, res) {
   const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
   if (!query) throw badRequest('Parameter query wajib diisi.');
 
-  const digits = query.replace(/[\s-]/g, '');
+  // Kasir mengetik nomor dari WhatsApp (+62...) atau dari kartu (0812...).
+  // Keduanya harus menemukan orang yang sama; tanpa normalisasi, +62812… → 404.
+  const phone = normalizePhone(query);
 
   const [rows] = await pool.query(
     `select id, name, phone, member_code, points
@@ -18,7 +36,7 @@ async function lookup(req, res) {
       where role = 'pelanggan'
         and (member_code = ? or phone = ?)
       limit 1`,
-    [query.toUpperCase(), digits],
+    [query.toUpperCase(), phone],
   );
 
   if (!rows.length) throw notFound('Pelanggan tidak ditemukan.');
@@ -43,4 +61,4 @@ async function lookup(req, res) {
   }, 'Pelanggan ditemukan.');
 }
 
-module.exports = { lookup };
+module.exports = { me, lookup };

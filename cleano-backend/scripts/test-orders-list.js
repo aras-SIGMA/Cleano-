@@ -128,6 +128,41 @@ async function get(path, { token } = {}) {
     const badStatus = await get('/api/orders?status=hilang', { token: kasir });
     ok('status tidak dikenal 400', badStatus.status === 400, `status ${badStatus.status}`);
 
+    // ---- grup status `aktif` (PRD-03 §4) ----
+    // Dashboard kasir meminta GET /api/orders?status=aktif dalam satu permintaan.
+    // 'aktif' bukan nilai enum di tabel: itu grup antre+proses_cuci+sedang_diproses+
+    // siap_diambil. Tanpa pemetaan ini permintaannya dijawab 400 dan daftar ringkas
+    // order aktif tidak bisa ditampilkan.
+    const AKTIF = ['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil'];
+    const aktif = await get('/api/orders?status=aktif', { token: kasir });
+    ok('filter status=aktif 200', aktif.status === 200, `status ${aktif.status}`);
+    ok('status=aktif hanya berisi order belum final',
+      (aktif.json?.data?.items ?? []).every((o) => AKTIF.includes(o.status)),
+      `${(aktif.json?.data?.items ?? []).map((o) => o.status).join(' ')}`);
+    const [[jmlAktif]] = await pool.query(
+      `select count(*) as n from orders where status in (${AKTIF.map(() => '?').join(',')})`,
+      AKTIF,
+    );
+    ok('total status=aktif cocok DB', aktif.json?.data?.total === jmlAktif.n,
+      `${aktif.json?.data?.total} vs ${jmlAktif.n}`);
+    ok('status=aktif tidak memuat order selesai/batal',
+      (aktif.json?.data?.items ?? []).every((o) => o.status !== 'selesai' && o.status !== 'batal'));
+
+    // Grup tetap dibatasi kepemilikan: pelanggan tidak boleh melihat order aktif
+    // milik pelanggan lain lewat satu filter.
+    const aktifRina = await get('/api/orders?status=aktif', { token: tokRina });
+    const [[jmlAktifRina]] = await pool.query(
+      `select count(*) as n from orders where user_id = ? and status in (${AKTIF.map(() => '?').join(',')})`,
+      [rina.id, ...AKTIF],
+    );
+    ok('status=aktif tetap dibatasi kepemilikan', aktifRina.json?.data?.total === jmlAktifRina.n,
+      `${aktifRina.json?.data?.total} vs ${jmlAktifRina.n}`);
+
+    const [[jmlSelesaiBatal]] = await pool.query("select count(*) as n from orders where status in ('selesai','batal')");
+    ok('aktif + final = seluruh order',
+      jmlAktif.n + jmlSelesaiBatal.n === totalAll.n,
+      `${jmlAktif.n} + ${jmlSelesaiBatal.n} vs ${totalAll.n}`);
+
     // ---- pagination ----
     const page1 = await get('/api/orders?page=1&pageSize=2', { token: kasir });
     ok('pageSize=2 mengembalikan maksimal 2', (page1.json?.data?.items ?? []).length <= 2,

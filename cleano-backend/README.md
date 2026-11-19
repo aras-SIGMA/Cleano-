@@ -7,11 +7,14 @@ Frontend Flutter/Dart berada di repo terpisah; folder ini **hanya** backend.
 
 ## Status
 
-Tahap inisiasi selesai. Yang sudah ada: koneksi Aiven, konfigurasi Midtrans, middleware auth
-dan upload, endpoint `/api/health`, serta skrip pemuat skema dan smoke test.
+Backend selesai untuk seluruh **16 endpoint PRD-02**, ditambah `GET /api/users/me`
+(dibutuhkan portal pelanggan PRD-04 §3.1/§3.3) dan `?status=aktif`
+(PRD-03 §4). Regresi: **419 asersi** di 10 suite, `npm run check` hijau,
+`npm audit` 0 kerentanan.
 
-Endpoint bisnis (`/api/auth`, `/api/orders`, `/api/dashboard`, dst.) belum dibuat — itu tahap
-berikutnya sesuai PRD-02 §4.
+Yang belum: `certs/ca.pem` dari console Aiven (mekanisme `DB_SSL_VERIFY` sudah
+siap menolak jalan tanpa berkas itu), dan celah-celah yang tercatat sebagai
+"Terbuka" di `docs/TASK-backend.md`.
 
 ## Prasyarat
 
@@ -118,7 +121,8 @@ OK    rollback bersih          orders 3 -> 3
 | GET | `/api/health` | status server + koneksi database |
 | POST | `/api/auth/register` | daftar pelanggan baru, `member_code` otomatis |
 | POST | `/api/auth/login` | login, mengembalikan JWT 24 jam + profil |
-| GET | `/api/users/lookup?query=` | cari pelanggan via `member_code` atau nomor HP (kasir) |
+| GET | `/api/users/me` | profil sendiri: poin & tier terbaru (semua login) |
+| GET | `/api/users/lookup?query=` | cari pelanggan via `member_code` atau nomor HP; `+62`/`62`/`08` sama (kasir) |
 | GET | `/api/services` | daftar layanan (semua login) |
 | POST/PUT/DELETE | `/api/services[/:id]` | kelola layanan (kasir) |
 | GET | `/api/machines` | daftar mesin (semua login) |
@@ -127,7 +131,7 @@ OK    rollback bersih          orders 3 -> 3
 | POST/PUT | `/api/rewards[/:id]` | kelola reward (kasir) |
 | PATCH | `/api/rewards/:id/toggle` | aktif/nonaktifkan reward (kasir) |
 | POST | `/api/orders` | buat order + foto bukti (`multipart/form-data`, kasir) |
-| GET | `/api/orders?status=&page=&pageSize=` | daftar order; pelanggan hanya miliknya sendiri |
+| GET | `/api/orders?status=&page=&pageSize=` | daftar order; `status=aktif` = semua yang belum final; pelanggan hanya miliknya sendiri |
 | PATCH | `/api/orders/:id/status` | ubah status; melepas mesin + `next_queue_order` (kasir) |
 | PATCH | `/api/orders/:id/confirm-relay` | pasang order antre ke mesin, mulai hitung mundur (kasir) |
 | POST | `/api/orders/:id/sync-payment` | cek status ke Midtrans Core, tandai lunas bila settlement (kasir) |
