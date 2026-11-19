@@ -39,4 +39,17 @@ class ApiConstants {
   static const login = '/api/auth/login';
   static const userLookup = '/api/users/lookup';
   static const userMe = '/api/users/me';
+
+  // --- master data ---
+  static const services = '/api/services';
+  static const machines = '/api/machines';
+  static const rewards = '/api/rewards';
+  static const rewardRedeem = '/api/rewards/redeem';
+  static const rewardMyVouchers = '/api/rewards/my-vouchers';
+
+  // --- orders & tracking ---
+  static const orders = '/api/orders';
+
+  // --- dashboard ---
+  static const dashboardSummary = '/api/dashboard/summary';
 }
