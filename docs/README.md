@@ -5,6 +5,7 @@
 | Dokumen | Untuk apa |
 |---|---|
 | [`PANDUAN-PENGERJAAN.md`](PANDUAN-PENGERJAAN.md) | aturan kerja, konvensi backend & Flutter, Definition of Done |
+| [`DESIGN.md`](DESIGN.md) | panduan UI/UX, sistem warna Vibrant Azure, dan spesifikasi komponen |
 | [`JADWAL-DEVELOPMENT.md`](JADWAL-DEVELOPMENT.md) | jadwal 2 hari development + 1 hari testing, per blok jam |
 | [`TASK-backend.md`](TASK-backend.md) | 10 paket task backend, dengan status |
 | [`TASK-mobile.md`](TASK-mobile.md) | 11 paket task Flutter, dengan status |

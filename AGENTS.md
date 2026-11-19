@@ -83,3 +83,37 @@ tidak ada folder `tmp/`. Skrip probe sementara dihapus setelah dipakai.
 `.env` tidak pernah di-commit. Nilai rahasia tidak ditulis di dokumen, laporan,
 pesan commit, atau log. `describe()` di `src/utils/logger.js` hanya mengambil
 field yang aman — jangan menyalin objek error utuh ke log.
+
+## 9. Karpathy Guidelines (Selalu Aktif Saat Menulis Kode)
+
+Pedoman perilaku wajib yang selalu dieksekusi saat menulis, mengubah, atau me-refactor kode:
+
+1. **Think Before Coding (Pikirkan Sebelum Menulis Kode):**
+   - Jangan berasumsi diam-diam. Jangan menyembunyikan kebingungan.
+   - Ungkapkan asumsi secara eksplisit sebelum implementasi; tanyakan jika ragu.
+   - Jika ada beberapa interpretasi, sampaikan opsi — jangan memilih diam-diam.
+   - Jika ada pendekatan yang lebih sederhana, utarakan. Tolak kompleksitas yang tidak perlu.
+   - Jika ada yang ambigu atau kurang jelas, berhenti dan tanyakan terlebih dahulu.
+
+2. **Simplicity First (Utamakan Kesederhanaan):**
+   - Tulis kode seminimal mungkin yang menyelesaikan masalah. Jangan berspekulasi.
+   - Tidak menambah fitur di luar yang diminta.
+   - Tidak membuat abstraksi untuk kode yang hanya dipakai sekali.
+   - Tidak menambah fleksibilitas atau konfigurasi berlebihan yang tidak diminta.
+   - Jika menulis 200 baris padahal bisa 50 baris, sederhanakan dan tulis ulang.
+
+3. **Surgical Changes (Perubahan Presisi & Terisolasi):**
+   - Sentuh hanya baris/berkas yang wajib diubah untuk tugas tersebut.
+   - Jangan "memperbaiki" kode, komentar, atau format di sekitarnya yang tidak rusak.
+   - Selaraskan dengan gaya kode yang ada.
+   - Bersihkan dependensi/variabel/fungsi yang menjadi tidak terpakai akibat perubahan kita.
+   - Setiap baris yang diubah harus dapat ditelusuri langsung ke permintaan pengguna.
+
+4. **Goal-Driven Execution (Eksekusi Berbasis Verifikasi):**
+   - Tentukan kriteria sukses sebelum mulai. Verifikasi secara berulang (*loop*) sampai terbukti berhasil.
+   - Setiap tugas multi-tahap harus diawali rencana ringkas beserta langkah verifikasinya:
+     ```
+     1. [Langkah] → verifikasi: [uji]
+     2. [Langkah] → verifikasi: [uji]
+     ```
+   - Tidak menandai selesai tanpa bukti pengujian konkret.

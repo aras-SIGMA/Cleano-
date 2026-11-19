@@ -1,42 +1,55 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-/// Konstanta akses API. Nilai berasal dari `.env` (lihat `.env.example`).
+/// Konstanta akses API. Nilai berasal dari `.env`.
 class ApiConstants {
   const ApiConstants._();
 
   /// Base URL backend, tanpa trailing slash.
+  /// Otomatis menyesuaikan platform (Web/Desktop -> localhost, Android Emulator -> 10.0.2.2).
   static String get baseUrl {
-    final raw = dotenv.env['API_BASE_URL'] ?? '';
-    return raw.endsWith('/') ? raw.substring(0, raw.length - 1) : raw;
+    var raw = dotenv.env['API_BASE_URL']?.trim() ?? '';
+    if (raw.isEmpty) {
+      raw = 'http://10.0.2.2:3000';
+    }
+
+    while (raw.endsWith('/')) {
+      raw = raw.substring(0, raw.length - 1);
+    }
+
+    final useAdbReverse = dotenv.env['USE_ADB_REVERSE']?.trim().toLowerCase() == 'true';
+
+    if (kIsWeb ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      raw = raw.replaceFirst('10.0.2.2', 'localhost');
+    } else if (defaultTargetPlatform == TargetPlatform.android && !useAdbReverse) {
+      raw = raw
+          .replaceFirst('localhost', '10.0.2.2')
+          .replaceFirst('127.0.0.1', '10.0.2.2');
+    }
+
+    return raw;
   }
 
-  /// Client Key Midtrans Snap — aman di frontend, beda dari server key.
-  static String get midtransClientKey => dotenv.env['MIDTRANS_CLIENT_KEY'] ?? '';
-
-  // --- path endpoint (PRD-02 §4) ---
+  // --- path endpoint auth & user ---
   static const health = '/api/health';
-
   static const register = '/api/auth/register';
   static const login = '/api/auth/login';
-
   static const userLookup = '/api/users/lookup';
+  static const userMe = '/api/users/me';
 
+  // --- master data ---
   static const services = '/api/services';
   static const machines = '/api/machines';
   static const rewards = '/api/rewards';
+  static const rewardRedeem = '/api/rewards/redeem';
+  static const rewardMyVouchers = '/api/rewards/my-vouchers';
 
+  // --- orders & tracking ---
   static const orders = '/api/orders';
+
+  // --- dashboard ---
   static const dashboardSummary = '/api/dashboard/summary';
-
-  static const rewardsRedeem = '/api/rewards/redeem';
-  static const myVouchers = '/api/rewards/my-vouchers';
-
-  /// `PATCH /api/orders/:id/status`
-  static String orderStatus(int id) => '/api/orders/$id/status';
-
-  /// `PATCH /api/orders/:id/confirm-relay`
-  static String orderConfirmRelay(int id) => '/api/orders/$id/confirm-relay';
-
-  /// `POST /api/orders/:id/sync-payment`
-  static String orderSyncPayment(int id) => '/api/orders/$id/sync-payment';
 }
