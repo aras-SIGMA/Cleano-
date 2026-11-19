@@ -22,6 +22,10 @@ const COLS = `id, order_code, user_id, customer_name, customer_phone, member_cod
 
 const MAX_ATTEMPTS = 3;
 
+// 'aktif' adalah nama grup, bukan nilai enum di tabel. Dashboard kasir
+// (PRD-03 §4) memintanya sebagai satu permintaan, bukan empat filter terpisah.
+const AKTIF = ['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil'];
+
 // Nomor urut diambil dari MAX per tanggal. Dua request pada milidetik yang sama
 // bisa mendapat nomor yang sama; indeks unik order_code yang memutuskan, lalu
 // percobaan diulang dengan nomor baru. Jangan dikunci FOR UPDATE — agregat tidak
@@ -191,7 +195,13 @@ async function list(req, res) {
   const where = [];
   const values = [];
   if (!isKasir) { where.push('user_id = ?'); values.push(req.user.id); }
-  if (q.status) { where.push('status = ?'); values.push(q.status); }
+  if (q.status === 'aktif') {
+    where.push(`status in (${AKTIF.map(() => '?').join(', ')})`);
+    values.push(...AKTIF);
+  } else if (q.status) {
+    where.push('status = ?');
+    values.push(q.status);
+  }
 
   const whereSql = where.length ? `where ${where.join(' and ')}` : '';
   const offset = (q.page - 1) * q.pageSize;

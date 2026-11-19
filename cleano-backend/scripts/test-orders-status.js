@@ -342,6 +342,82 @@ async function tryTx(fn) {
     ok('confirm-relay mesin tidak ada 404', relayMissingMachine.ok && relayMissingMachine.value.status === 404,
       relayMissingMachine.ok ? `${relayMissingMachine.value.status}` : relayMissingMachine.error);
 
+    // ---- queue_wait_minutes dihitung ulang saat mesin dilepas ----
+    // Angka ini dibekukan saat order dibuat (B4). Begitu satu mesin bebas, order
+    // yang masih antre menunjuk mesin yang sudah selesai — portal pelanggan
+    // (PRD-04 §3.1) menampilkan "± N menit" yang salah permanen.
+    const recalc = await tryTx(async (conn) => {
+      const [a] = await conn.query(
+        `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
+           status, queue_wait_minutes, image_url)
+         values ('CLN-19990101-9920', 2, 1, 1, 3.00, 'tunai', 'proses_cuci', 0, '/uploads/uji.png')`,
+      );
+      await conn.query("update machines set status = 'digunakan', estimated_finish_at = date_add(now(), interval 40 minute) where id = 1");
+      // Angka lama yang sengaja salah, untuk membuktikan baris ini ditimpa.
+      const [antre] = await conn.query(
+        `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
+           status, queue_wait_minutes, image_url)
+         values ('CLN-19990101-9921', 3, 1, null, 2.00, 'tunai', 'antre', 99, '/uploads/uji.png')`,
+      );
+      await attemptStatusChange(conn, { orderId: a.insertId, status: 'siap_diambil' });
+      const [[sesudah]] = await conn.query('select queue_wait_minutes from orders where id = ?', [antre.insertId]);
+      return { sebelum: 99, sesudah: Number(sesudah.queue_wait_minutes) };
+    });
+    ok('queue_wait dihitung ulang saat mesin dilepas',
+      recalc.ok && recalc.value.sesudah !== 99,
+      recalc.ok ? `${recalc.value.sebelum} -> ${recalc.value.sesudah}` : recalc.error);
+    ok('antrean tanpa mesin terpakai jadi 0 menit', recalc.ok && recalc.value.sesudah === 0,
+      recalc.ok ? `${recalc.value.sesudah}` : recalc.error);
+
+    const recalcRelay = await tryTx(async (conn) => {
+      const [antre] = await conn.query(
+        `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
+           status, queue_wait_minutes, image_url)
+         values ('CLN-19990101-9922', 2, 1, null, 3.00, 'tunai', 'antre', 0, '/uploads/uji.png')`,
+      );
+      const [sisa] = await conn.query(
+        `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
+           status, queue_wait_minutes, image_url)
+         values ('CLN-19990101-9923', 3, 1, null, 2.00, 'tunai', 'antre', 0, '/uploads/uji.png')`,
+      );
+      await attemptConfirmRelay(conn, { orderId: antre.insertId, machineId: 3 });
+      const [[s]] = await conn.query('select queue_wait_minutes from orders where id = ?', [sisa.insertId]);
+      return Number(s.queue_wait_minutes);
+    });
+    ok('confirm-relay memperbarui estimasi antrean sisa',
+      recalcRelay.ok && recalcRelay.value > 0,
+      recalcRelay.ok ? `${recalcRelay.value} menit` : recalcRelay.error);
+
+    // ---- confirm-relay menolak layanan tanpa mesin ----
+    // Layanan id 4 (Setrika & Pengeringan) punya requires_machine = 0. Order
+    // seperti ini tidak pernah memakai drum; mengizinkannya lewat confirm-relay
+    // akan mengunci mesin yang dibutuhkan order lain.
+    //
+    // Status awalnya sengaja 'antre' supaya pemeriksaan status lolos dan yang
+    // diuji benar-benar cabang requires_machine. Kalau statusnya 'sedang_diproses',
+    // penolakan datang dari cek status dan tes ini lolos tanpa membuktikan apa pun.
+    const relayNoMachine = await tryTx(async (conn) => {
+      const [[svc]] = await conn.query('select requires_machine from services where id = 4');
+      const [a] = await conn.query(
+        `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
+           status, image_url)
+         values ('CLN-19990101-9924', 2, 4, null, 1.00, 'tunai', 'antre', '/uploads/uji.png')`,
+      );
+      try {
+        await attemptConfirmRelay(conn, { orderId: a.insertId, machineId: 1 });
+        return { status: null, message: 'lolos', requiresMachine: svc.requires_machine };
+      } catch (e) {
+        return { status: e.status ?? null, message: e.message, requiresMachine: svc.requires_machine };
+      }
+    });
+    ok('layanan uji memang requires_machine = 0',
+      relayNoMachine.ok && relayNoMachine.value.requiresMachine === 0,
+      relayNoMachine.ok ? `${relayNoMachine.value.requiresMachine}` : relayNoMachine.error);
+    ok('confirm-relay menolak layanan tanpa mesin',
+      relayNoMachine.ok && relayNoMachine.value.status === 400
+      && /tidak memakai mesin/i.test(relayNoMachine.value.message ?? ''),
+      relayNoMachine.ok ? `${relayNoMachine.value.status} ${relayNoMachine.value.message}` : relayNoMachine.error);
+
     // ---- poin diberikan trigger, bukan backend ----
     const poin = await tryTx(async (conn) => {
       const [[before]] = await conn.query('select points from users where id = 2');

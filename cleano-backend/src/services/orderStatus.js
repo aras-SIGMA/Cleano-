@@ -53,6 +53,28 @@ async function nextQueuedOrder(conn) {
   return row ?? null;
 }
 
+// Estimasi tunggu dihitung saat order dibuat (B4) dan tidak pernah diperbarui.
+// Begitu satu mesin bebas, angka yang tersimpan di order lain menunjuk mesin yang
+// sudah selesai — portal pelanggan (PRD-04 §3.1) menampilkan "± N menit" yang
+// salah permanen. Karena itu setiap kali mesin dilepas, seluruh order 'antre'
+// dihitung ulang dari mesin yang paling cepat selesai saat ini.
+//
+// Satu UPDATE untuk semua baris, bukan satu per order: nilainya sama untuk
+// semuanya, dan antrean satu outlet cukup pendek untuk dikunci sekaligus.
+async function refreshQueueWaits(conn) {
+  await conn.query(
+    `update orders
+        set queue_wait_minutes = (
+          select greatest(0, coalesce(
+            timestampdiff(minute, now(),
+              (select min(estimated_finish_at) from machines
+                where status = 'digunakan' and estimated_finish_at is not null)),
+            0))
+        )
+      where status = 'antre'`,
+  );
+}
+
 // Satu perubahan status, di atas koneksi yang sudah membuka transaksi.
 async function attemptStatusChange(conn, { orderId, status }) {
   const order = await lockOrder(conn, orderId);
@@ -69,7 +91,13 @@ async function attemptStatusChange(conn, { orderId, status }) {
   // tanpa syarat, transisi siap_diambil -> selesai akan membebaskan mesin yang
   // sudah dipakai order lain, dan order itu kehilangan drumnya.
   const holdsMachine = order.status === 'proses_cuci' && Boolean(order.machine_id);
-  if (holdsMachine) await releaseMachine(conn, order.machine_id);
+  if (holdsMachine) {
+    await releaseMachine(conn, order.machine_id);
+    // Antrean bergerak: estimasi tunggu seluruh order 'antre' harus ikut turun,
+    // kalau tidak badge "± N menit" di portal pelanggan menunjuk mesin yang
+    // sudah selesai.
+    await refreshQueueWaits(conn);
+  }
 
   return {
     orderId,
@@ -95,8 +123,14 @@ async function attemptConfirmRelay(conn, { orderId, machineId }) {
   }
 
   const [[service]] = await conn.query(
-    'select wash_duration_minutes from services where id = ?', [order.service_id],
+    'select wash_duration_minutes, requires_machine from services where id = ?', [order.service_id],
   );
+  // Layanan cuci-kering tidak pernah memakai drum. Tanpa pemeriksaan ini, order
+  // 'sedang_diproses' layanan tanpa mesin bisa dikirim ke confirm-relay dan
+  // mengunci mesin yang masih dibutuhkan order lain.
+  if (!service?.requires_machine) {
+    throw badRequest('Layanan order ini tidak memakai mesin, jadi tidak bisa dikonfirmasi ke mesin.');
+  }
   const minutes = Number(service?.wash_duration_minutes) || 0;
 
   await conn.query(
@@ -106,6 +140,8 @@ async function attemptConfirmRelay(conn, { orderId, machineId }) {
   // machine_id boleh berubah (trigger hanya mengunci nilai uang dan komposisi
   // order), karena estafet memang memindahkan order antar mesin.
   await conn.query("update orders set status = 'proses_cuci', machine_id = ? where id = ?", [machineId, orderId]);
+  // Mesin ini sekarang terpakai, jadi estimasi antrean yang tersisa ikut berubah.
+  await refreshQueueWaits(conn);
 
   return { orderId, machineId, machineCode: machine.machine_code };
 }
@@ -130,5 +166,5 @@ async function runTx(fn) {
 }
 
 module.exports = {
-  TRANSITIONS, attemptStatusChange, attemptConfirmRelay, nextQueuedOrder, runTx,
+  TRANSITIONS, attemptStatusChange, attemptConfirmRelay, nextQueuedOrder, refreshQueueWaits, runTx,
 };
