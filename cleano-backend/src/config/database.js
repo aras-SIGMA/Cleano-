@@ -20,13 +20,22 @@ function buildSsl() {
   const caSetting = process.env.DB_SSL_CA || '';
   const wajibVerifikasi = process.env.DB_SSL_VERIFY === 'true';
 
+  let caContent = '';
   if (caSetting.trim().startsWith('-----BEGIN')) {
-    return { ca: caSetting, rejectUnauthorized: true };
+    caContent = caSetting.trim();
+  } else if (caSetting) {
+    const caPath = path.resolve(__dirname, '..', '..', caSetting);
+    if (fs.existsSync(caPath)) {
+      caContent = fs.readFileSync(caPath, 'utf8').trim();
+    }
   }
 
-  const caPath = path.resolve(__dirname, '..', '..', caSetting);
-  if (caSetting && fs.existsSync(caPath)) {
-    return { ca: fs.readFileSync(caPath, 'utf8'), rejectUnauthorized: true };
+  if (caContent) {
+    // Normalisasi: jika isi hanya base64 tanpa header PEM, bungkus otomatis
+    if (!caContent.includes('-----BEGIN CERTIFICATE-----')) {
+      caContent = `-----BEGIN CERTIFICATE-----\n${caContent}\n-----END CERTIFICATE-----\n`;
+    }
+    return { ca: caContent, rejectUnauthorized: true };
   }
 
   if (wajibVerifikasi) {

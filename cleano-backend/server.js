@@ -34,7 +34,11 @@ app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 0);
 
 // Header keamanan. CSP dimatikan karena API ini tidak menyajikan HTML —
 // halaman yang dilindungi CSP adalah aplikasi Flutter/web, bukan respons JSON.
-app.use(helmet({ contentSecurityPolicy: false }));
+// crossOriginResourcePolicy dibuat cross-origin agar Flutter Web (Chrome) bisa mengakses API.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 // Flutter mobile tidak mengirim Origin, jadi `cors()` terbuka aman untuk API
 // yang dijaga token. Batas origin dari env dipakai saat web dilayani terpisah.
