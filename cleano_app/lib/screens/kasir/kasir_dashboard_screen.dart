@@ -11,6 +11,7 @@ import '../../services/dashboard_service.dart';
 import '../../services/order_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/state_view.dart';
 
 /// Layar Dashboard Kasir Cleano dengan inspirasi visual modern & minimalis:
 /// - Top Bar dengan tombol aksi pill 'Download'
@@ -370,35 +371,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.danger),
-            const SizedBox(height: 12),
-            Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _loadData,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Coba Lagi'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildErrorState() => StateErrorView(message: _errorMessage!, onRetry: _loadData);
 
   Widget _buildOrdersSliver(List<OrderModel> orders) {
     if (orders.isEmpty) {

@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
 import 'kasir_dashboard_screen.dart';
+import 'kasir_master_screen.dart';
 import 'kasir_orders_screen.dart';
 import 'pos_create_order_screen.dart';
 import '../../widgets/frosted_glass_card.dart';
@@ -112,7 +113,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
           },
         ),
       2 => const KasirOrdersScreen(),
-      3 => _buildMasterPlaceholder(),
+      3 => const KasirMasterScreen(),
       4 => _buildProfileView(),
       _ => const SizedBox.shrink(),
     };
@@ -281,44 +282,6 @@ class _KasirMainNavState extends State<KasirMainNav> {
                 );
               }),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMasterPlaceholder() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Kelola Toko'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.store_rounded, size: 48, color: AppTheme.accent),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Kelola Layanan & Mesin',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Modul pengaturan paket cucian, unit mesin, dan kupon reward akan tersedia di sini.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-              ),
-            ],
           ),
         ),
       ),

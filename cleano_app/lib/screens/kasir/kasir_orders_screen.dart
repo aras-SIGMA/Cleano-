@@ -11,6 +11,7 @@ import '../../services/order_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/order_list_item_card.dart';
+import '../../widgets/state_view.dart';
 
 /// Layar Kasir: Manajemen Pesanan & Estafet Mesin 1-Tap (M5).
 /// - Tab filter: Semua, Antre, Proses Cuci, Siap Diambil, Selesai
@@ -728,33 +729,8 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.danger),
-            const SizedBox(height: 12),
-            Text(
-              _errorMessage ?? 'Terjadi kesalahan.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () => _loadOrders(reset: true),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Coba Lagi'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget _buildErrorState() => StateErrorView(
+        message: _errorMessage ?? 'Terjadi kesalahan.',
+        onRetry: () => _loadOrders(reset: true),
+      );
 }

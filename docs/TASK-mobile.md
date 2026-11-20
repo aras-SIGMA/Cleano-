@@ -19,7 +19,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | M3 | Kasir — dashboard | `feature/mobile-dashboard` | `[x]` |
 | M4 | Kasir — POS | `feature/mobile-pos` | `[x]` |
 | M5 | Kasir — orders & estafet | `feature/mobile-app` | `[x]` |
-| M6 | Kasir — master data | `feature/mobile-master` | `[ ]` |
+| M6 | Kasir - master data | `feature/mobile-app` | `[x]` |
 | M7 | Pelanggan — tracking | `feature/mobile-tracking` | `[ ]` |
 | M8 | Pelanggan — kartu QR | `feature/mobile-qr-card` | `[ ]` |
 | M9 | Pelanggan — rewards | `feature/mobile-rewards` | `[ ]` |
@@ -149,12 +149,12 @@ Branch `feature/mobile-app`
 
 ## M6 — Kasir: master data
 
-Branch `feature/mobile-master`
+Branch `feature/mobile-app`
 
-- [ ] `screens/kasir/kasir_master_screen.dart` — 3 tab
-- [ ] Tab Layanan: list, tambah, edit, hapus (tangani `409`)
-- [ ] Tab Mesin: list, tambah `MC-XX`, ubah status `tersedia`/`maintenance`
-- [ ] Tab Rewards: list, tambah, edit, toggle `is_active`
+- [x] `screens/kasir/kasir_master_screen.dart` — 3 tab
+- [x] Tab Layanan: list, tambah, edit, hapus (tangani `409`)
+- [x] Tab Mesin: list, tambah `MC-XX`, ubah status `tersedia`/`maintenance`
+- [x] Tab Rewards: list, tambah, edit, toggle `is_active`
 
 ---
 
