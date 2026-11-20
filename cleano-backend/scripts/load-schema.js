@@ -33,12 +33,42 @@ function splitStatements(sql) {
 }
 
 (async () => {
-  const ssl = process.env.DB_SSL === 'true'
-    ? { rejectUnauthorized: fs.existsSync(path.resolve(process.env.DB_SSL_CA || 'certs/ca.pem')) }
-    : undefined;
-  if (ssl && !ssl.rejectUnauthorized) {
-    console.warn('[warn] ca.pem tidak ditemukan, TLS tanpa verifikasi sertifikat');
+  // Baca CA sama seperti src/config/database.js — bukan cek ada/tidak
+  function buildSsl() {
+    if (process.env.DB_SSL !== 'true') return undefined;
+
+    const caSetting = process.env.DB_SSL_CA || '';
+    const wajibVerifikasi = process.env.DB_SSL_VERIFY === 'true';
+
+    let caContent = '';
+    if (caSetting.trim().startsWith('-----BEGIN')) {
+      caContent = caSetting.trim();
+    } else if (caSetting) {
+      const caPath = path.resolve(__dirname, '..', caSetting);
+      if (fs.existsSync(caPath)) {
+        caContent = fs.readFileSync(caPath, 'utf8').trim();
+      }
+    }
+
+    if (caContent) {
+      if (!caContent.includes('-----BEGIN CERTIFICATE-----')) {
+        caContent = `-----BEGIN CERTIFICATE-----\n${caContent}\n-----END CERTIFICATE-----\n`;
+      }
+      return { ca: caContent, rejectUnauthorized: true };
+    }
+
+    if (wajibVerifikasi) {
+      throw new Error(
+        `DB_SSL_VERIFY=true tetapi CA tidak ditemukan di "${caSetting || '(DB_SSL_CA kosong)'}". `
+        + 'Unduh ca.pem dari dashboard Aiven lalu simpan sebagai cleano-backend/certs/ca.pem.',
+      );
+    }
+
+    console.warn('[warn] CA tidak ditemukan, TLS tanpa verifikasi sertifikat');
+    return { rejectUnauthorized: false };
   }
+
+  const ssl = buildSsl();
 
   const conn = await mysql.createConnection({
     host: process.env.DB_HOST,
