@@ -6,6 +6,8 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
 import 'kasir_dashboard_screen.dart';
+import 'pos_create_order_screen.dart';
+import '../../widgets/frosted_glass_card.dart';
 
 /// Navigasi Utama Portal Kasir Cleano:
 /// - Responsif: NavigationRail di layar lebar (tablet/desktop) dan NavigationBar di ponsel
@@ -23,6 +25,7 @@ class KasirMainNav extends StatefulWidget {
 
 class _KasirMainNavState extends State<KasirMainNav> {
   int _currentIndex = 0;
+  final Set<int> _loadedTabs = {0}; // Hanya tab beranda yang dimuat di awal untuk cold-start instan
   UserModel? _user;
   bool _isLoading = true;
 
@@ -55,7 +58,10 @@ class _KasirMainNavState extends State<KasirMainNav> {
   }
 
   void _onTabChanged(int index) {
-    setState(() => _currentIndex = index);
+    setState(() {
+      _currentIndex = index;
+      _loadedTabs.add(index);
+    });
   }
 
   Future<void> _handleLogout() async {
@@ -63,7 +69,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Konfirmasi Logout'),
+        title: const Text('Konfirmasi Keluar'),
         content: const Text('Apakah Anda yakin ingin keluar dari akun kasir?'),
         actions: [
           TextButton(
@@ -82,12 +88,33 @@ class _KasirMainNavState extends State<KasirMainNav> {
       ),
     );
 
-    if (confirm != true || !mounted) return;
+  if (confirm != true || !mounted) return;
 
     await AuthService.instance.logout();
     if (!mounted) return;
 
     Navigator.of(context).pushNamedAndRemoveUntil(AppRouter.splash, (r) => false);
+  }
+
+  Widget _buildTabBody(int index) {
+    if (!_loadedTabs.contains(index)) {
+      return const SizedBox.shrink();
+    }
+    return switch (index) {
+      0 => KasirDashboardScreen(
+          onNavigateToOrders: () => _onTabChanged(2),
+          onNavigateToPos: () => _onTabChanged(1),
+        ),
+      1 => PosCreateOrderScreen(
+          onOrderCreated: (order) {
+            _onTabChanged(2);
+          },
+        ),
+      2 => _buildOrdersPlaceholder(),
+      3 => _buildMasterPlaceholder(),
+      4 => _buildProfileView(),
+      _ => const SizedBox.shrink(),
+    };
   }
 
   @override
@@ -98,16 +125,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
       );
     }
 
-    final pages = [
-      KasirDashboardScreen(
-        onNavigateToOrders: () => _onTabChanged(2),
-        onNavigateToPos: () => _onTabChanged(1),
-      ),
-      _buildPosPlaceholder(),
-      _buildOrdersPlaceholder(),
-      _buildMasterPlaceholder(),
-      _buildProfileView(),
-    ];
+    final children = List.generate(5, _buildTabBody);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -135,7 +153,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
                         padding: const EdgeInsets.only(bottom: 20),
                         child: IconButton(
                           icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-                          tooltip: 'Logout',
+                          tooltip: 'Keluar',
                           onPressed: _handleLogout,
                         ),
                       ),
@@ -143,14 +161,14 @@ class _KasirMainNavState extends State<KasirMainNav> {
                   ),
                   destinations: const [
                     NavigationRailDestination(
-                      icon: Icon(Icons.dashboard_outlined),
-                      selectedIcon: Icon(Icons.dashboard_rounded),
-                      label: Text('Dashboard'),
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home_rounded),
+                      label: Text('Beranda'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.point_of_sale_outlined),
-                      selectedIcon: Icon(Icons.point_of_sale_rounded),
-                      label: Text('POS Baru'),
+                      icon: Icon(Icons.add_shopping_cart_outlined),
+                      selectedIcon: Icon(Icons.add_shopping_cart_rounded),
+                      label: Text('Catat Cucian'),
                     ),
                     NavigationRailDestination(
                       icon: Icon(Icons.receipt_long_outlined),
@@ -158,100 +176,110 @@ class _KasirMainNavState extends State<KasirMainNav> {
                       label: Text('Pesanan'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.inventory_2_outlined),
-                      selectedIcon: Icon(Icons.inventory_2_rounded),
-                      label: Text('Master'),
+                      icon: Icon(Icons.store_outlined),
+                      selectedIcon: Icon(Icons.store_rounded),
+                      label: Text('Kelola Toko'),
                     ),
                     NavigationRailDestination(
                       icon: Icon(Icons.person_outline_rounded),
                       selectedIcon: Icon(Icons.person_rounded),
-                      label: Text('Profil'),
+                      label: Text('Akun'),
                     ),
                   ],
                 ),
                 const VerticalDivider(thickness: 1, width: 1, color: AppTheme.border),
-                Expanded(child: pages[_currentIndex]),
+                Expanded(
+                  child: IndexedStack(
+                    index: _currentIndex,
+                    children: children,
+                  ),
+                ),
               ],
             ),
           );
         }
 
         return Scaffold(
-          body: pages[_currentIndex],
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _currentIndex,
-            onDestinationSelected: _onTabChanged,
-            elevation: 8,
-            backgroundColor: Colors.white,
-            indicatorColor: AppTheme.surfaceSubtle,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.dashboard_outlined),
-                selectedIcon: Icon(Icons.dashboard_rounded, color: AppTheme.primary),
-                label: 'Dashboard',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.point_of_sale_outlined),
-                selectedIcon: Icon(Icons.point_of_sale_rounded, color: AppTheme.primary),
-                label: 'POS Baru',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded, color: AppTheme.primary),
-                label: 'Pesanan',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.inventory_2_outlined),
-                selectedIcon: Icon(Icons.inventory_2_rounded, color: AppTheme.primary),
-                label: 'Master',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded, color: AppTheme.primary),
-                label: 'Profil',
-              ),
-            ],
+          extendBody: true,
+          body: IndexedStack(
+            index: _currentIndex,
+            children: children,
           ),
+          bottomNavigationBar: _buildFloatingBottomBar(),
         );
       },
     );
   }
 
-  Widget _buildPosPlaceholder() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Kasir POS'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: () {}),
-        ],
-      ),
-      body: Center(
+  Widget _buildFloatingBottomBar() {
+    final items = [
+      (Icons.home_outlined, Icons.home_rounded, 'Beranda'),
+      (Icons.add_shopping_cart_outlined, Icons.add_shopping_cart_rounded, 'Catat'),
+      (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
+      (Icons.store_outlined, Icons.store_rounded, 'Toko'),
+      (Icons.person_outline_rounded, Icons.person_rounded, 'Akun'),
+    ];
+
+    return RepaintBoundary(
+      child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.point_of_sale_rounded, size: 48, color: AppTheme.primary),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Point of Sales (POS)',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Modul transaksi 4 langkah (Lookup Pelanggan, Pilih Layanan + Foto, Voucher, Pembayaran) akan dimuat pada paket M4.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: FrostedGlassCard(
+            enableBlur: true,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+            borderRadius: 32,
+            blurSigma: 20,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(items.length, (idx) {
+                final isSelected = _currentIndex == idx;
+                final item = items[idx];
+
+                return InkWell(
+                  onTap: () => _onTabChanged(idx),
+                  borderRadius: BorderRadius.circular(22),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSelected ? 12 : 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.primary.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? item.$2 : item.$1,
+                          size: 22,
+                          color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          item.$3,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
       ),
@@ -300,7 +328,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Master Data Outlet'),
+        title: const Text('Kelola Toko'),
       ),
       body: Center(
         child: Padding(
@@ -314,16 +342,16 @@ class _KasirMainNavState extends State<KasirMainNav> {
                   color: const Color(0xFFFFFBEB),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.inventory_2_rounded, size: 48, color: AppTheme.accent),
+                child: const Icon(Icons.store_rounded, size: 48, color: AppTheme.accent),
               ),
               const SizedBox(height: 16),
               const Text(
-                'Manajemen Master Data',
+                'Kelola Layanan & Mesin',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
               ),
               const SizedBox(height: 8),
               const Text(
-                'Modul kelola layanan laundry, unit mesin cuci, dan katalog promo rewards akan dimuat pada paket M6.',
+                'Modul pengaturan paket cucian, unit mesin, dan kupon reward akan tersedia di sini.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
               ),
@@ -338,11 +366,11 @@ class _KasirMainNavState extends State<KasirMainNav> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Profil Kasir'),
+        title: const Text('Akun Kasir'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Logout',
+            tooltip: 'Keluar',
             onPressed: _handleLogout,
           ),
         ],

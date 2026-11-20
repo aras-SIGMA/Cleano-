@@ -4,25 +4,53 @@ import '../models/reward_model.dart';
 import '../models/service_model.dart';
 import 'api_service.dart';
 
-/// Service manajemen master data outlet (Layanan, Mesin, dan Promo Rewards).
+/// Service manajemen master data outlet (Layanan, Mesin, dan Promo Rewards)
+/// dengan in-memory caching untuk mengurangi query redundan dan meningkatkan responsivitas POS.
 class MasterService {
   MasterService({ApiService? apiService}) : _api = apiService ?? ApiService.instance;
 
   static final MasterService instance = MasterService();
   final ApiService _api;
 
+  // In-memory cache
+  List<ServiceModel>? _cachedServices;
+  DateTime? _servicesCacheTime;
+
+  List<MachineModel>? _cachedMachines;
+  DateTime? _machinesCacheTime;
+
+  static const _cacheDuration = Duration(minutes: 3);
+
+  void invalidateCache() {
+    _cachedServices = null;
+    _servicesCacheTime = null;
+    _cachedMachines = null;
+    _machinesCacheTime = null;
+  }
+
   // ==========================================
   // MASTER LAYANAN
   // ==========================================
 
-  Future<List<ServiceModel>> getServices() async {
+  Future<List<ServiceModel>> getServices({bool forceRefresh = false}) async {
+    final now = DateTime.now();
+    if (!forceRefresh &&
+        _cachedServices != null &&
+        _servicesCacheTime != null &&
+        now.difference(_servicesCacheTime!) < _cacheDuration) {
+      return _cachedServices!;
+    }
+
     final res = await _api.get(ApiConstants.services);
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is List) {
-      return (payload['data'] as List)
+      final list = (payload['data'] as List)
           .whereType<Map<String, dynamic>>()
           .map((m) => ServiceModel.fromJson(m))
           .toList();
+      _cachedServices = list;
+      _servicesCacheTime = now;
+      return list;
     }
     return [];
   }
@@ -49,6 +77,7 @@ class MasterService {
 
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is Map<String, dynamic>) {
+      invalidateCache();
       return ServiceModel.fromJson(payload['data'] as Map<String, dynamic>);
     }
     throw const ApiException('Gagal menambahkan layanan baru.');
@@ -77,6 +106,7 @@ class MasterService {
 
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is Map<String, dynamic>) {
+      invalidateCache();
       return ServiceModel.fromJson(payload['data'] as Map<String, dynamic>);
     }
     throw const ApiException('Gagal memperbarui data layanan.');
@@ -84,20 +114,32 @@ class MasterService {
 
   Future<void> deleteService(int id) async {
     await _api.delete('${ApiConstants.services}/$id');
+    invalidateCache();
   }
 
   // ==========================================
   // MASTER MESIN
   // ==========================================
 
-  Future<List<MachineModel>> getMachines() async {
+  Future<List<MachineModel>> getMachines({bool forceRefresh = false}) async {
+    final now = DateTime.now();
+    if (!forceRefresh &&
+        _cachedMachines != null &&
+        _machinesCacheTime != null &&
+        now.difference(_machinesCacheTime!) < _cacheDuration) {
+      return _cachedMachines!;
+    }
+
     final res = await _api.get(ApiConstants.machines);
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is List) {
-      return (payload['data'] as List)
+      final list = (payload['data'] as List)
           .whereType<Map<String, dynamic>>()
           .map((m) => MachineModel.fromJson(m))
           .toList();
+      _cachedMachines = list;
+      _machinesCacheTime = now;
+      return list;
     }
     return [];
   }
@@ -118,6 +160,7 @@ class MasterService {
 
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is Map<String, dynamic>) {
+      invalidateCache();
       return MachineModel.fromJson(payload['data'] as Map<String, dynamic>);
     }
     throw const ApiException('Gagal menambahkan mesin baru.');
@@ -140,6 +183,7 @@ class MasterService {
 
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is Map<String, dynamic>) {
+      invalidateCache();
       return MachineModel.fromJson(payload['data'] as Map<String, dynamic>);
     }
     throw const ApiException('Gagal memperbarui data mesin.');

@@ -9,12 +9,15 @@ import '../../models/order_model.dart';
 import '../../services/api_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/order_service.dart';
+import '../../widgets/frosted_glass_card.dart';
 
-/// Layar Dashboard Utama Kasir Cleano:
-/// - 4 Kartu Metrik Operasional (Omzet, Pesanan Aktif, Siap Diambil, Kapasitas Mesin)
-/// - Grafik Batang Tren Omzet 7 Hari (fl_chart)
-/// - Daftar Ringkas Pesanan Aktif
-/// - Pull-to-Refresh & Ekspor Ringkasan Laporan
+/// Layar Dashboard Kasir Cleano dengan inspirasi visual modern & minimalis:
+/// - Top Bar dengan tombol aksi pill 'Download'
+/// - Hero Stat omzet besar yang bersih & fokus
+/// - Grafik Batang capsule fl_chart dengan pill penanda rata-rata
+/// - Grid 2x2 kartu metrik ringkas & proporsional
+/// - Filter tab pill untuk daftar antrean pesanan aktif
+/// - Ekspor laporan operasional & pull-to-refresh
 class KasirDashboardScreen extends StatefulWidget {
   const KasirDashboardScreen({
     super.key,
@@ -42,6 +45,10 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // Filter internal daftar order aktif
+  String _orderFilter = 'semua'; // 'semua' | 'antre' | 'proses_cuci'
+  int _selectedPeriodIndex = 1; // 0: Hari Ini, 1: 7 Hari Terakhir, 2: Bulan Ini
+
   @override
   void initState() {
     super.initState();
@@ -57,7 +64,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
 
     try {
       final summaryFuture = _dashboardService.getSummary();
-      final activeOrdersFuture = _orderService.getOrders(status: 'aktif', pageSize: 5);
+      final activeOrdersFuture = _orderService.getOrders(status: 'aktif', pageSize: 10);
 
       final results = await Future.wait([summaryFuture, activeOrdersFuture]);
 
@@ -90,12 +97,29 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
     if (_summary == null) return;
     final total7Hari = _summary!.revenue7Days.fold<int>(0, (sum, d) => sum + d.dailyRevenue);
 
+    final summaryRows = [
+      ('Omzet Hari Ini', Formatters.rupiah(_summary!.todayRevenue)),
+      ('Total Omzet 7 Hari', Formatters.rupiah(total7Hari)),
+      ('Pesanan Aktif', '${_summary!.activeOrders} Pesanan'),
+      ('Kapasitas Mesin', '${_summary!.availableMachines} / ${_summary!.totalOperationalMachines} Tersedia'),
+    ];
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
+        void triggerExport(String format) {
+          Navigator.pop(ctx);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('File format $format disiapkan untuk diunduh.'),
+              backgroundColor: AppTheme.primary,
+            ),
+          );
+        }
+
         return Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -108,7 +132,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceSubtle,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.file_download_outlined, color: AppTheme.primary),
                   ),
@@ -119,14 +143,10 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                       children: [
                         Text(
                           'Ekspor Ringkasan Laporan',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                          ),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
                         ),
                         Text(
-                          'Unduh rekap operasional kasir Cleano',
+                          'Unduh rekap data operasional kasir Cleano',
                           style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                         ),
                       ],
@@ -139,21 +159,15 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppTheme.border),
                 ),
                 child: Column(
                   children: [
-                    _buildModalRow('Omzet Hari Ini', Formatters.rupiah(_summary!.todayRevenue)),
-                    const SizedBox(height: 8),
-                    _buildModalRow('Total Omzet 7 Hari', Formatters.rupiah(total7Hari)),
-                    const SizedBox(height: 8),
-                    _buildModalRow('Pesanan Aktif', '${_summary!.activeOrders} Pesanan'),
-                    const SizedBox(height: 8),
-                    _buildModalRow(
-                      'Kapasitas Mesin',
-                      '${_summary!.availableMachines} / ${_summary!.totalOperationalMachines} Tersedia',
-                    ),
+                    for (int i = 0; i < summaryRows.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 8),
+                      _buildModalRow(summaryRows[i].$1, summaryRows[i].$2),
+                    ],
                   ],
                 ),
               ),
@@ -162,15 +176,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Ekspor format CSV disiapkan.'),
-                            backgroundColor: AppTheme.primary,
-                          ),
-                        );
-                      },
+                      onPressed: () => triggerExport('CSV'),
                       icon: const Icon(Icons.table_chart_outlined, size: 18),
                       label: const Text('Ekspor CSV'),
                       style: OutlinedButton.styleFrom(
@@ -182,15 +188,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Ekspor format PDF disiapkan.'),
-                            backgroundColor: AppTheme.primary,
-                          ),
-                        );
-                      },
+                      onPressed: () => triggerExport('PDF'),
                       icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
                       label: const Text('Ekspor PDF'),
                       style: ElevatedButton.styleFrom(
@@ -214,7 +212,15 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: const TextStyle(
@@ -230,44 +236,68 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFEBF4FF),
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Dashboard Kasir',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
-            ),
-            Text(
-              'Ringkasan Operasional Cleano',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.normal),
-            ),
-          ],
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        title: const Text(
+          'Beranda Kasir',
+          style: TextStyle(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 17,
+          ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.file_download_outlined),
-            tooltip: 'Ekspor Laporan',
-            onPressed: _summary != null ? _showExportDialog : null,
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Muat Ulang',
-            onPressed: _loadData,
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: FrostedGlassCard(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              borderRadius: 20,
+              blurSigma: 12,
+              onTap: _summary != null ? _showExportDialog : null,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Unduh Rekap',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(Icons.download_rounded, size: 16, color: AppTheme.textPrimary),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      body: _buildBody(),
+      body: Stack(
+        children: [
+          const _AmbientBackground(),
+          _buildBody(),
+        ],
+      ),
       floatingActionButton: widget.onNavigateToPos != null
-          ? FloatingActionButton.extended(
-              onPressed: widget.onNavigateToPos,
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.add_shopping_cart_rounded),
-              label: const Text(
-                'POS Baru',
-                style: TextStyle(fontWeight: FontWeight.w700),
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 70),
+              child: FloatingActionButton.extended(
+                heroTag: 'fab_catat_cucian',
+                onPressed: widget.onNavigateToPos,
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                icon: const Icon(Icons.add_shopping_cart_rounded),
+                label: const Text(
+                  'Catat Cucian',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             )
           : null,
@@ -280,36 +310,15 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
     }
 
     if (_errorMessage != null && _summary == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.danger),
-              const SizedBox(height: 12),
-              Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _loadData,
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Coba Lagi'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      return _buildErrorState();
     }
 
     final summary = _summary!;
+    final filtered = _activeOrders.where((order) {
+      if (_orderFilter == 'antre') return order.isAntre;
+      if (_orderFilter == 'proses_cuci') return order.isProsesCuci;
+      return true;
+    }).toList();
 
     return RefreshIndicator(
       onRefresh: _loadData,
@@ -318,63 +327,357 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 768;
 
-          return SingleChildScrollView(
+          return CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. 4 Kartu Metrik Operasional
-                _buildMetricCards(summary, isWide),
-                const SizedBox(height: 20),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. Horizontal Date Range Pill Selector
+                      _buildPeriodPills(),
+                      const SizedBox(height: 18),
 
-                // 2. Grafik Batang Tren Omzet 7 Hari
-                _buildRevenueChartCard(summary),
-                const SizedBox(height: 20),
+                      // 2. Hero Big Metric & Capsule Bar Chart
+                      _buildHeroChartSection(summary),
+                      const SizedBox(height: 18),
 
-                // 3. Daftar Ringkas Order Aktif
-                _buildActiveOrdersCard(),
-              ],
-            ),
+                      // 3. 2x2 Metric Cards Grid
+                      _buildMetricCards(summary, isWide),
+                      const SizedBox(height: 22),
+
+                      // 4. Header Bar Filter Pesanan Aktif
+                      _buildActiveOrdersHeader(),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
+              ),
+
+              // 5. Daftar Pesanan Aktif — Virtualized Lazy SliverList untuk performa 60 FPS
+              _buildOrdersSliver(filtered),
+
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 110),
+              ),
+            ],
           );
         },
       ),
     );
   }
 
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 48, color: AppTheme.danger),
+            const SizedBox(height: 12),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba Lagi'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOrdersSliver(List<OrderModel> orders) {
+    if (orders.isEmpty) {
+      return SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverToBoxAdapter(
+          child: FrostedGlassCard(
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+            borderRadius: 20,
+            blurSigma: 14,
+            child: const Center(
+              child: Column(
+                children: [
+                  Icon(Icons.check_circle_outline_rounded, color: AppTheme.success, size: 36),
+                  SizedBox(height: 8),
+                  Text(
+                    'Tidak ada cucian aktif pada kategori ini.',
+                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList.separated(
+        itemCount: orders.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 10),
+        itemBuilder: (context, index) => _ActiveOrderCard(order: orders[index]),
+      ),
+    );
+  }
+
+  Widget _buildPeriodPills() {
+    final periods = ['Hari Ini', '7 Hari Terakhir', 'Bulan Ini'];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: List.generate(periods.length, (idx) {
+          final isSelected = _selectedPeriodIndex == idx;
+          return Padding(
+            padding: EdgeInsets.only(right: idx < periods.length - 1 ? 8 : 0),
+            child: InkWell(
+              onTap: () => setState(() => _selectedPeriodIndex = idx),
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.82),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected ? AppTheme.primary : Colors.white.withValues(alpha: 0.88),
+                    width: 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isSelected
+                          ? AppTheme.primary.withValues(alpha: 0.25)
+                          : const Color(0xFF0F172A).withValues(alpha: 0.04),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    periods[idx],
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected ? Colors.white : AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildHeroChartSection(DashboardSummaryModel summary) {
+    final rev7 = summary.revenue7Days;
+    final total7Hari = rev7.fold<int>(0, (sum, d) => sum + d.dailyRevenue);
+    final avgDaily = rev7.isNotEmpty ? (total7Hari / rev7.length).round() : 0;
+
+    double maxRevenue = 0;
+    int maxIndex = -1;
+    for (int i = 0; i < rev7.length; i++) {
+      if (rev7[i].dailyRevenue > maxRevenue) {
+        maxRevenue = rev7[i].dailyRevenue.toDouble();
+        maxIndex = i;
+      }
+    }
+    final maxY = maxRevenue > 0 ? maxRevenue * 1.3 : 100000.0;
+
+    return FrostedGlassCard(
+      padding: const EdgeInsets.all(20),
+      borderRadius: 24,
+      blurSigma: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeroHeader(total7Hari, avgDaily),
+          const SizedBox(height: 24),
+          SizedBox(height: 180, child: _buildBarChart(rev7, maxIndex, maxY)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroHeader(int total7Hari, int avgDaily) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Total Omzet 7 Hari',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary),
+              ),
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  Formatters.rupiah(total7Hari),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (avgDaily > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.8),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Text(
+              'Rata-rata: ${Formatters.rupiah(avgDaily)}',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBarChart(List<DailyRevenueModel> rev7, int maxIndex, double maxY) {
+    if (rev7.isEmpty) {
+      return const Center(
+        child: Text(
+          'Belum ada data pendapatan 7 hari terakhir.',
+          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+        ),
+      );
+    }
+
+    return RepaintBoundary(
+      child: BarChart(
+        BarChartData(
+          maxY: maxY,
+          alignment: BarChartAlignment.spaceAround,
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+          titlesData: FlTitlesData(
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  final idx = value.toInt();
+                  if (idx < 0 || idx >= rev7.length) return const SizedBox.shrink();
+                  final item = rev7[idx];
+                  final parsed = DateTime.tryParse(item.orderDate);
+                  final label = parsed != null ? DateFormat('d MMM').format(parsed) : item.orderDate;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipColor: (_) => AppTheme.primary,
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final item = rev7[group.x];
+                final dateParsed = DateTime.tryParse(item.orderDate);
+                final formattedDate = dateParsed != null
+                    ? DateFormat('dd MMM', 'id_ID').format(dateParsed)
+                    : item.orderDate;
+                return BarTooltipItem(
+                  '$formattedDate\n${Formatters.rupiah(item.dailyRevenue)}\n(${item.totalTransactions} transaksi)',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                );
+              },
+            ),
+          ),
+          barGroups: List.generate(rev7.length, (i) {
+            final val = rev7[i].dailyRevenue.toDouble();
+            final isPeak = i == maxIndex;
+
+            return BarChartGroupData(
+              x: i,
+              barRods: [
+                BarChartRodData(
+                  toY: val,
+                  color: isPeak ? AppTheme.primary : const Color(0xFF93C5FD),
+                  width: 18,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+              ],
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMetricCards(DashboardSummaryModel summary, bool isWide) {
     final cards = [
-      _MetricCard(
-        title: 'Omzet Hari Ini',
+      _MetricPillCard(
+        label: 'Pendapatan Hari Ini',
         value: Formatters.rupiah(summary.todayRevenue),
-        subtitle: 'Pendapatan lunas hari ini',
-        icon: Icons.payments_rounded,
-        iconColor: AppTheme.primary,
-        bgColor: AppTheme.surfaceSubtle,
       ),
-      _MetricCard(
-        title: 'Pesanan Aktif',
+      _MetricPillCard(
+        label: 'Pesanan Aktif',
         value: '${summary.activeOrders}',
-        subtitle: 'Antre & proses cuci',
-        icon: Icons.local_laundry_service_rounded,
-        iconColor: AppTheme.secondary,
-        bgColor: const Color(0xFFF0F9FF),
+        unit: 'Pesanan',
       ),
-      _MetricCard(
-        title: 'Siap Diambil',
+      _MetricPillCard(
+        label: 'Siap Diambil',
         value: '${summary.readyOrders}',
-        subtitle: 'Menunggu pelanggan',
-        icon: Icons.check_circle_rounded,
-        iconColor: AppTheme.success,
-        bgColor: const Color(0xFFF0FDF4),
+        unit: 'Pesanan',
       ),
-      _MetricCard(
-        title: 'Kapasitas Mesin',
+      _MetricPillCard(
+        label: 'Mesin Tersedia',
         value: '${summary.availableMachines}/${summary.totalOperationalMachines}',
-        subtitle: 'Mesin cuci siap pakai',
-        icon: Icons.precision_manufacturing_rounded,
-        iconColor: AppTheme.accent,
-        bgColor: const Color(0xFFFFFBEB),
+        unit: 'Siap',
       ),
     ];
 
@@ -384,484 +687,362 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
       );
     }
 
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 1.25,
-      children: cards,
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: cards[0]),
+            const SizedBox(width: 10),
+            Expanded(child: cards[1]),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: cards[2]),
+            const SizedBox(width: 10),
+            Expanded(child: cards[3]),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildRevenueChartCard(DashboardSummaryModel summary) {
-    final rev7 = summary.revenue7Days;
-    final total7Hari = rev7.fold<int>(0, (sum, d) => sum + d.dailyRevenue);
-
-    // Cari nilai tertinggi untuk batas sumbu Y
-    double maxRevenue = 0;
-    for (final d in rev7) {
-      if (d.dailyRevenue > maxRevenue) maxRevenue = d.dailyRevenue.toDouble();
-    }
-    // Beri batas atas dengan padding 20%
-    final maxY = maxRevenue > 0 ? maxRevenue * 1.25 : 100000.0;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Tren Omzet 7 Hari Terakhir',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Grafik akumulasi transaksi harian',
-                    style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                  ),
-                ],
+  Widget _buildActiveOrdersHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Pesanan Aktif',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+                letterSpacing: -0.3,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Total: ${Formatters.rupiah(total7Hari)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 190,
-            child: rev7.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Belum ada data pendapatan 7 hari terakhir.',
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                    ),
-                  )
-                : BarChart(
-                    BarChartData(
-                      maxY: maxY,
-                      alignment: BarChartAlignment.spaceAround,
-                      gridData: FlGridData(
-                        show: true,
-                        drawVerticalLine: false,
-                        getDrawingHorizontalLine: (val) => const FlLine(
-                          color: Color(0xFFF1F5F9),
-                          strokeWidth: 1,
-                        ),
-                      ),
-                      borderData: FlBorderData(show: false),
-                      titlesData: FlTitlesData(
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                              final idx = value.toInt();
-                              if (idx < 0 || idx >= rev7.length) return const SizedBox.shrink();
-                              final item = rev7[idx];
-                              final parsed = DateTime.tryParse(item.orderDate);
-                              final label = parsed != null ? DateFormat('d/M').format(parsed) : item.orderDate;
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  label,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppTheme.textSecondary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                      barTouchData: BarTouchData(
-                        touchTooltipData: BarTouchTooltipData(
-                          getTooltipColor: (_) => AppTheme.primary,
-                          getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                            final item = rev7[group.x];
-                            final dateParsed = DateTime.tryParse(item.orderDate);
-                            final formattedDate = dateParsed != null
-                                ? DateFormat('dd MMM', 'id_ID').format(dateParsed)
-                                : item.orderDate;
-                            return BarTooltipItem(
-                              '$formattedDate\n${Formatters.rupiah(item.dailyRevenue)}\n(${item.totalTransactions} order)',
-                              const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 11,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      barGroups: List.generate(rev7.length, (i) {
-                        final val = rev7[i].dailyRevenue.toDouble();
-                        return BarChartGroupData(
-                          x: i,
-                          barRods: [
-                            BarChartRodData(
-                              toY: val,
-                              gradient: const LinearGradient(
-                                colors: [AppTheme.primary, AppTheme.secondary],
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                              ),
-                              width: 16,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-                            ),
-                          ],
-                        );
-                      }),
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveOrdersCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x05000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Pesanan Aktif',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceSubtle,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${_activeOrders.length}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (widget.onNavigateToOrders != null)
-                TextButton(
-                  onPressed: widget.onNavigateToOrders,
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: AppTheme.primary,
-                  ),
-                  child: const Text('Lihat Semua >', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          if (_activeOrders.isEmpty)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              alignment: Alignment.center,
-              child: const Column(
-                children: [
-                  Icon(Icons.check_circle_outline_rounded, color: AppTheme.success, size: 40),
-                  SizedBox(height: 8),
-                  Text(
-                    'Tidak ada cucian antre atau sedang diproses.',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Seluruh pesanan aktif telah siap diambil atau selesai.',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
-                  ),
-                ],
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _activeOrders.length,
-              separatorBuilder: (context, index) => const Divider(height: 20),
-              itemBuilder: (context, index) {
-                final order = _activeOrders[index];
-                return _ActiveOrderItem(order: order);
-              },
             ),
+            if (widget.onNavigateToOrders != null)
+              TextButton(
+                onPressed: widget.onNavigateToOrders,
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: AppTheme.primary,
+                ),
+                child: const Text('Lihat Semua >', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: FrostedGlassCard(
+            padding: const EdgeInsets.all(4),
+            borderRadius: 24,
+            blurSigma: 12,
+            child: Row(
+              children: [
+                _buildTogglePill('semua', 'Semua (${_activeOrders.length})'),
+                const SizedBox(width: 4),
+                _buildTogglePill('antre', 'Menunggu Mesin'),
+                const SizedBox(width: 4),
+                _buildTogglePill('proses_cuci', 'Sedang Dicuci'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTogglePill(String key, String label) {
+    final isSelected = _orderFilter == key;
+
+    return InkWell(
+      onTap: () => setState(() => _orderFilter = key),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primary.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected ? Colors.white : AppTheme.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Kartu metrik 2x2 yang terinspirasi dari kartu finansial di referensi:
+/// Label muted di bagian atas, dan angka besar tegas di bagian bawah dengan estetika Frosted Glass.
+class _MetricPillCard extends StatelessWidget {
+  const _MetricPillCard({
+    required this.label,
+    required this.value,
+    this.unit,
+  });
+
+  final String label;
+  final String value;
+  final String? unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return FrostedGlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      borderRadius: 20,
+      blurSigma: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textSecondary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Flexible(
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: -0.3,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (unit != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  unit!,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.iconColor,
-    required this.bgColor,
-  });
+/// Kartu pesanan aktif dengan efek Frosted Glass & badge status
+class _ActiveOrderCard extends StatelessWidget {
+  const _ActiveOrderCard({required this.order});
 
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color iconColor;
-  final Color bgColor;
+  final OrderModel order;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x04000000),
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
+    return FrostedGlassCard(
+      padding: const EdgeInsets.all(16),
+      borderRadius: 20,
+      blurSigma: 14,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(
+              Text(
+                order.orderCode,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppTheme.textPrimary,
+                  fontFamily: 'monospace',
+                ),
+              ),
+              _buildStatusBadge(order),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
                 child: Text(
-                  title,
+                  '${order.customerName} • ${order.serviceName}',
                   style: const TextStyle(
                     fontSize: 12,
-                    fontWeight: FontWeight.w600,
                     color: AppTheme.textSecondary,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(8),
+              Text(
+                Formatters.berat(order.weight),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
                 ),
-                child: Icon(icon, color: iconColor, size: 18),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textPrimary,
-              letterSpacing: -0.5,
+          if (order.isAntre && order.queueWaitMinutes > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.schedule_rounded, size: 12, color: AppTheme.accent),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Estimasi antrean: ~${order.queueWaitMinutes} menit',
+                    style: const TextStyle(fontSize: 11, color: AppTheme.accent, fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppTheme.textSecondary,
+          ],
+          if (order.isProsesCuci && order.machineCode != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.rotate_right_rounded, size: 12, color: AppTheme.secondary),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    'Mesin: ${order.machineCode}'
+                    '${order.machineFinishAt != null ? ' (Selesai ~${Formatters.jam(order.machineFinishAt!)})' : ''}',
+                    style: const TextStyle(fontSize: 11, color: AppTheme.secondary, fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          ],
         ],
       ),
     );
   }
-}
-
-class _ActiveOrderItem extends StatelessWidget {
-  const _ActiveOrderItem({required this.order});
-
-  final OrderModel order;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              order.orderCode,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            _buildStatusBadge(order),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              child: Text(
-                '${order.customerName} • ${order.serviceName}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Text(
-              Formatters.berat(order.weight),
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-          ],
-        ),
-        if (order.isAntre && order.queueWaitMinutes > 0) ...[
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.schedule_rounded, size: 12, color: AppTheme.accent),
-              const SizedBox(width: 4),
-              Text(
-                'Estimasi antrean tunggu: ~${order.queueWaitMinutes} menit',
-                style: const TextStyle(fontSize: 11, color: AppTheme.accent, fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-        ],
-        if (order.isProsesCuci && order.machineCode != null) ...[
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              const Icon(Icons.rotate_right_rounded, size: 12, color: AppTheme.secondary),
-              const SizedBox(width: 4),
-              Text(
-                'Mesin: ${order.machineCode}'
-                '${order.machineFinishAt != null ? ' (Selesai ~${Formatters.jam(order.machineFinishAt!)})' : ''}',
-                style: const TextStyle(fontSize: 11, color: AppTheme.secondary, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
 
   Widget _buildStatusBadge(OrderModel order) {
-    Color bg;
-    Color fg;
-    String text;
-
-    if (order.isAntre) {
-      bg = const Color(0xFFFEF3C7);
-      fg = const Color(0xFFB45309);
-      text = 'Antre Cuci';
-    } else if (order.isProsesCuci) {
-      bg = const Color(0xFFE0F2FE);
-      fg = const Color(0xFF0369A1);
-      text = 'Proses Cuci';
-    } else if (order.isSiapDiambil) {
-      bg = const Color(0xFFDCFCE7);
-      fg = const Color(0xFF15803D);
-      text = 'Siap Diambil';
-    } else {
-      bg = const Color(0xFFF1F5F9);
-      fg = AppTheme.textSecondary;
-      text = order.status;
-    }
+    final (bg, fg, text) = switch (order) {
+      _ when order.isAntre => (const Color(0xFFFEF3C7), const Color(0xFFB45309), 'Menunggu Mesin'),
+      _ when order.isProsesCuci => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), 'Sedang Dicuci'),
+      _ when order.isSiapDiambil => (const Color(0xFFDCFCE7), const Color(0xFF15803D), 'Siap Diambil'),
+      _ => (const Color(0xFFF1F5F9), AppTheme.textSecondary, order.status),
+    };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         text,
         style: TextStyle(
           color: fg,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+/// Latar belakang gradasi ambient aurora bergaya iOS dengan pendaran cahaya lembut.
+/// Dibungkus dalam [RepaintBoundary] agar GPU hanya merender sekali ke dalam cache layer.
+class _AmbientBackground extends StatelessWidget {
+  const _AmbientBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: RepaintBoundary(
+        child: Stack(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFEBF4FF), // soft sky tint
+                    Color(0xFFF5F3FF), // soft lavender tint
+                    Color(0xFFF8FAFC), // neutral slate
+                  ],
+                  stops: [0.0, 0.45, 1.0],
+                ),
+              ),
+            ),
+            Positioned(
+              top: -40,
+              right: -30,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFF93C5FD).withValues(alpha: 0.35),
+                      const Color(0xFF93C5FD).withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 240,
+              left: -60,
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      const Color(0xFFC4B5FD).withValues(alpha: 0.25),
+                      const Color(0xFFC4B5FD).withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -92,18 +92,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // 1. Verifikasi judul AppBar
-    expect(find.text('Dashboard Kasir'), findsOneWidget);
+    expect(find.text('Beranda Kasir'), findsOneWidget);
 
     // 2. Verifikasi 4 kartu metrik
-    expect(find.text('Omzet Hari Ini'), findsOneWidget);
+    expect(find.text('Pendapatan Hari Ini'), findsOneWidget);
     expect(find.text('Pesanan Aktif'), findsWidgets);
     expect(find.text('Siap Diambil'), findsOneWidget);
-    expect(find.text('Kapasitas Mesin'), findsOneWidget);
+    expect(find.text('Mesin Tersedia'), findsOneWidget);
     expect(find.text('3/4'), findsOneWidget);
 
     // 3. Verifikasi order aktif tampil di daftar
     expect(find.text('CLN-20261120-0001'), findsOneWidget);
     expect(find.textContaining('Ahmad Subagyo'), findsOneWidget);
-    expect(find.text('Proses Cuci'), findsOneWidget);
+    expect(find.text('Sedang Dicuci'), findsWidgets);
   });
 }

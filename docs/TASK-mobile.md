@@ -1,3 +1,4 @@
+
 # Task Mobile — Cleano
 
 Lapisan: Flutter 3.47 / Dart 3.13. Satu aplikasi, dua portal (kasir + pelanggan).
@@ -15,8 +16,8 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | M0 | Fondasi | `develop` | `[x]` |
 | M1 | Model & service | `feature/mobile-core` | `[ ]` |
 | M2 | Auth & routing | `feature/mobile-auth` | `[ ]` |
-| M3 | Kasir — dashboard | `feature/mobile-dashboard` | `[ ]` |
-| M4 | Kasir — POS | `feature/mobile-pos` | `[ ]` |
+| M3 | Kasir — dashboard | `feature/mobile-dashboard` | `[x]` |
+| M4 | Kasir — POS | `feature/mobile-pos` | `[x]` |
 | M5 | Kasir — orders & estafet | `feature/mobile-orders` | `[ ]` |
 | M6 | Kasir — master data | `feature/mobile-master` | `[ ]` |
 | M7 | Pelanggan — tracking | `feature/mobile-tracking` | `[ ]` |
@@ -116,18 +117,18 @@ Branch `feature/mobile-dashboard`
 
 Branch `feature/mobile-pos` · **paket terberat**
 
-- [ ] `screens/kasir/pos_create_order_screen.dart` — 4 langkah
-- [ ] Langkah 1: scan QR member (`mobile_scanner`) **atau** input nomor HP → `user_service.lookup`
-- [ ] Kartu konfirmasi pelanggan: nama, `MBR-XXXX`, badge tier, WA tersensor
-- [ ] Langkah 2: dropdown layanan, input berat desimal, foto wajib (`image_picker`), catatan
-- [ ] Kompresi foto agar `< 2 MB` sebelum kirim
-- [ ] Langkah 3: scan/input voucher, tampilkan subtotal/potongan/total
-- [ ] Langkah 4: radio tunai / midtrans, tombol **Proses Transaksi** nonaktif bila foto belum ada
+- [x] `screens/kasir/pos_create_order_screen.dart` — 4 langkah
+- [x] Langkah 1: scan QR member (`mobile_scanner`) **atau** input nomor HP → `user_service.lookup`
+- [x] Kartu konfirmasi pelanggan: nama, `MBR-XXXX`, badge tier, WA tersensor
+- [x] Langkah 2: dropdown layanan, input berat desimal, foto wajib (`image_picker`), catatan
+- [x] Kompresi foto agar `< 2 MB` sebelum kirim
+- [x] Langkah 3: scan/input voucher, tampilkan subtotal/potongan/total
+- [x] Langkah 4: radio tunai / midtrans, tombol **Proses Transaksi** nonaktif bila foto belum ada
       atau berat `<= 0`
-- [ ] `widgets/` — `member_card.dart`, `service_dropdown.dart`, `weight_input.dart`,
+- [x] `widgets/` — `member_card.dart`, `service_dropdown.dart`, `weight_input.dart`,
       `photo_picker_field.dart`, `voucher_field.dart`
-- [ ] Midtrans: `webview_flutter` membuka `snap_redirect_url`
-- [ ] Tombol **Cek Status Pembayaran** → `syncPayment`, badge `LUNAS`
+- [x] Midtrans: `webview_flutter` membuka `snap_redirect_url`
+- [x] Tombol **Cek Status Pembayaran** → `syncPayment`, badge `LUNAS`
 
 ---
 
