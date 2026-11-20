@@ -53,33 +53,33 @@ Branch `feature/mobile-core` · prasyarat semua paket lain
 
 ### Model
 
-- [ ] `models/user_model.dart` — `id, name, email, phone, role, member_code, points, tier`
-- [ ] `models/service_model.dart` — `id, name, price_per_kg, wash_duration_minutes, estimated_hours, requires_machine, description`
-- [ ] `models/machine_model.dart` — `id, machine_code, status, capacity_kg, estimated_finish_at`
-- [ ] `models/reward_model.dart` — `id, title, description, points_required, discount_amount, is_active`
-- [ ] `models/voucher_model.dart` — `id, voucher_code, reward_id, title, discount_amount, is_used`
-- [ ] `models/order_model.dart` — semua kolom `vw_order_details` yang dipakai UI
-- [ ] `models/dashboard_summary_model.dart`
-- [ ] `models/next_queue_order_model.dart`
+- [x] `models/user_model.dart` — `id, name, email, phone, role, member_code, points, tier`
+- [x] `models/service_model.dart` — `id, name, price_per_kg, wash_duration_minutes, estimated_hours, requires_machine, description`
+- [x] `models/machine_model.dart` — `id, machine_code, status, capacity_kg, estimated_finish_at`
+- [x] `models/reward_model.dart` — `id, title, description, points_required, discount_amount, is_active`
+- [x] `models/voucher_model.dart` — `id, voucher_code, reward_id, title, discount_amount, is_used`
+- [x] `models/order_model.dart` — semua kolom `vw_order_details` yang dipakai UI
+- [x] `models/dashboard_summary_model.dart`
+- [x] `models/next_queue_order_model.dart`
 
 Semua model: `fromJson` manual, tanpa `build_runner`. Tanggal dari API berbentuk string
 `DATE`/`DATETIME` — parse ke `DateTime`.
 
 ### Service
 
-- [ ] `services/auth_service.dart` — `register`, `login`, `logout` (hapus token), `currentUser`
-- [ ] `services/user_service.dart` — `lookup(query)`
-- [ ] `services/master_service.dart` — CRUD services/machines/rewards
-- [ ] `services/order_service.dart` — `create` (multipart), `list`, `updateStatus`, `confirmRelay`, `syncPayment`
-- [ ] `services/dashboard_service.dart` — `summary`
-- [ ] `services/reward_service.dart` — `catalog`, `redeem`, `myVouchers`
-- [ ] `services/session_service.dart` — simpan token + profil user di SharedPreferences
+- [x] `services/auth_service.dart` — `register`, `login`, `logout` (hapus token), `currentUser`
+- [x] `services/user_service.dart` — `lookup(query)`
+- [x] `services/master_service.dart` — CRUD services/machines/rewards
+- [x] `services/order_service.dart` — `create` (multipart), `list`, `updateStatus`, `confirmRelay`, `syncPayment`
+- [x] `services/dashboard_service.dart` — `summary`
+- [x] `services/reward_service.dart` — `catalog`, `redeem`, `myVouchers`
+- [x] `services/session_service.dart` — simpan token + profil user di SharedPreferences
 
 **Aturan:** setiap service memakai `ApiService.instance`. Tidak membuat `Dio` baru.
 Error dilempar sebagai `ApiException` yang sudah ada.
 
-- [ ] `test/models_test.dart` — `fromJson` untuk order & user
-- [ ] `dart analyze lib` bersih
+- [x] `test/models_test.dart` — `fromJson` untuk order & user
+- [x] `dart analyze lib` bersih
 
 ---
 
@@ -87,13 +87,13 @@ Error dilempar sebagai `ApiException` yang sudah ada.
 
 Branch `feature/mobile-auth`
 
-- [ ] `screens/auth/login_screen.dart` — email + password, validasi, loading, error inline
-- [ ] `screens/auth/register_screen.dart` — nama, email, password, phone
-- [ ] `core/router/app_router.dart` — routing berbasis role
-- [ ] Splash/bootstrap: cek token tersimpan → arahkan ke portal yang sesuai
-- [ ] `kasir_main_nav.dart` — `NavigationRail` di layar lebar, `BottomNavigationBar` di sempit
-- [ ] `pelanggan_main_nav.dart` — `BottomNavigationBar` 3 tab
-- [ ] Logout dari kedua portal (hapus token + kembali ke login)
+- [x] `screens/auth/login_screen.dart` — email + password, validasi, loading, error inline
+- [x] `screens/auth/register_screen.dart` — nama, email, password, phone
+- [x] `core/router/app_router.dart` — routing berbasis role
+- [x] Splash/bootstrap: cek token tersimpan → arahkan ke portal yang sesuai
+- [x] `kasir_main_nav.dart` — `NavigationRail` di layar lebar, `BottomNavigationBar` di sempit
+- [x] `pelanggan_main_nav.dart` — `BottomNavigationBar` 3 tab
+- [x] Logout dari kedua portal (hapus token + kembali ke login)
 
 **Aturan:** UI bukan pengaman. Menyembunyikan tombol tidak menggantikan `403` dari API.
 
@@ -103,12 +103,12 @@ Branch `feature/mobile-auth`
 
 Branch `feature/mobile-dashboard`
 
-- [ ] `screens/kasir/kasir_dashboard_screen.dart`
-- [ ] 4 kartu metrik: omzet hari ini, pesanan aktif, siap diambil, kapasitas mesin
-- [ ] Grafik batang `fl_chart` tren omzet 7 hari + tooltip
-- [ ] Daftar ringkas order aktif dengan kode mesin atau estimasi tunggu
-- [ ] Pull-to-refresh
-- [ ] Tombol ekspor (memanggil M10)
+- [x] `screens/kasir/kasir_dashboard_screen.dart`
+- [x] 4 kartu metrik: omzet hari ini, pesanan aktif, siap diambil, kapasitas mesin
+- [x] Grafik batang `fl_chart` tren omzet 7 hari + tooltip
+- [x] Daftar ringkas order aktif dengan kode mesin atau estimasi tunggu
+- [x] Pull-to-refresh
+- [x] Tombol ekspor (memanggil M10)
 
 ---
 
