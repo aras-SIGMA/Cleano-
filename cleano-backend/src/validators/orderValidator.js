@@ -46,6 +46,12 @@ const orderListQuery = z.object({
   status: z.enum(['aktif', 'antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil', 'selesai', 'batal'], {
     error: 'Status order tidak dikenal.',
   }).optional(),
+  // Pencarian dijalankan di SQL, bukan di klien: klien hanya memegang satu
+  // halaman, jadi menyaring di sana akan melewatkan order di halaman lain.
+  search: z.preprocess(
+    (v) => (v === undefined || v === null || String(v).trim() === '' ? undefined : String(v).trim()),
+    z.string().max(100, 'Kata kunci pencarian maksimal 100 karakter.').optional(),
+  ),
   page: z.preprocess(
     (v) => (v === undefined || v === '' ? 1 : Number(v)),
     z.number({ error: 'Halaman harus angka.' }).int('Halaman harus bilangan bulat.')

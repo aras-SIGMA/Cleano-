@@ -195,6 +195,13 @@ async function list(req, res) {
   const where = [];
   const values = [];
   if (!isKasir) { where.push('user_id = ?'); values.push(req.user.id); }
+  // LIKE: % dan _ dari pengguna di-escape supaya "CLN_2%" tidak berubah jadi
+  // pola buatan. Driver mysql2 memakai escape char default backslash.
+  if (q.search) {
+    const like = `%${q.search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    where.push('(order_code like ? or customer_name like ? or customer_phone like ?)');
+    values.push(like, like, like);
+  }
   if (q.status === 'aktif') {
     where.push(`status in (${AKTIF.map(() => '?').join(', ')})`);
     values.push(...AKTIF);
