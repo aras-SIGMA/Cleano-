@@ -6,6 +6,7 @@ import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
 import 'kasir_dashboard_screen.dart';
+import 'kasir_orders_screen.dart';
 import 'pos_create_order_screen.dart';
 import '../../widgets/frosted_glass_card.dart';
 
@@ -110,7 +111,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
             _onTabChanged(2);
           },
         ),
-      2 => _buildOrdersPlaceholder(),
+      2 => const KasirOrdersScreen(),
       3 => _buildMasterPlaceholder(),
       4 => _buildProfileView(),
       _ => const SizedBox.shrink(),
@@ -280,44 +281,6 @@ class _KasirMainNavState extends State<KasirMainNav> {
                 );
               }),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOrdersPlaceholder() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Daftar Pesanan & Estafet'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF0FDF4),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Icon(Icons.receipt_long_rounded, size: 48, color: AppTheme.success),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Pesanan & Estafet Mesin',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Modul tab filter pesanan, pelunasan, dan dialog estafet mesin cuci otomatis akan dimuat pada paket M5.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-              ),
-            ],
           ),
         ),
       ),

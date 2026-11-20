@@ -9,6 +9,7 @@ import '../../models/order_model.dart';
 import '../../services/api_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/order_service.dart';
+import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
 
 /// Layar Dashboard Kasir Cleano dengan inspirasi visual modern & minimalis:
@@ -279,7 +280,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
       ),
       body: Stack(
         children: [
-          const _AmbientBackground(),
+          const AmbientBackground(),
           _buildBody(),
         ],
       ),
@@ -977,72 +978,6 @@ class _ActiveOrderCard extends StatelessWidget {
           color: fg,
           fontSize: 10,
           fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
-
-/// Latar belakang gradasi ambient aurora bergaya iOS dengan pendaran cahaya lembut.
-/// Dibungkus dalam [RepaintBoundary] agar GPU hanya merender sekali ke dalam cache layer.
-class _AmbientBackground extends StatelessWidget {
-  const _AmbientBackground();
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: RepaintBoundary(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFEBF4FF), // soft sky tint
-                    Color(0xFFF5F3FF), // soft lavender tint
-                    Color(0xFFF8FAFC), // neutral slate
-                  ],
-                  stops: [0.0, 0.45, 1.0],
-                ),
-              ),
-            ),
-            Positioned(
-              top: -40,
-              right: -30,
-              child: Container(
-                width: 220,
-                height: 220,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFF93C5FD).withValues(alpha: 0.35),
-                      const Color(0xFF93C5FD).withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 240,
-              left: -60,
-              child: Container(
-                width: 240,
-                height: 240,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      const Color(0xFFC4B5FD).withValues(alpha: 0.25),
-                      const Color(0xFFC4B5FD).withValues(alpha: 0.0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );
