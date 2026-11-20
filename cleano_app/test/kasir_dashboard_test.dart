@@ -33,7 +33,7 @@ class FakeDashboardService implements DashboardService {
 
 class FakeOrderService implements OrderService {
   @override
-  Future<OrderListResult> getOrders({String? status, int page = 1, int pageSize = 10}) async {
+  Future<OrderListResult> getOrders({String? status, String? search, int page = 1, int pageSize = 10}) async {
     return OrderListResult(
       items: [
         OrderModel(

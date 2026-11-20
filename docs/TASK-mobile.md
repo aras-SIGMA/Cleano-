@@ -18,7 +18,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | M2 | Auth & routing | `feature/mobile-auth` | `[ ]` |
 | M3 | Kasir — dashboard | `feature/mobile-dashboard` | `[x]` |
 | M4 | Kasir — POS | `feature/mobile-pos` | `[x]` |
-| M5 | Kasir — orders & estafet | `feature/mobile-orders` | `[ ]` |
+| M5 | Kasir — orders & estafet | `feature/mobile-app` | `[x]` |
 | M6 | Kasir — master data | `feature/mobile-master` | `[ ]` |
 | M7 | Pelanggan — tracking | `feature/mobile-tracking` | `[ ]` |
 | M8 | Pelanggan — kartu QR | `feature/mobile-qr-card` | `[ ]` |
@@ -134,15 +134,16 @@ Branch `feature/mobile-pos` · **paket terberat**
 
 ## M5 — Kasir: orders & estafet
 
-Branch `feature/mobile-orders`
+Branch `feature/mobile-app`
 
-- [ ] `screens/kasir/kasir_orders_screen.dart`
-- [ ] Tab filter: Semua, Antre, Proses Cuci, Siap Diambil, Selesai
-- [ ] Tombol **Tandai Siap Diambil** (`proses_cuci` → `siap_diambil`)
-- [ ] Modal konfirmasi estafet bila respons memuat `next_queue_order`
+- [x] `screens/kasir/kasir_orders_screen.dart`
+- [x] Tab filter: Semua, Antre, Proses Cuci, Sedang Diproses, Siap Diambil, Selesai
+- [x] Tombol **Tandai Siap Diambil** (`proses_cuci`/`sedang_diproses` → `siap_diambil`)
+- [x] Pencarian kode order / nama / HP lewat `GET /api/orders?search=` (server-side, debounce 350 ms)
+- [x] Modal konfirmasi estafet bila respons memuat `next_queue_order`
       ("Mesin MC-01 Kini Kosong!") dengan aksi **Ya, Mulai Cuci** / **Nanti Saja**
-- [ ] Tombol **Selesaikan Pesanan** (`siap_diambil` → `selesai`)
-- [ ] Pagination / infinite scroll
+- [x] Tombol **Selesaikan Pesanan** (`siap_diambil` → `selesai`)
+- [x] Pagination / infinite scroll
 
 ---
 
