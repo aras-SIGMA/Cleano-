@@ -55,6 +55,22 @@ class _PelangganQrCardScreenState extends State<PelangganQrCardScreen> {
     if (_user == null) _loadProfile();
   }
 
+  @override
+  void didUpdateWidget(PelangganQrCardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Induk memuat ulang profil setelah tab ini terpasang (poin/tier berubah).
+    // State dipertahankan oleh IndexedStack, jadi initState tidak jalan lagi.
+    // Hanya bereaksi bila induk mengirim objek profil baru, supaya hasil
+    // refresh lokal tidak ditimpa saat induk rebuild karena hal lain.
+    // Perbandingan pakai identitas: `UserModel ==` hanya melihat id dan email,
+    // sehingga perubahan poin/tier tidak terdeteksi olehnya.
+    if (widget.user != null && !identical(widget.user, oldWidget.user)) {
+      _user = widget.user;
+      _isLoading = false;
+      _errorMessage = null;
+    }
+  }
+
   Future<void> _loadProfile() async {
     setState(() {
       _isLoading = true;
@@ -73,9 +89,17 @@ class _PelangganQrCardScreenState extends State<PelangganQrCardScreen> {
     // 2. Ambil data terbaru dari server
     try {
       final fresh = await _authService.getMe();
-      if (mounted && fresh != null) {
+      if (!mounted) return;
+      if (fresh != null) {
         setState(() {
           _user = fresh;
+          _isLoading = false;
+        });
+      } else if (_user == null) {
+        // Respons tanpa data bukan kegagalan jaringan: tanpa cabang ini
+        // indikator loading berputar tanpa henti.
+        setState(() {
+          _errorMessage = 'Profil tidak tersedia. Coba lagi.';
           _isLoading = false;
         });
       }

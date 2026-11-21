@@ -5,10 +5,10 @@ import '../../core/theme/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
-import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/state_view.dart';
 import 'pelanggan_qr_card_screen.dart';
+import 'pelanggan_rewards_screen.dart';
 import 'pelanggan_tracking_screen.dart';
 
 /// Navigasi Utama Portal Pelanggan Cleano (3 Tab):
@@ -127,7 +127,7 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
     final children = [
       PelangganTrackingScreen(user: _user, onLogout: _handleLogout),
       PelangganQrCardScreen(user: _user, onLogout: _handleLogout),
-      _buildRewardsTab(),
+      PelangganRewardsScreen(user: _user, onLogout: _handleLogout),
     ];
 
     return LayoutBuilder(
@@ -276,127 +276,6 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
           ),
         ),
       ),
-    );
-  }
-
-  /// Tab 2: Hadiah & Saldo Poin Loyalti (Placeholder M9)
-  Widget _buildRewardsTab() {
-    final points = _user?.points ?? 0;
-    return Stack(
-      children: [
-        const AmbientBackground(),
-        SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Loyalti & Hadiah',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Banner Saldo Poin
-                FrostedGlassCard(
-                  padding: const EdgeInsets.all(20),
-                  borderRadius: 22,
-                  blurSigma: 14,
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(Icons.star_rounded, color: Color(0xFFD97706), size: 30),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Total Poin Aktif Anda',
-                              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '$points Poin',
-                              style: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w900,
-                                color: AppTheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Info Keuntungan Member
-                FrostedGlassCard(
-                  padding: const EdgeInsets.all(18),
-                  borderRadius: 20,
-                  blurSigma: 12,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Keuntungan Poin Loyalti Cleano',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      _buildPerkItem(
-                        icon: Icons.check_circle_outline_rounded,
-                        text: 'Dapatkan 1 Poin setiap transaksi cucian.',
-                      ),
-                      const SizedBox(height: 8),
-                      _buildPerkItem(
-                        icon: Icons.flash_on_rounded,
-                        text: 'Bonus 2x Poin untuk cucian berat ≥ 5 kg atau layanan Express.',
-                      ),
-                      const SizedBox(height: 8),
-                      _buildPerkItem(
-                        icon: Icons.redeem_rounded,
-                        text: 'Tukar poin dengan voucher potongan harga laundry pada pembaruan M9!',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPerkItem({required IconData icon, required String text}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 18, color: AppTheme.primary),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary, height: 1.4),
-          ),
-        ),
-      ],
     );
   }
 }

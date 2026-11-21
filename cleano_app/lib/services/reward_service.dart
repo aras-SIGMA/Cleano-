@@ -49,11 +49,16 @@ class RewardService {
 
     final payload = res.data;
     if (payload is Map<String, dynamic> && payload['data'] is Map<String, dynamic>) {
-      final data = payload['data'] as Map<String, dynamic>;
-      final rawVoucher = data['voucher'];
-      if (rawVoucher is Map<String, dynamic>) {
-        return VoucherModel.fromJson(rawVoucher);
+      // POST /api/rewards/redeem membalas field voucher langsung di `data`
+      // (bukan bersarang di `data.voucher`), plus points_before/points_after.
+      final voucher = VoucherModel.fromJson(payload['data'] as Map<String, dynamic>);
+      // `fromJson` mengisi kode kosong bila bentuk respons berubah, dan UI
+      // hanya akan menampilkan kartu voucher tanpa kode. Lebih baik gagal di
+      // sini daripada menampilkan voucher yang tidak bisa dipakai kasir.
+      if (voucher.voucherCode.isEmpty) {
+        throw const ApiException('Gagal menukarkan poin reward.');
       }
+      return voucher;
     }
     throw const ApiException('Gagal menukarkan poin reward.');
   }

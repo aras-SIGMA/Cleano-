@@ -188,15 +188,15 @@ Branch `feature/mobile-app`
 
 ## M9 — Pelanggan: rewards
 
-Branch `feature/mobile-rewards`
+Branch `feature/mobile-app`
 
-- [ ] `screens/pelanggan/pelanggan_rewards_screen.dart`
-- [ ] Banner poin + progress bar ke tier berikutnya (100 Gold, 300 Platinum)
-- [ ] Info bonus 2x poin (≥5 kg atau Express)
-- [ ] Sub-tab katalog: tombol **Tukar Poin** aktif bila `points >= points_required`
-- [ ] Dialog konfirmasi → `POST /api/rewards/redeem`
-- [ ] Sub-tab voucher saya: QR `CLN-VCR-XXXX` + kode teks + nominal + badge `1x Pakai`
-- [ ] Voucher terpakai pindah ke riwayat dengan tampilan redup `Sudah Terpakai`
+- [x] `screens/pelanggan/pelanggan_rewards_screen.dart`
+- [x] Banner poin + progress bar ke tier berikutnya (100 Gold, 300 Platinum)
+- [x] Info bonus 2x poin (≥5 kg atau Express)
+- [x] Sub-tab katalog: tombol **Tukar Poin** aktif bila `points >= points_required`
+- [x] Dialog konfirmasi → `POST /api/rewards/redeem`
+- [x] Sub-tab voucher saya: QR `CLN-VCR-XXXX` + kode teks + nominal + badge `1x Pakai`
+- [x] Voucher terpakai pindah ke riwayat dengan tampilan redup `Sudah Terpakai`
 
 ---
 
@@ -204,11 +204,11 @@ Branch `feature/mobile-rewards`
 
 Branch `feature/mobile-export`
 
-- [ ] `services/export_service.dart`
-- [ ] Export CSV (`csv` + `path_provider`)
-- [ ] Export PDF (`pdf` + `printing`) — header toko, tabel transaksi, total
-- [ ] Dialog pilihan format dari dashboard kasir
-- [ ] Berbagi file via `printing` share sheet
+- [x] `services/export_service.dart`
+- [x] Export CSV (`csv` + `path_provider`)
+- [x] Export PDF (`pdf` + `printing`) — header toko, tabel transaksi, total
+- [x] Dialog pilihan format dari dashboard kasir
+- [x] Berbagi file via `printing` share sheet
 
 ---
 

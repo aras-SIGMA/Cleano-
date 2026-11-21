@@ -144,4 +144,57 @@ void main() {
     expect(find.text('MBR-0001'), findsOneWidget);
     expect(auth.callCount, 0);
   });
+
+  testWidgets('M8: Profil baru dari induk ikut tampil walau state sudah terpasang', (tester) async {
+    const stale = UserModel(
+      id: 1,
+      name: 'Rina Marlina',
+      email: 'rina@cleano.id',
+      phone: '081234567891',
+      role: 'pelanggan',
+      memberCode: 'MBR-0001',
+      points: 45,
+      tier: 'Silver',
+    );
+    final auth = FakeAuthService();
+
+    await tester.pumpWidget(buildWidget(authService: auth, user: stale));
+    await tester.pumpAndSettle();
+    expect(find.text('SILVER'), findsOneWidget);
+
+    // Induk selesai memuat ulang profil: poin naik, tier berubah.
+    await tester.pumpWidget(buildWidget(authService: auth, user: dummyUser));
+    await tester.pumpAndSettle();
+
+    expect(find.text('GOLD'), findsOneWidget);
+    expect(find.text('150'), findsOneWidget);
+    expect(find.text('45'), findsNothing);
+  });
+
+  testWidgets('M8: Respons profil kosong tidak meninggalkan spinner berputar', (tester) async {
+    await tester.pumpWidget(buildWidget(authService: FakeAuthService()));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Coba Lagi'), findsOneWidget);
+  });
+
+  testWidgets('M8: member_code kosong tidak melempar galat render', (tester) async {
+    const tanpaKode = UserModel(
+      id: 1,
+      name: 'Rina Marlina',
+      email: 'rina@cleano.id',
+      phone: '081234567891',
+      role: 'pelanggan',
+      memberCode: '',
+      points: 0,
+      tier: 'Silver',
+    );
+
+    await tester.pumpWidget(buildWidget(authService: FakeAuthService(), user: tanpaKode));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -8,6 +8,7 @@ import '../../models/dashboard_summary_model.dart';
 import '../../models/order_model.dart';
 import '../../services/api_service.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/export_service.dart';
 import '../../services/order_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
@@ -27,12 +28,14 @@ class KasirDashboardScreen extends StatefulWidget {
     this.onNavigateToPos,
     this.dashboardService,
     this.orderService,
+    this.exportService,
   });
 
   final VoidCallback? onNavigateToOrders;
   final VoidCallback? onNavigateToPos;
   final DashboardService? dashboardService;
   final OrderService? orderService;
+  final ExportService? exportService;
 
   @override
   State<KasirDashboardScreen> createState() => _KasirDashboardScreenState();
@@ -41,6 +44,7 @@ class KasirDashboardScreen extends StatefulWidget {
 class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   DashboardService get _dashboardService => widget.dashboardService ?? DashboardService.instance;
   OrderService get _orderService => widget.orderService ?? OrderService.instance;
+  ExportService get _exportService => widget.exportService ?? ExportService.instance;
 
   DashboardSummaryModel? _summary;
   List<OrderModel> _activeOrders = [];
@@ -112,14 +116,34 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
-        void triggerExport(String format) {
+        Future<void> triggerExport(String format) async {
           Navigator.pop(ctx);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('File format $format disiapkan untuk diunduh.'),
-              backgroundColor: AppTheme.primary,
-            ),
-          );
+          try {
+            await _exportService.exportReport(
+              format: format,
+              summary: _summary!,
+              orders: _activeOrders,
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Laporan format $format berhasil diekspor.'),
+                  backgroundColor: AppTheme.success,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Gagal mengekspor laporan: $e'),
+                  backgroundColor: AppTheme.danger,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          }
         }
 
         return Padding(
