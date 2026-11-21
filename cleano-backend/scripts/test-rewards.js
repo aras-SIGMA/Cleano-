@@ -310,9 +310,12 @@ async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
     // Seeder tidak punya voucher terpakai, dan is_used tidak bisa dikembalikan
     // ke 0 (trigger L-02), jadi voucher terpakai dibuat di dalam transaksi.
     const pisah = await tryTx(async (conn) => {
+      // Reward dibuat sendiri: id 1 bisa dinonaktifkan dari panel kasir, dan
+      // trigger menolak voucher untuk reward nonaktif.
+      const rid = await makeReward(conn, { code: '903', points: 10 });
       const [ins] = await conn.query(
-        'insert into user_vouchers (voucher_code, user_id, reward_id, is_used) values (?, ?, 1, 0)',
-        ['CLN-VCR-UJI1', uRina.id],
+        'insert into user_vouchers (voucher_code, user_id, reward_id, is_used) values (?, ?, ?, 0)',
+        ['CLN-VCR-UJI1', uRina.id, rid],
       );
       // Pemakaian lewat jalur resmi: UPDATE 1 baris is_used=1 + used_at terisi,
       // satu-satunya bentuk yang lolos trigger.

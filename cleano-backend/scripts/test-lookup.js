@@ -175,10 +175,16 @@ async function login(email, password) {
     const tmpId = tmp.insertId;
     const voucherCode = `CLN-TST-${Date.now().toString().slice(-8)}`;
 
+    // Reward aktif diambil dari DB: id 1 bisa dinonaktifkan dari panel kasir,
+    // dan trigger menolak voucher untuk reward nonaktif.
+    const [[reward]] = await pool.query(
+      'select id from rewards where is_active = 1 order by id limit 1',
+    );
+
     try {
       await pool.query(
-        'insert into user_vouchers (voucher_code, user_id, reward_id, is_used) values (?, ?, 1, 0)',
-        [voucherCode, tmpId],
+        'insert into user_vouchers (voucher_code, user_id, reward_id, is_used) values (?, ?, ?, 0)',
+        [voucherCode, tmpId, reward.id],
       );
 
       const withActive = await call(`/api/users/lookup?query=${tmpCode}`, { token: kasirToken });
