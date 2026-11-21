@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/router/app_router.dart';
@@ -31,25 +32,39 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
+    // Prioritaskan profil cache untuk cold-start instan (<50ms)
+    final cachedUser = await SessionService.instance.getUser();
+    if (!mounted) return;
+
+    if (cachedUser != null) {
+      final destination = cachedUser.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
+      Navigator.of(context).pushReplacementNamed(destination);
+
+      // Sinkronisasi profil terbaru di latar belakang tanpa memblokir startup
+      unawaited(
+        AuthService.instance.getMe().then((fresh) async {
+          if (fresh != null) {
+            await SessionService.instance.updateUser(fresh);
+          }
+        }).catchError((_) {}),
+      );
+      return;
+    }
+
+    // Jika belum ada cache profil, fetch dari server
     try {
       final user = await AuthService.instance.getMe();
       if (!mounted) return;
 
       if (user != null) {
+        await SessionService.instance.updateUser(user);
+        if (!mounted) return;
         final destination = user.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
         Navigator.of(context).pushReplacementNamed(destination);
         return;
       }
     } catch (_) {
-      // Jika server tidak dapat dihubungi atau token tidak valid, coba gunakan user cache
-      final cachedUser = await SessionService.instance.getUser();
-      if (!mounted) return;
-
-      if (cachedUser != null) {
-        final destination = cachedUser.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
-        Navigator.of(context).pushReplacementNamed(destination);
-        return;
-      }
+      // Server error atau offline
     }
 
     if (mounted) {

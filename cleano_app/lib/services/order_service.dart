@@ -69,6 +69,7 @@ class OrderService {
   /// Mengambil daftar pesanan dengan filter status dan pagination.
   Future<OrderListResult> getOrders({
     String? status,
+    String? search,
     int page = 1,
     int pageSize = 10,
   }) async {
@@ -76,6 +77,7 @@ class OrderService {
       'page': page,
       'pageSize': pageSize,
       if (status != null && status.isNotEmpty && status != 'semua') 'status': status,
+      if (search != null && search.isNotEmpty) 'search': search,
     };
 
     final res = await _api.get(ApiConstants.orders, query: queryParams);

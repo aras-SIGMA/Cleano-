@@ -81,10 +81,17 @@ class OrderModel {
 
   bool get isAntre => status == 'antre';
   bool get isProsesCuci => status == 'proses_cuci';
+
+  /// Layanan tanpa mesin: cucian langsung dikerjakan tanpa drum.
+  bool get isSedangDiproses => status == 'sedang_diproses';
   bool get isSiapDiambil => status == 'siap_diambil';
   bool get isSelesai => status == 'selesai';
   bool get isBatal => status == 'batal';
-  bool get isAktif => status == 'antre' || status == 'proses_cuci' || status == 'siap_diambil';
+  bool get isAktif =>
+      status == 'antre' ||
+      status == 'proses_cuci' ||
+      status == 'sedang_diproses' ||
+      status == 'siap_diambil';
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic v) {

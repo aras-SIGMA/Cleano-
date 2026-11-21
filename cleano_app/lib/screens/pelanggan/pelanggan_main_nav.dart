@@ -5,8 +5,16 @@ import '../../core/theme/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
+import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/state_view.dart';
+import 'pelanggan_qr_card_screen.dart';
+import 'pelanggan_rewards_screen.dart';
+import 'pelanggan_tracking_screen.dart';
 
-/// Layar beranda Portal Pelanggan (fase verifikasi autentikasi).
+/// Navigasi Utama Portal Pelanggan Cleano (3 Tab):
+/// - Tab 0: Lacak Cucian Real-Time (M7)
+/// - Tab 1: Kartu Member & QR (M8)
+/// - Tab 2: Hadiah & Saldo Poin Loyalti (M9)
 class PelangganMainNav extends StatefulWidget {
   const PelangganMainNav({super.key});
 
@@ -15,8 +23,10 @@ class PelangganMainNav extends StatefulWidget {
 }
 
 class _PelangganMainNavState extends State<PelangganMainNav> {
+  int _currentIndex = 0;
   UserModel? _user;
   bool _isLoading = true;
+  String? _profileError;
 
   @override
   void initState() {
@@ -35,15 +45,26 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
 
     try {
       final fresh = await AuthService.instance.getMe();
-      if (mounted && fresh != null) {
+      if (mounted) {
         setState(() {
-          _user = fresh;
+          _user = fresh ?? _user;
           _isLoading = false;
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (_user == null) _profileError = 'Gagal memuat profil. Periksa koneksi Anda.';
+        });
+      }
     }
+  }
+
+  void _onTabChanged(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
   }
 
   Future<void> _handleLogout() async {
@@ -80,201 +101,181 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Portal Pelanggan'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Logout',
-            onPressed: _handleLogout,
-          ),
-        ],
-      ),
-      body: _isLoading && _user == null
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Kartu Member
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.primary, AppTheme.secondary],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Cleano Member Card',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                _user?.tier.toUpperCase() ?? 'SILVER',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          _user?.memberCode ?? 'MBR-0000',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'NAMA MEMBER',
-                                  style: TextStyle(color: Colors.white70, fontSize: 10),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _user?.name ?? 'Pelanggan',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                const Text(
-                                  'POIN REWARD',
-                                  style: TextStyle(color: Colors.white70, fontSize: 10),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${_user?.points ?? 0} Poin',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+    if (_isLoading && _user == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFEBF4FF),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-                  // Detail Akun
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.border),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Informasi Akun',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        const Divider(height: 24),
-                        _InfoRow(label: 'Email', value: _user?.email ?? '-'),
-                        const SizedBox(height: 10),
-                        _InfoRow(label: 'Nomor HP', value: _user?.phone ?? '-'),
-                        const SizedBox(height: 10),
-                        _InfoRow(label: 'Role', value: _user?.role ?? 'pelanggan'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
+    if (_user == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFEBF4FF),
+        body: StateErrorView(
+          message: _profileError ?? 'Profil tidak tersedia.',
+          onRetry: () {
+            setState(() {
+              _isLoading = true;
+              _profileError = null;
+            });
+            _loadProfile();
+          },
+        ),
+      );
+    }
 
-                  // Tombol Logout
-                  OutlinedButton.icon(
-                    onPressed: _handleLogout,
-                    icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-                    label: const Text(
-                      'Keluar (Logout)',
-                      style: TextStyle(
-                        color: AppTheme.danger,
-                        fontWeight: FontWeight.w700,
-                      ),
+    final children = [
+      PelangganTrackingScreen(user: _user, onLogout: _handleLogout),
+      PelangganQrCardScreen(user: _user, onLogout: _handleLogout),
+      PelangganRewardsScreen(user: _user, onLogout: _handleLogout),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 768;
+
+        if (isWide) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFEBF4FF),
+            body: Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: _onTabChanged,
+                  labelType: NavigationRailLabelType.all,
+                  leading: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    child: CircleAvatar(
+                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
+                      child: const Icon(Icons.local_laundry_service_rounded, color: AppTheme.primary),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      side: const BorderSide(color: Color(0xFFFCA5A5)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  ),
+                  trailing: Expanded(
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 20),
+                        child: IconButton(
+                          icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
+                          tooltip: 'Logout',
+                          onPressed: _handleLogout,
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.local_laundry_service_outlined),
+                      selectedIcon: Icon(Icons.local_laundry_service_rounded),
+                      label: Text('Lacak'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.qr_code_2_outlined),
+                      selectedIcon: Icon(Icons.qr_code_2_rounded),
+                      label: Text('Kartu Member'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.card_giftcard_outlined),
+                      selectedIcon: Icon(Icons.card_giftcard_rounded),
+                      label: Text('Hadiah'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(thickness: 1, width: 1, color: AppTheme.border),
+                Expanded(
+                  child: IndexedStack(
+                    index: _currentIndex,
+                    children: children,
+                  ),
+                ),
+              ],
             ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: const Color(0xFFEBF4FF),
+          extendBody: true,
+          body: IndexedStack(
+            index: _currentIndex,
+            children: children,
+          ),
+          bottomNavigationBar: _buildFloatingBottomBar(),
+        );
+      },
     );
   }
-}
 
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
+  Widget _buildFloatingBottomBar() {
+    final items = [
+      (Icons.local_laundry_service_outlined, Icons.local_laundry_service_rounded, 'Lacak'),
+      (Icons.qr_code_2_outlined, Icons.qr_code_2_rounded, 'Kartu Member'),
+      (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Hadiah'),
+    ];
 
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-      ],
+    return RepaintBoundary(
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: FrostedGlassCard(
+            enableBlur: true,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            borderRadius: 32,
+            blurSigma: 20,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(items.length, (idx) {
+                final isSelected = _currentIndex == idx;
+                final item = items[idx];
+
+                return InkWell(
+                  onTap: () => _onTabChanged(idx),
+                  borderRadius: BorderRadius.circular(22),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSelected ? 18 : 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.primary.withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isSelected ? item.$2 : item.$1,
+                          size: 22,
+                          color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          item.$3,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            color: isSelected ? AppTheme.primary : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

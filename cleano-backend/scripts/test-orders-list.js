@@ -203,6 +203,52 @@ async function get(path, { token } = {}) {
 
     const notNumber = await get('/api/orders?page=abc', { token: kasir });
     ok('page bukan angka ditolak 400', notNumber.status === 400, `status ${notNumber.status}`);
+
+    // ---- pencarian ----
+    // Dicocokkan terhadap DB, bukan terhadap tebakan: yang diuji adalah SQL
+    // yang sama, jadi hitungannya harus identik dengan query acuan.
+    const cariNama = await get('/api/orders?search=Rina', { token: kasir });
+    const [[jmlCariNama]] = await pool.query(
+      "select count(*) as n from orders o join users u on u.id = o.user_id where u.name like '%Rina%'",
+    );
+    ok('search nama mengembalikan 200', cariNama.status === 200, `status ${cariNama.status}`);
+    ok('search nama cocok dengan hitungan DB', cariNama.json?.data?.total === jmlCariNama.n,
+      `${cariNama.json?.data?.total} vs ${jmlCariNama.n}`);
+    ok('search nama hanya berisi baris yang cocok',
+      (cariNama.json?.data?.items ?? []).every((o) => o.customer_name.toLowerCase().includes('rina')));
+
+    const cariKode = await get('/api/orders?search=CLN-20261114', { token: kasir });
+    ok('search kode order menemukan satu baris',
+      (cariKode.json?.data?.items ?? []).length === 1
+      && cariKode.json.data.items[0].order_code === 'CLN-20261114-0001',
+      `${(cariKode.json?.data?.items ?? []).map((o) => o.order_code).join(' ')}`);
+
+    const cariHp = await get('/api/orders?search=081234567890', { token: kasir });
+    ok('search nomor HP menemukan order rina',
+      (cariHp.json?.data?.items ?? []).some((o) => o.customer_name === 'Rina Marlina'),
+      `${(cariHp.json?.data?.items ?? []).map((o) => o.customer_name).join(' ')}`);
+
+    // '%' dan '_' dari pengguna harus jadi karakter biasa, bukan wildcard.
+    // Tanpa escape, search=% akan mengembalikan seluruh order.
+    const cariWildcard = await get('/api/orders?search=%25', { token: kasir });
+    ok('wildcard % di-escape (bukan cocok semua)', cariWildcard.json?.data?.total === 0,
+      `${cariWildcard.json?.data?.total} vs 0`);
+
+    // Pencarian tetap dibatasi kepemilikan seperti filter lain.
+    const cariRinaBudi = await get('/api/orders?search=Budi', { token: tokRina });
+    ok('search tidak membocorkan order pelanggan lain', cariRinaBudi.json?.data?.total === 0,
+      `${cariRinaBudi.json?.data?.total} vs 0`);
+
+    const cariTerlaluPanjang = await get('/api/orders?search=' + 'a'.repeat(101), { token: kasir });
+    ok('search > 100 karakter ditolak 400', cariTerlaluPanjang.status === 400,
+      `status ${cariTerlaluPanjang.status}`);
+
+    // Gabungan filter dan pencarian harus menyempit, bukan saling menimpa.
+    const gabung = await get('/api/orders?status=selesai&search=CLN-20261114', { token: kasir });
+    ok('search digabung status mempersempit hasil',
+      (gabung.json?.data?.items ?? []).length === 1
+      && gabung.json.data.items[0].order_code === 'CLN-20261114-0001',
+      `${(gabung.json?.data?.items ?? []).map((o) => o.order_code).join(' ')}`);
   } finally {
     const pass = rows.filter((r) => r.pass).length;
     for (const r of rows) {

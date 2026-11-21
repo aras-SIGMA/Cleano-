@@ -37,6 +37,12 @@ jobs:
       - name: Boot server tanpa database
         run: |
           cp .env.example .env
+          # CI tidak punya certs/ca.pem (gitignored), sedangkan .env.example
+          # sengaja memakai DB_SSL_VERIFY=true untuk memaksa produksi memakai
+          # CA asli. Tanpa baris ini, buildSsl() melempar saat modul database
+          # dimuat sehingga server tidak pernah listen dan pengecekan health
+          # di bawah selalu gagal.
+          sed -i 's/^DB_SSL_VERIFY=.*/DB_SSL_VERIFY=/' .env
           node server.js > /tmp/server.log 2>&1 &
           for i in $(seq 1 30); do
             if curl -s -o /dev/null http://localhost:3000/api/health; then break; fi

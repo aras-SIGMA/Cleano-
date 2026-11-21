@@ -11,6 +11,7 @@ class ApiService {
   static final ApiService instance = ApiService._();
 
   static const _tokenKey = 'cleano_token';
+  String? _cachedToken;
 
   late final Dio _dio = Dio(
     BaseOptions(
@@ -32,16 +33,20 @@ class ApiService {
     );
 
   Future<String?> readToken() async {
+    if (_cachedToken != null) return _cachedToken;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+    _cachedToken = prefs.getString(_tokenKey);
+    return _cachedToken;
   }
 
   Future<void> saveToken(String token) async {
+    _cachedToken = token;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, token);
   }
 
   Future<void> clearToken() async {
+    _cachedToken = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
   }

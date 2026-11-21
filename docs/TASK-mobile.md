@@ -1,3 +1,4 @@
+
 # Task Mobile — Cleano
 
 Lapisan: Flutter 3.47 / Dart 3.13. Satu aplikasi, dua portal (kasir + pelanggan).
@@ -15,11 +16,11 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | M0 | Fondasi | `develop` | `[x]` |
 | M1 | Model & service | `feature/mobile-core` | `[ ]` |
 | M2 | Auth & routing | `feature/mobile-auth` | `[ ]` |
-| M3 | Kasir — dashboard | `feature/mobile-dashboard` | `[ ]` |
-| M4 | Kasir — POS | `feature/mobile-pos` | `[ ]` |
-| M5 | Kasir — orders & estafet | `feature/mobile-orders` | `[ ]` |
-| M6 | Kasir — master data | `feature/mobile-master` | `[ ]` |
-| M7 | Pelanggan — tracking | `feature/mobile-tracking` | `[ ]` |
+| M3 | Kasir — dashboard | `feature/mobile-dashboard` | `[x]` |
+| M4 | Kasir — POS | `feature/mobile-pos` | `[x]` |
+| M5 | Kasir — orders & estafet | `feature/mobile-app` | `[x]` |
+| M6 | Kasir - master data | `feature/mobile-app` | `[x]` |
+| M7 | Pelanggan — tracking | `feature/mobile-app` | `[x]` |
 | M8 | Pelanggan — kartu QR | `feature/mobile-qr-card` | `[ ]` |
 | M9 | Pelanggan — rewards | `feature/mobile-rewards` | `[ ]` |
 | M10 | Ekspor laporan | `feature/mobile-export` | `[ ]` |
@@ -53,33 +54,33 @@ Branch `feature/mobile-core` · prasyarat semua paket lain
 
 ### Model
 
-- [ ] `models/user_model.dart` — `id, name, email, phone, role, member_code, points, tier`
-- [ ] `models/service_model.dart` — `id, name, price_per_kg, wash_duration_minutes, estimated_hours, requires_machine, description`
-- [ ] `models/machine_model.dart` — `id, machine_code, status, capacity_kg, estimated_finish_at`
-- [ ] `models/reward_model.dart` — `id, title, description, points_required, discount_amount, is_active`
-- [ ] `models/voucher_model.dart` — `id, voucher_code, reward_id, title, discount_amount, is_used`
-- [ ] `models/order_model.dart` — semua kolom `vw_order_details` yang dipakai UI
-- [ ] `models/dashboard_summary_model.dart`
-- [ ] `models/next_queue_order_model.dart`
+- [x] `models/user_model.dart` — `id, name, email, phone, role, member_code, points, tier`
+- [x] `models/service_model.dart` — `id, name, price_per_kg, wash_duration_minutes, estimated_hours, requires_machine, description`
+- [x] `models/machine_model.dart` — `id, machine_code, status, capacity_kg, estimated_finish_at`
+- [x] `models/reward_model.dart` — `id, title, description, points_required, discount_amount, is_active`
+- [x] `models/voucher_model.dart` — `id, voucher_code, reward_id, title, discount_amount, is_used`
+- [x] `models/order_model.dart` — semua kolom `vw_order_details` yang dipakai UI
+- [x] `models/dashboard_summary_model.dart`
+- [x] `models/next_queue_order_model.dart`
 
 Semua model: `fromJson` manual, tanpa `build_runner`. Tanggal dari API berbentuk string
 `DATE`/`DATETIME` — parse ke `DateTime`.
 
 ### Service
 
-- [ ] `services/auth_service.dart` — `register`, `login`, `logout` (hapus token), `currentUser`
-- [ ] `services/user_service.dart` — `lookup(query)`
-- [ ] `services/master_service.dart` — CRUD services/machines/rewards
-- [ ] `services/order_service.dart` — `create` (multipart), `list`, `updateStatus`, `confirmRelay`, `syncPayment`
-- [ ] `services/dashboard_service.dart` — `summary`
-- [ ] `services/reward_service.dart` — `catalog`, `redeem`, `myVouchers`
-- [ ] `services/session_service.dart` — simpan token + profil user di SharedPreferences
+- [x] `services/auth_service.dart` — `register`, `login`, `logout` (hapus token), `currentUser`
+- [x] `services/user_service.dart` — `lookup(query)`
+- [x] `services/master_service.dart` — CRUD services/machines/rewards
+- [x] `services/order_service.dart` — `create` (multipart), `list`, `updateStatus`, `confirmRelay`, `syncPayment`
+- [x] `services/dashboard_service.dart` — `summary`
+- [x] `services/reward_service.dart` — `catalog`, `redeem`, `myVouchers`
+- [x] `services/session_service.dart` — simpan token + profil user di SharedPreferences
 
 **Aturan:** setiap service memakai `ApiService.instance`. Tidak membuat `Dio` baru.
 Error dilempar sebagai `ApiException` yang sudah ada.
 
-- [ ] `test/models_test.dart` — `fromJson` untuk order & user
-- [ ] `dart analyze lib` bersih
+- [x] `test/models_test.dart` — `fromJson` untuk order & user
+- [x] `dart analyze lib` bersih
 
 ---
 
@@ -87,13 +88,13 @@ Error dilempar sebagai `ApiException` yang sudah ada.
 
 Branch `feature/mobile-auth`
 
-- [ ] `screens/auth/login_screen.dart` — email + password, validasi, loading, error inline
-- [ ] `screens/auth/register_screen.dart` — nama, email, password, phone
-- [ ] `core/router/app_router.dart` — routing berbasis role
-- [ ] Splash/bootstrap: cek token tersimpan → arahkan ke portal yang sesuai
-- [ ] `kasir_main_nav.dart` — `NavigationRail` di layar lebar, `BottomNavigationBar` di sempit
-- [ ] `pelanggan_main_nav.dart` — `BottomNavigationBar` 3 tab
-- [ ] Logout dari kedua portal (hapus token + kembali ke login)
+- [x] `screens/auth/login_screen.dart` — email + password, validasi, loading, error inline
+- [x] `screens/auth/register_screen.dart` — nama, email, password, phone
+- [x] `core/router/app_router.dart` — routing berbasis role
+- [x] Splash/bootstrap: cek token tersimpan → arahkan ke portal yang sesuai
+- [x] `kasir_main_nav.dart` — `NavigationRail` di layar lebar, `BottomNavigationBar` di sempit
+- [x] `pelanggan_main_nav.dart` — `BottomNavigationBar` 3 tab
+- [x] Logout dari kedua portal (hapus token + kembali ke login)
 
 **Aturan:** UI bukan pengaman. Menyembunyikan tombol tidak menggantikan `403` dari API.
 
@@ -103,12 +104,12 @@ Branch `feature/mobile-auth`
 
 Branch `feature/mobile-dashboard`
 
-- [ ] `screens/kasir/kasir_dashboard_screen.dart`
-- [ ] 4 kartu metrik: omzet hari ini, pesanan aktif, siap diambil, kapasitas mesin
-- [ ] Grafik batang `fl_chart` tren omzet 7 hari + tooltip
-- [ ] Daftar ringkas order aktif dengan kode mesin atau estimasi tunggu
-- [ ] Pull-to-refresh
-- [ ] Tombol ekspor (memanggil M10)
+- [x] `screens/kasir/kasir_dashboard_screen.dart`
+- [x] 4 kartu metrik: omzet hari ini, pesanan aktif, siap diambil, kapasitas mesin
+- [x] Grafik batang `fl_chart` tren omzet 7 hari + tooltip
+- [x] Daftar ringkas order aktif dengan kode mesin atau estimasi tunggu
+- [x] Pull-to-refresh
+- [x] Tombol ekspor (memanggil M10)
 
 ---
 
@@ -116,85 +117,86 @@ Branch `feature/mobile-dashboard`
 
 Branch `feature/mobile-pos` · **paket terberat**
 
-- [ ] `screens/kasir/pos_create_order_screen.dart` — 4 langkah
-- [ ] Langkah 1: scan QR member (`mobile_scanner`) **atau** input nomor HP → `user_service.lookup`
-- [ ] Kartu konfirmasi pelanggan: nama, `MBR-XXXX`, badge tier, WA tersensor
-- [ ] Langkah 2: dropdown layanan, input berat desimal, foto wajib (`image_picker`), catatan
-- [ ] Kompresi foto agar `< 2 MB` sebelum kirim
-- [ ] Langkah 3: scan/input voucher, tampilkan subtotal/potongan/total
-- [ ] Langkah 4: radio tunai / midtrans, tombol **Proses Transaksi** nonaktif bila foto belum ada
+- [x] `screens/kasir/pos_create_order_screen.dart` — 4 langkah
+- [x] Langkah 1: scan QR member (`mobile_scanner`) **atau** input nomor HP → `user_service.lookup`
+- [x] Kartu konfirmasi pelanggan: nama, `MBR-XXXX`, badge tier, WA tersensor
+- [x] Langkah 2: dropdown layanan, input berat desimal, foto wajib (`image_picker`), catatan
+- [x] Kompresi foto agar `< 2 MB` sebelum kirim
+- [x] Langkah 3: scan/input voucher, tampilkan subtotal/potongan/total
+- [x] Langkah 4: radio tunai / midtrans, tombol **Proses Transaksi** nonaktif bila foto belum ada
       atau berat `<= 0`
-- [ ] `widgets/` — `member_card.dart`, `service_dropdown.dart`, `weight_input.dart`,
+- [x] `widgets/` — `member_card.dart`, `service_dropdown.dart`, `weight_input.dart`,
       `photo_picker_field.dart`, `voucher_field.dart`
-- [ ] Midtrans: `webview_flutter` membuka `snap_redirect_url`
-- [ ] Tombol **Cek Status Pembayaran** → `syncPayment`, badge `LUNAS`
+- [x] Midtrans: `webview_flutter` membuka `snap_redirect_url`
+- [x] Tombol **Cek Status Pembayaran** → `syncPayment`, badge `LUNAS`
 
 ---
 
 ## M5 — Kasir: orders & estafet
 
-Branch `feature/mobile-orders`
+Branch `feature/mobile-app`
 
-- [ ] `screens/kasir/kasir_orders_screen.dart`
-- [ ] Tab filter: Semua, Antre, Proses Cuci, Siap Diambil, Selesai
-- [ ] Tombol **Tandai Siap Diambil** (`proses_cuci` → `siap_diambil`)
-- [ ] Modal konfirmasi estafet bila respons memuat `next_queue_order`
+- [x] `screens/kasir/kasir_orders_screen.dart`
+- [x] Tab filter: Semua, Antre, Proses Cuci, Sedang Diproses, Siap Diambil, Selesai
+- [x] Tombol **Tandai Siap Diambil** (`proses_cuci`/`sedang_diproses` → `siap_diambil`)
+- [x] Pencarian kode order / nama / HP lewat `GET /api/orders?search=` (server-side, debounce 350 ms)
+- [x] Modal konfirmasi estafet bila respons memuat `next_queue_order`
       ("Mesin MC-01 Kini Kosong!") dengan aksi **Ya, Mulai Cuci** / **Nanti Saja**
-- [ ] Tombol **Selesaikan Pesanan** (`siap_diambil` → `selesai`)
-- [ ] Pagination / infinite scroll
+- [x] Tombol **Selesaikan Pesanan** (`siap_diambil` → `selesai`)
+- [x] Pagination / infinite scroll
 
 ---
 
 ## M6 — Kasir: master data
 
-Branch `feature/mobile-master`
+Branch `feature/mobile-app`
 
-- [ ] `screens/kasir/kasir_master_screen.dart` — 3 tab
-- [ ] Tab Layanan: list, tambah, edit, hapus (tangani `409`)
-- [ ] Tab Mesin: list, tambah `MC-XX`, ubah status `tersedia`/`maintenance`
-- [ ] Tab Rewards: list, tambah, edit, toggle `is_active`
+- [x] `screens/kasir/kasir_master_screen.dart` — 3 tab
+- [x] Tab Layanan: list, tambah, edit, hapus (tangani `409`)
+- [x] Tab Mesin: list, tambah `MC-XX`, ubah status `tersedia`/`maintenance`
+- [x] Tab Rewards: list, tambah, edit, toggle `is_active`
 
 ---
 
 ## M7 — Pelanggan: tracking
 
-Branch `feature/mobile-tracking`
+Branch `feature/mobile-app`
 
-- [ ] `screens/pelanggan/pelanggan_tracking_screen.dart`
-- [ ] Header: sapaan, badge tier, saldo poin
-- [ ] Kartu pesanan aktif + stepper 4 tahap
-- [ ] Badge mesin (`Sedang Dicuci di Mesin MC-01` + jam selesai) atau antrean
+- [x] `screens/pelanggan/pelanggan_tracking_screen.dart`
+- [x] Header: sapaan, badge tier, saldo poin
+- [x] Kartu pesanan aktif + stepper 4 tahap
+- [x] Badge mesin (`Sedang Dicuci di Mesin MC-01` + jam selesai) atau antrean
       (`Menunggu Antrean ± N Menit`)
-- [ ] Badge `LUNAS` / `BELUM BAYAR`
-- [ ] Bottom-sheet detail: foto drop-off, catatan, rincian harga, pull-to-refresh
-- [ ] Tab riwayat `selesai` + poin yang diperoleh
+- [x] Badge `LUNAS` / `BELUM BAYAR`
+- [x] Bottom-sheet detail: foto drop-off, catatan, rincian harga, pull-to-refresh
+- [x] Tab riwayat `selesai` + poin yang diperoleh
 
 ---
 
 ## M8 — Pelanggan: kartu QR
 
-Branch `feature/mobile-qr-card`
+Branch `feature/mobile-app`
 
-- [ ] `screens/pelanggan/pelanggan_qr_card_screen.dart`
-- [ ] QR `qr_flutter` hanya berisi `member_code`
-- [ ] Nama lengkap, badge tier berwarna (Silver/Gold/Platinum), `MBR-XXXX` teks di bawah QR
-- [ ] Nomor WA tersensor via `Formatters.sensorTelepon`
-- [ ] **Email tidak ditampilkan sama sekali**
-- [ ] Kecerahan layar dinaikkan saat kartu dibuka (opsional, demi scan)
+- [x] `screens/pelanggan/pelanggan_qr_card_screen.dart`
+- [x] QR `qr_flutter` hanya berisi `member_code`
+- [x] Nama lengkap, badge tier berwarna (Silver/Gold/Platinum), `MBR-XXXX` teks di bawah QR
+- [x] Nomor WA tersensor via `Formatters.sensorTelepon`
+- [x] **Email tidak ditampilkan sama sekali**
+- [ ] Kecerahan layar dinaikkan saat kartu dibuka (opsional, demi scan) — butuh paket `screen_brightness`, ditunda
 
 ---
 
 ## M9 — Pelanggan: rewards
 
-Branch `feature/mobile-rewards`
+Branch `feature/mobile-app`
 
-- [ ] `screens/pelanggan/pelanggan_rewards_screen.dart`
-- [ ] Banner poin + progress bar ke tier berikutnya (100 Gold, 300 Platinum)
-- [ ] Info bonus 2x poin (≥5 kg atau Express)
-- [ ] Sub-tab katalog: tombol **Tukar Poin** aktif bila `points >= points_required`
-- [ ] Dialog konfirmasi → `POST /api/rewards/redeem`
-- [ ] Sub-tab voucher saya: QR `CLN-VCR-XXXX` + kode teks + nominal + badge `1x Pakai`
-- [ ] Voucher terpakai pindah ke riwayat dengan tampilan redup `Sudah Terpakai`
+- [x] `screens/pelanggan/pelanggan_rewards_screen.dart`
+- [x] Banner poin + progress bar ke tier berikutnya (100 Gold, 300 Platinum)
+- [x] Info bonus 2x poin (≥5 kg atau Express)
+- [x] Sub-tab katalog: tombol **Tukar Poin** aktif bila `points >= points_required`
+- [x] Dialog konfirmasi → `POST /api/rewards/redeem`
+- [x] Sub-tab voucher saya: QR `CLN-VCR-XXXX` + kode teks + nominal + badge `1x Pakai`
+- [x] Voucher terpakai pindah ke riwayat dengan tampilan redup `Sudah Terpakai`
 
 ---
 
@@ -202,11 +204,11 @@ Branch `feature/mobile-rewards`
 
 Branch `feature/mobile-export`
 
-- [ ] `services/export_service.dart`
-- [ ] Export CSV (`csv` + `path_provider`)
-- [ ] Export PDF (`pdf` + `printing`) — header toko, tabel transaksi, total
-- [ ] Dialog pilihan format dari dashboard kasir
-- [ ] Berbagi file via `printing` share sheet
+- [x] `services/export_service.dart`
+- [x] Export CSV (`csv` + `path_provider`)
+- [x] Export PDF (`pdf` + `printing`) — header toko, tabel transaksi, total
+- [x] Dialog pilihan format dari dashboard kasir
+- [x] Berbagi file via `printing` share sheet
 
 ---
 
