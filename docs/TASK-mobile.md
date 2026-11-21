@@ -20,7 +20,7 @@ Legenda status: `[x]` selesai · `[~]` dikerjakan, belum commit · `[ ]` belum
 | M4 | Kasir — POS | `feature/mobile-pos` | `[x]` |
 | M5 | Kasir — orders & estafet | `feature/mobile-app` | `[x]` |
 | M6 | Kasir - master data | `feature/mobile-app` | `[x]` |
-| M7 | Pelanggan — tracking | `feature/mobile-tracking` | `[ ]` |
+| M7 | Pelanggan — tracking | `feature/mobile-app` | `[x]` |
 | M8 | Pelanggan — kartu QR | `feature/mobile-qr-card` | `[ ]` |
 | M9 | Pelanggan — rewards | `feature/mobile-rewards` | `[ ]` |
 | M10 | Ekspor laporan | `feature/mobile-export` | `[ ]` |
@@ -160,16 +160,16 @@ Branch `feature/mobile-app`
 
 ## M7 — Pelanggan: tracking
 
-Branch `feature/mobile-tracking`
+Branch `feature/mobile-app`
 
-- [ ] `screens/pelanggan/pelanggan_tracking_screen.dart`
-- [ ] Header: sapaan, badge tier, saldo poin
-- [ ] Kartu pesanan aktif + stepper 4 tahap
-- [ ] Badge mesin (`Sedang Dicuci di Mesin MC-01` + jam selesai) atau antrean
+- [x] `screens/pelanggan/pelanggan_tracking_screen.dart`
+- [x] Header: sapaan, badge tier, saldo poin
+- [x] Kartu pesanan aktif + stepper 4 tahap
+- [x] Badge mesin (`Sedang Dicuci di Mesin MC-01` + jam selesai) atau antrean
       (`Menunggu Antrean ± N Menit`)
-- [ ] Badge `LUNAS` / `BELUM BAYAR`
-- [ ] Bottom-sheet detail: foto drop-off, catatan, rincian harga, pull-to-refresh
-- [ ] Tab riwayat `selesai` + poin yang diperoleh
+- [x] Badge `LUNAS` / `BELUM BAYAR`
+- [x] Bottom-sheet detail: foto drop-off, catatan, rincian harga, pull-to-refresh
+- [x] Tab riwayat `selesai` + poin yang diperoleh
 
 ---
 

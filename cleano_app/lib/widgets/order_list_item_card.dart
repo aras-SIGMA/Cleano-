@@ -4,6 +4,7 @@ import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
 import '../models/order_model.dart';
 import 'frosted_glass_card.dart';
+import 'order_payment_badge.dart';
 
 /// Kartu rincian pesanan kasir dengan informasi lengkap & tombol aksi cepat.
 class OrderListItemCard extends StatelessWidget {
@@ -231,24 +232,7 @@ class OrderListItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildPaymentBadge() {
-    final isLunas = order.paymentStatus == 'lunas';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: isLunas ? const Color(0xFFDCFCE7) : const Color(0xFFFEE2E2),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        isLunas ? 'LUNAS' : 'BELUM BAYAR',
-        style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w800,
-          color: isLunas ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
-        ),
-      ),
-    );
-  }
+  Widget _buildPaymentBadge() => OrderPaymentBadge(isLunas: order.isLunas);
 
   Widget _buildStatusBadge() {
     final (bg, fg, text) = switch (order) {
