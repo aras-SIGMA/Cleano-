@@ -1,0 +1,12 @@
+'use strict';
+
+const express = require('express');
+const { register, login } = require('../controllers/authController');
+const { loginLimiter, registerLimiter } = require('../middlewares/rateLimit');
+
+const router = express.Router();
+
+router.post('/register', registerLimiter, register);
+router.post('/login', loginLimiter, login);
+
+module.exports = router;

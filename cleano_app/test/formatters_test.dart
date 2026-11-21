@@ -21,5 +21,12 @@ void main() {
     test('nomor terlalu pendek dikembalikan apa adanya', () {
       expect(Formatters.sensorTelepon('08123'), '08123');
     });
+
+    test('normalizePhone mengubah +62 dan 62 ke 08', () {
+      expect(Formatters.normalizePhone('+6281234567890'), '081234567890');
+      expect(Formatters.normalizePhone('6281234567890'), '081234567890');
+      expect(Formatters.normalizePhone('0812-3456-7890'), '081234567890');
+      expect(Formatters.normalizePhone('  0812 3456 7890  '), '081234567890');
+    });
   });
 }
