@@ -8,6 +8,7 @@ import '../../services/session_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/state_view.dart';
+import 'pelanggan_qr_card_screen.dart';
 import 'pelanggan_tracking_screen.dart';
 
 /// Navigasi Utama Portal Pelanggan Cleano (3 Tab):
@@ -125,7 +126,7 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
 
     final children = [
       PelangganTrackingScreen(user: _user, onLogout: _handleLogout),
-      _buildMemberCardTab(),
+      PelangganQrCardScreen(user: _user, onLogout: _handleLogout),
       _buildRewardsTab(),
     ];
 
@@ -278,194 +279,6 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
     );
   }
 
-  /// Tab 1: Kartu Member & Informasi Akun (Placeholder M8)
-  Widget _buildMemberCardTab() {
-    return Stack(
-      children: [
-        const AmbientBackground(),
-        SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Header Sapaan
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Kartu Member Saya',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-                      tooltip: 'Logout',
-                      onPressed: _handleLogout,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Kartu Member Visual Frosted
-                FrostedGlassCard(
-                  padding: const EdgeInsets.all(22),
-                  borderRadius: 24,
-                  blurSigma: 16,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.local_laundry_service_rounded, color: AppTheme.primary, size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                'CLEANO MEMBER',
-                                style: TextStyle(
-                                  color: AppTheme.primary,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppTheme.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Text(
-                              _user?.tier.toUpperCase() ?? 'SILVER',
-                              style: const TextStyle(
-                                color: AppTheme.primary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
-                      Text(
-                        _user?.memberCode ?? 'MBR-0000',
-                        style: const TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.5,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'NAMA MEMBER',
-                                style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _user?.name ?? 'Pelanggan',
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              const Text(
-                                'SALDO POIN',
-                                style: TextStyle(color: AppTheme.textSecondary, fontSize: 10, fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${_user?.points ?? 0} Poin',
-                                style: const TextStyle(
-                                  color: AppTheme.primary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Informasi Akun
-                FrostedGlassCard(
-                  padding: const EdgeInsets.all(20),
-                  borderRadius: 20,
-                  blurSigma: 12,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Informasi Akun',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const Divider(height: 22),
-                      _InfoRow(label: 'Email', value: _user?.email ?? '-'),
-                      const SizedBox(height: 10),
-                      _InfoRow(label: 'Nomor WhatsApp', value: _user?.phone ?? '-'),
-                      const SizedBox(height: 10),
-                      _InfoRow(label: 'Kode Member', value: _user?.memberCode ?? '-'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Tombol Logout
-                OutlinedButton.icon(
-                  onPressed: _handleLogout,
-                  icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-                  label: const Text(
-                    'Keluar dari Akun',
-                    style: TextStyle(
-                      color: AppTheme.danger,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    side: const BorderSide(color: Color(0xFFFCA5A5)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   /// Tab 2: Hadiah & Saldo Poin Loyalti (Placeholder M9)
   Widget _buildRewardsTab() {
     final points = _user?.points ?? 0;
@@ -583,23 +396,6 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
             style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary, height: 1.4),
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
       ],
     );
   }

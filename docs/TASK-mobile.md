@@ -175,14 +175,14 @@ Branch `feature/mobile-app`
 
 ## M8 — Pelanggan: kartu QR
 
-Branch `feature/mobile-qr-card`
+Branch `feature/mobile-app`
 
-- [ ] `screens/pelanggan/pelanggan_qr_card_screen.dart`
-- [ ] QR `qr_flutter` hanya berisi `member_code`
-- [ ] Nama lengkap, badge tier berwarna (Silver/Gold/Platinum), `MBR-XXXX` teks di bawah QR
-- [ ] Nomor WA tersensor via `Formatters.sensorTelepon`
-- [ ] **Email tidak ditampilkan sama sekali**
-- [ ] Kecerahan layar dinaikkan saat kartu dibuka (opsional, demi scan)
+- [x] `screens/pelanggan/pelanggan_qr_card_screen.dart`
+- [x] QR `qr_flutter` hanya berisi `member_code`
+- [x] Nama lengkap, badge tier berwarna (Silver/Gold/Platinum), `MBR-XXXX` teks di bawah QR
+- [x] Nomor WA tersensor via `Formatters.sensorTelepon`
+- [x] **Email tidak ditampilkan sama sekali**
+- [ ] Kecerahan layar dinaikkan saat kartu dibuka (opsional, demi scan) — butuh paket `screen_brightness`, ditunda
 
 ---
 
