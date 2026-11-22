@@ -54,8 +54,8 @@ mutasi: rusak sengaja satu baris, pastikan suite gagal, kembalikan berkasnya.
 
 - **Aiven MySQL 8 adalah satu-satunya database.** Tidak ada MySQL lokal, tidak
   ada SQLite, tidak ada data palsu di memori.
-- Skema berubah **hanya** lewat `database_schema.sql`, dan versi di berkas itu
-  dinaikkan. Jangan menambal skema dari kode backend.
+- Skema berubah **hanya** lewat `cleano-backend/database_schema.sql`, dan versi
+  di berkas itu dinaikkan. Jangan menambal skema dari kode backend.
 - **Jangan pernah menduplikasi logika trigger dengan `UPDATE` manual.** Harga,
   diskon, total, `paid_at`, poin, dan penandaan voucher milik trigger
   (`trg_before_insert_order`, `trg_before_insert_user_voucher`,
