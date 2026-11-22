@@ -1,19 +1,32 @@
 'use strict';
 
+const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
 
-const uploadDir = path.resolve(__dirname, '..', '..', process.env.UPLOAD_DIR || 'uploads');
-fs.mkdirSync(uploadDir, { recursive: true });
+// Di serverless (Vercel) filesystem proyek read-only; satu-satunya path yang
+// bisa ditulis adalah os.tmpdir(). mkdirSync dulu dipanggil saat modul dimuat,
+// sehingga proses mati sebelum server sempat listen. Sekarang folder dibuat
+// malas, hanya ketika ada upload sungguhan.
+const uploadDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), 'cleano-uploads')
+  : path.resolve(__dirname, '..', '..', process.env.UPLOAD_DIR || 'uploads');
 
 const maxBytes = (Number(process.env.MAX_IMAGE_MB) || 2) * 1024 * 1024;
 const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const extByMime = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
+  destination: (req, file, cb) => {
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (err) {
+      cb(err);
+    }
+  },
   filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomUUID()}${extByMime[file.mimetype]}`),
 });
 
