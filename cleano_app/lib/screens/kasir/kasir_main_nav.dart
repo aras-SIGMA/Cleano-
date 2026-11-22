@@ -105,7 +105,6 @@ class _KasirMainNavState extends State<KasirMainNav> {
     return switch (index) {
       0 => KasirDashboardScreen(
           onNavigateToOrders: () => _onTabChanged(2),
-          onNavigateToPos: () => _onTabChanged(1),
         ),
       1 => PosCreateOrderScreen(
           onOrderCreated: (order) {
