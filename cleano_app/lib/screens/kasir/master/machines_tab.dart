@@ -122,6 +122,11 @@ class _MachineCard extends StatelessWidget {
             OutlinedButton(
               onPressed: () => onToggleStatus(machine),
               style: OutlinedButton.styleFrom(
+                // Tema global memakai Size.fromHeight(52) = lebar tak terbatas.
+                // Di dalam Row, anak non-flex menerima lebar tak terbatas, jadi
+                // minimumSize itu membuat layout gagal ("infinite width").
+                // Tombol ini harus menyesuaikan isi teksnya.
+                minimumSize: const Size(0, 40),
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
