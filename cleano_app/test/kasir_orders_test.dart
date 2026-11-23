@@ -7,6 +7,7 @@ import 'package:cleano_app/models/next_queue_order_model.dart';
 import 'package:cleano_app/models/order_model.dart';
 import 'package:cleano_app/screens/kasir/kasir_orders_screen.dart';
 import 'package:cleano_app/services/order_service.dart';
+import 'package:cleano_app/widgets/order_list_item_card.dart';
 
 class MockOrderService implements OrderService {
   MockOrderService({
@@ -425,6 +426,77 @@ void main() {
       await tester.pumpAndSettle();
       expect(mock.lastSearch, isNull);
       expect(find.text('CLN-001'), findsOneWidget);
+    });
+
+    testWidgets('tombol Batalkan Pesanan hanya muncul pada pesanan belum lunas', (tester) async {
+      final mock = MockOrderService(initialOrders: [
+        createFakeOrder(
+          id: 1,
+          code: 'CLN-BELUM',
+          customerName: 'Rina',
+          status: 'antre',
+          paymentStatus: 'belum_bayar',
+          paymentMethod: 'midtrans',
+        ),
+        createFakeOrder(
+          id: 2,
+          code: 'CLN-LUNAS',
+          customerName: 'Budi',
+          status: 'antre',
+          paymentStatus: 'lunas',
+          paymentMethod: 'tunai',
+        ),
+      ]);
+
+      await tester.pumpWidget(MaterialApp(home: KasirOrdersScreen(orderService: mock)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Batalkan Pesanan'), findsOneWidget);
+
+      // Kartu order lunas tidak punya tombol batal sama sekali.
+      final lunasCard = find.ancestor(
+        of: find.text('CLN-LUNAS'),
+        matching: find.byType(OrderListItemCard),
+      );
+      expect(
+        find.descendant(of: lunasCard, matching: find.text('Batalkan Pesanan')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Batalkan Pesanan meminta konfirmasi lalu memanggil updateStatus batal', (tester) async {
+      final mock = MockOrderService(initialOrders: [
+        createFakeOrder(
+          id: 4,
+          code: 'CLN-20261120-0004',
+          customerName: 'Ahmad Faiz',
+          status: 'antre',
+          paymentStatus: 'belum_bayar',
+          paymentMethod: 'midtrans',
+        ),
+      ]);
+
+      await tester.pumpWidget(MaterialApp(home: KasirOrdersScreen(orderService: mock)));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Batalkan Pesanan'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Batalkan Pesanan?'), findsOneWidget);
+
+      // Menolak konfirmasi tidak mengubah apa pun.
+      await tester.tap(find.text('Tidak'));
+      await tester.pumpAndSettle();
+      expect(mock.updatedStatus, isNull);
+
+      await tester.tap(find.text('Batalkan Pesanan'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ya, Batalkan'));
+      await tester.pumpAndSettle();
+
+      expect(mock.updatedOrderId, 4);
+      expect(mock.updatedStatus, 'batal');
+      expect(find.text('Pesanan CLN-20261120-0004 dibatalkan.'), findsOneWidget);
     });
 
     testWidgets('respons lama tidak menimpa hasil filter terbaru', (tester) async {
