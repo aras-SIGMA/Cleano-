@@ -7,7 +7,7 @@ import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/state_view.dart';
-import 'pelanggan_qr_card_screen.dart';
+import 'pelanggan_profile_screen.dart';
 import 'pelanggan_rewards_screen.dart';
 import 'pelanggan_tracking_screen.dart';
 
@@ -126,8 +126,12 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
 
     final children = [
       PelangganTrackingScreen(user: _user, onLogout: _handleLogout),
-      PelangganQrCardScreen(user: _user, onLogout: _handleLogout),
       PelangganRewardsScreen(user: _user, onLogout: _handleLogout),
+      PelangganProfileScreen(
+        user: _user,
+        onLogout: _handleLogout,
+        onNavigateToRewards: () => _onTabChanged(1),
+      ),
     ];
 
     return LayoutBuilder(
@@ -172,14 +176,14 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
                       label: Text('Lacak'),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.qr_code_2_outlined),
-                      selectedIcon: Icon(Icons.qr_code_2_rounded),
-                      label: Text('Kartu Member'),
-                    ),
-                    NavigationRailDestination(
                       icon: Icon(Icons.card_giftcard_outlined),
                       selectedIcon: Icon(Icons.card_giftcard_rounded),
                       label: Text('Hadiah'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.person_outline_rounded),
+                      selectedIcon: Icon(Icons.person_rounded),
+                      label: Text('Akun'),
                     ),
                   ],
                 ),
@@ -211,8 +215,8 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
   Widget _buildFloatingBottomBar() {
     final items = [
       (Icons.local_laundry_service_outlined, Icons.local_laundry_service_rounded, 'Lacak'),
-      (Icons.qr_code_2_outlined, Icons.qr_code_2_rounded, 'Kartu Member'),
       (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Hadiah'),
+      (Icons.person_outline_rounded, Icons.person_rounded, 'Akun'),
     ];
 
     return RepaintBoundary(

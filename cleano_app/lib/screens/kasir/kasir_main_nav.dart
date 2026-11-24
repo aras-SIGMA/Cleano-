@@ -8,6 +8,7 @@ import '../../services/session_service.dart';
 import 'kasir_dashboard_screen.dart';
 import 'kasir_master_screen.dart';
 import 'kasir_orders_screen.dart';
+import 'kasir_profile_screen.dart';
 import 'pos_create_order_screen.dart';
 import '../../widgets/frosted_glass_card.dart';
 
@@ -113,7 +114,10 @@ class _KasirMainNavState extends State<KasirMainNav> {
         ),
       2 => const KasirOrdersScreen(),
       3 => const KasirMasterScreen(),
-      4 => _buildProfileView(),
+      4 => KasirProfileScreen(
+          user: _user,
+          onLogout: _handleLogout,
+        ),
       _ => const SizedBox.shrink(),
     };
   }
@@ -289,130 +293,4 @@ class _KasirMainNavState extends State<KasirMainNav> {
     );
   }
 
-  Widget _buildProfileView() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Akun Kasir'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Keluar',
-            onPressed: _handleLogout,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.border),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x04000000),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: AppTheme.surfaceSubtle,
-                        child: const Icon(
-                          Icons.store_mall_directory_rounded,
-                          color: AppTheme.primary,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _user?.name ?? 'Kasir Cleano',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surfaceSubtle,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'ROLE: KASIR',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 28),
-                  _InfoRow(label: 'Email', value: _user?.email ?? '-'),
-                  const SizedBox(height: 8),
-                  _InfoRow(label: 'Nomor HP', value: _user?.phone ?? '-'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: _handleLogout,
-              icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-              label: const Text(
-                'Keluar (Logout)',
-                style: TextStyle(
-                  color: AppTheme.danger,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: Color(0xFFFCA5A5)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-      ],
-    );
-  }
 }
