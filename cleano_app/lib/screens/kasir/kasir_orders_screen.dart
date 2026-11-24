@@ -450,6 +450,69 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
     }
   }
 
+  /// Membatalkan pesanan yang belum dilunaskan. Status 'batal' final (L-06),
+  /// jadi konfirmasi dulu — tidak ada jalan untuk menghidupkan kembali.
+  Future<void> _handleCancelOrder(OrderModel order) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Batalkan Pesanan?'),
+        content: Text(
+          'Pesanan ${order.orderCode} atas nama ${order.customerName} akan dibatalkan.\n\n'
+          'Status Batal bersifat permanen dan tidak bisa dikembalikan. '
+          'Mesin yang dipakai akan dilepas bila pesanan sedang dicuci.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Tidak', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Batalkan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    setState(() => _actionLoadingOrderIds.add(order.id));
+
+    try {
+      await _orderService.updateStatus(order.id, 'batal');
+
+      if (!mounted) return;
+      setState(() => _actionLoadingOrderIds.remove(order.id));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pesanan ${order.orderCode} dibatalkan.'),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+
+      _loadOrders(reset: true);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _actionLoadingOrderIds.remove(order.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: AppTheme.danger),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _actionLoadingOrderIds.remove(order.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membatalkan pesanan: $e'), backgroundColor: AppTheme.danger),
+      );
+    }
+  }
+
   /// Sinkronisasi status pembayaran Midtrans secara manual bila pelanggan sudah membayar via QRIS/VA.
   Future<void> _handleSyncPayment(OrderModel order) async {
     setState(() => _actionLoadingOrderIds.add(order.id));
@@ -586,6 +649,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
                           onMarkReady: () => _handleMarkReady(order),
                           onComplete: () => _handleCompleteOrder(order),
                           onSyncPayment: () => _handleSyncPayment(order),
+                          onCancel: () => _handleCancelOrder(order),
                         );
                       },
                     ),

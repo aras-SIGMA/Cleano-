@@ -15,6 +15,7 @@ class OrderListItemCard extends StatelessWidget {
     required this.onMarkReady,
     required this.onComplete,
     required this.onSyncPayment,
+    required this.onCancel,
   });
 
   final OrderModel order;
@@ -22,6 +23,7 @@ class OrderListItemCard extends StatelessWidget {
   final VoidCallback onMarkReady;
   final VoidCallback onComplete;
   final VoidCallback onSyncPayment;
+  final VoidCallback onCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -169,7 +171,11 @@ class OrderListItemCard extends StatelessWidget {
       order.isProsesCuci ||
       order.isSedangDiproses ||
       order.isSiapDiambil ||
-      (order.isBelumBayar && order.paymentMethod == 'midtrans');
+      (order.isBelumBayar && order.paymentMethod == 'midtrans') ||
+      _canCancel;
+
+  /// Pesanan yang belum dilunaskan boleh dibatalkan selama belum final.
+  bool get _canCancel => order.isBelumBayar && !order.isSelesai && !order.isBatal;
 
   Widget _buildActionButtons() {
     if (isActionLoading) {
@@ -178,56 +184,75 @@ class OrderListItemCard extends StatelessWidget {
       );
     }
 
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (order.isBelumBayar && order.paymentMethod == 'midtrans') ...[
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: onSyncPayment,
-              icon: const Icon(Icons.sync_rounded, size: 16),
-              label: const Text('Cek Bayar', style: TextStyle(fontSize: 12)),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        Row(
+          children: [
+            if (order.isBelumBayar && order.paymentMethod == 'midtrans') ...[
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: onSyncPayment,
+                  icon: const Icon(Icons.sync_rounded, size: 16),
+                  label: const Text('Cek Bayar', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
               ),
+              const SizedBox(width: 8),
+            ],
+
+            // Layanan tanpa mesin tidak punya drum untuk dilepas, tapi transisi
+            // sedang_diproses -> siap_diambil tetap sah dan tetap butuh tombol.
+            if (order.isProsesCuci || order.isSedangDiproses)
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: onMarkReady,
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                  label: const Text('Tandai Siap Diambil', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.secondary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+
+            if (order.isSiapDiambil)
+              Expanded(
+                flex: 2,
+                child: ElevatedButton.icon(
+                  onPressed: onComplete,
+                  icon: const Icon(Icons.task_alt_rounded, size: 16),
+                  label: const Text('Selesaikan Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (_canCancel) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onCancel,
+            icon: const Icon(Icons.cancel_outlined, size: 16),
+            label: const Text('Batalkan Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.danger,
+              side: const BorderSide(color: AppTheme.danger),
+              padding: const EdgeInsets.symmetric(vertical: 9),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
-          const SizedBox(width: 8),
         ],
-
-        // Layanan tanpa mesin tidak punya drum untuk dilepas, tapi transisi
-        // sedang_diproses -> siap_diambil tetap sah dan tetap butuh tombol.
-        if (order.isProsesCuci || order.isSedangDiproses)
-          Expanded(
-            flex: 2,
-            child: ElevatedButton.icon(
-              onPressed: onMarkReady,
-              icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-              label: const Text('Tandai Siap Diambil', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.secondary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-
-        if (order.isSiapDiambil)
-          Expanded(
-            flex: 2,
-            child: ElevatedButton.icon(
-              onPressed: onComplete,
-              icon: const Icon(Icons.task_alt_rounded, size: 16),
-              label: const Text('Selesaikan Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
       ],
     );
   }

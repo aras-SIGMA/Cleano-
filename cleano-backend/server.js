@@ -85,12 +85,15 @@ app.use((err, req, res, next) => {
 
   const status = err.status
     || (fromTrigger ? 400 : null)
-    || (err.code === 'LIMIT_FILE_SIZE' ? 400 : 500);
+    || (err.code === 'LIMIT_FILE_SIZE' ? 400 : null)
+    || (err.code === 'LIMIT_FIELD_VALUE' ? 400 : 500);
   const tooLarge = err.type === 'entity.too.large';
 
   const message = err.code === 'LIMIT_FILE_SIZE'
     ? `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`
-    : tooLarge
+    : err.code === 'LIMIT_FIELD_VALUE'
+      ? 'Isi kolom teks terlalu panjang.'
+      : tooLarge
       ? `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.`
       : (fromTrigger ? err.sqlMessage || err.message : err.message) || 'Terjadi kesalahan pada server.';
 

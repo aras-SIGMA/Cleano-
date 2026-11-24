@@ -11,6 +11,7 @@ const { allocateMachine, estimateQueueWait } = require('../services/orderAllocat
 const { runTx, attemptStatusChange, attemptConfirmRelay } = require('../services/orderStatus');
 const { attemptSyncPayment } = require('../services/paymentSync');
 const { snap, enabled } = require('../config/midtrans');
+const cloudinary = require('../config/cloudinary');
 
 // Kolom respons diambil dari view supaya nama pelanggan/layanan ikut terbawa.
 // snap_token sengaja tidak ada: itu kredensial pembayaran dan tidak pernah perlu
@@ -151,22 +152,34 @@ async function placeOrder(input) {
 
 // POST /api/orders — kasir, multipart dengan foto wajib
 async function create(req, res) {
-  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+  // multer sudah menulis berkas ke disk sebelum handler ini jalan, jadi berkas
+  // sementara perlu dibersihkan apa pun hasilnya.
+  let uploaded = null;
   try {
     const body = parse(orderCreateBody, req.body);
-    if (!imageUrl) throw badRequest('Foto bukti kondisi pakaian wajib diunggah pada field "image".');
+    if (!req.file) throw badRequest('Foto bukti kondisi pakaian wajib diunggah pada field "image".');
 
     if (body.payment_method === 'midtrans' && !enabled) {
       throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
     }
 
-    const row = await placeOrder({ body, imageUrl });
+    // Diunggah setelah validasi lolos, supaya request yang ditolak tidak
+    // menghabiskan kuota Cloudinary.
+    uploaded = cloudinary.enabled
+      ? await cloudinary.uploadImage(req.file.path)
+      : { url: `/uploads/${req.file.filename}`, publicId: null };
+
+    const row = await placeOrder({ body, imageUrl: uploaded.url });
     return created(res, row, 'Order dibuat.');
   } catch (err) {
-    // Foto sudah tersimpan ke disk sebelum validasi jalan. Jangan tinggalkan
-    // sampah bila request akhirnya ditolak.
-    if (req.file) fs.unlink(req.file.path, () => {});
+    // Foto bisa sudah terunggah sebelum order ditolak (mis. voucher tidak
+    // sah). Jangan tinggalkan foto yatim yang menagih kuota.
+    if (uploaded?.publicId) await cloudinary.destroyImage(uploaded.publicId);
     throw err;
+  } finally {
+    // Salinan sementara di disk hanya sampah bila Cloudinary yang menyimpan.
+    // Di mode lokal berkas itulah yang disajikan lewat /uploads.
+    if (cloudinary.enabled && req.file) fs.unlink(req.file.path, () => {});
   }
 }
 

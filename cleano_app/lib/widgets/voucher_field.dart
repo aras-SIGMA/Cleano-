@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
@@ -150,6 +151,12 @@ class _VoucherFieldState extends State<VoucherField> {
                   child: TextField(
                     controller: _codeController,
                     textCapitalization: TextCapitalization.characters,
+                    // Kolom voucher_code di skema varchar(30) dan validator
+                    // menolak di atas 30 karakter. Dibatasi di sini supaya
+                    // masukan panjang tidak pernah sampai ke lapisan render.
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(30),
+                    ],
                     style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,

@@ -44,7 +44,7 @@ lanjutan deteksi duplikat ada di `feature/auth-duplicate-check`.
 - [x] `server.js` tidak bind port saat di-`require`
 - [x] `src/validators/authValidator.js` — skema zod, batas mengikuti kolom v1.4
 - [x] `src/utils/validate.js` — hasil zod → `HttpError` 400
-- [x] `scripts/test-auth.js` — 44 asersi
+- [x] `test/test-auth.js` — 44 asersi
 - [x] Deteksi duplikat membaca tabel (`select … where email = ? or phone = ?`), tidak
       lagi menebak kolom dari teks `err.message`. Perbaikan lanjutan di
       `feature/auth-duplicate-check`; pesan driver memuat *nilai* yang didaftarkan,
@@ -64,7 +64,7 @@ Branch `feature/users-lookup` · ditumpuk di atas B1 · 2 commit
 - [x] Cari via `member_code` (case-insensitive) atau `phone` (toleran spasi/strip)
 - [x] Respons: `id, name, phone, member_code, points, tier, vouchers[]`
 - [x] Voucher aktif saja (`is_used = 0`), JOIN `rewards`
-- [x] `scripts/test-lookup.js` — 44 asersi
+- [x] `test/test-lookup.js` — 44 asersi
 
 **Terbuka:**
 - [x] ~~Nomor `+62...` dan `62...` → `404`.~~ Selesai: `src/utils/phone.js`
@@ -93,7 +93,7 @@ Branch `feature/master-data` · **prasyarat B4**
 - [x] `rewardController.js` + `rewardRoutes.js`
 - [x] Tangkap `ER_ROW_IS_REFERENCED_2` → `409` (FK `on delete restrict`)
 - [x] `GET /api/rewards` memfilter `is_active = 1` bila `role === 'pelanggan'`
-- [x] `scripts/test-master.js` — 59 asersi
+- [x] `test/test-master.js` — 59 asersi
 
 **Catatan:** tidak ada `DELETE /api/machines` di PRD — jangan ditambahkan.
 Mesin dinonaktifkan lewat `status = 'maintenance'`.
@@ -128,7 +128,7 @@ Branch `feature/orders-create` · **paket terberat**
 - [x] Midtrans: `snap.createTransaction()` → `UPDATE snap_token, snap_redirect_url`
 - [x] Retry `ER_LOCK_DEADLOCK` (1213) maksimal 3×
 - [x] Respons `201` berisi `order_code`, `total_price`, `status`, `snap_redirect_url`
-- [x] `scripts/test-orders-create.js` — 51 asersi
+- [x] `test/test-orders-create.js` — 51 asersi
 
 **Jebakan:** jangan kirim `subtotal_price`/`discount_amount`/`total_price` — trigger menolak.
 Sudah diuji: trigger menimpa nilai kiriman klien.
@@ -177,7 +177,7 @@ Branch `feature/orders-list`
 - [x] **`SELECT` kolom eksplisit** — `snap_token` & `snap_redirect_url` tidak boleh terkirim
       ke pelanggan
 - [x] Pagination `?page=&pageSize=` default 20, maks 100
-- [x] `scripts/test-orders-list.js` — 40 asersi, termasuk pelanggan A tidak bisa melihat order B
+- [x] `test/test-orders-list.js` — 40 asersi, termasuk pelanggan A tidak bisa melihat order B
 
 **Keputusan yang mengikat:**
 - `user_id` **selalu** diambil dari token, tidak pernah dari query string. Kalau dari query,
@@ -213,7 +213,7 @@ Branch `feature/orders-status`
 - [x] `PATCH /api/orders/:id/confirm-relay` — kunci mesin `FOR UPDATE`, set `digunakan` +
       `estimated_finish_at`, order → `proses_cuci`
 - [x] `siap_diambil` → `selesai` memicu poin (dikerjakan trigger, backend tidak menyentuh)
-- [x] `scripts/test-orders-status.js` — 41 asersi (transaksi + `ROLLBACK`)
+- [x] `test/test-orders-status.js` — 41 asersi (transaksi + `ROLLBACK`)
 - [x] `queue_wait_minutes` dihitung ulang setiap kali mesin dilepas **atau** dipakai
       lewat `confirm-relay` (`refreshQueueWaits` di `orderStatus.js`)
 
@@ -261,7 +261,7 @@ Branch `feature/orders-sync-payment`
 - [x] Panggil Midtrans Core `transaction.status(order_code)`
 - [x] `settlement`/`capture` → `UPDATE payment_status='lunas', paid_at=now()`
 - [x] Mode stub (server key kosong) → `503` dengan pesan jelas, bukan sukses palsu
-- [x] `scripts/test-sync-payment.js` — 37 asersi (transaksi + `ROLLBACK`)
+- [x] `test/test-sync-payment.js` — 37 asersi (transaksi + `ROLLBACK`)
 
 **Keputusan yang mengikat:**
 - **`capture` hanya lunas bila `fraud_status = 'accept'`.** Kartu kredit bisa
@@ -299,7 +299,7 @@ Branch `feature/dashboard-summary`
 - [x] `GET /api/dashboard/summary` — `checkRole(['kasir'])`
 - [x] Gabung `vw_dashboard_summary` + `vw_daily_revenue_7days`
 - [x] **Isi 7 tanggal** — view tidak memunculkan hari tanpa transaksi
-- [x] `scripts/test-dashboard.js` — 27 asersi
+- [x] `test/test-dashboard.js` — 27 asersi
 
 **Keputusan yang mengikat:**
 - **Tujuh tanggal dihitung MySQL, bukan Node.** Sesi database berjalan `+07:00`; kalau
@@ -334,7 +334,7 @@ Branch `feature/rewards-redeem`
 - [x] **Jangan potong poin manual** — trigger memotong
 - [x] Tangkap `SQLSTATE 45000` dari trigger → `400` dengan `err.message`
 - [x] `GET /api/rewards/my-vouchers` — JOIN `rewards`, pisahkan aktif vs terpakai
-- [x] `scripts/test-rewards.js` — 50 asersi (transaksi + `ROLLBACK`)
+- [x] `test/test-rewards.js` — 50 asersi (transaksi + `ROLLBACK`)
 
 **Keputusan yang mengikat:**
 - **Backend tidak memeriksa dan tidak memotong poin.** `trg_before_insert_user_voucher`
@@ -377,7 +377,7 @@ Branch `feature/hardening` · sebelum deploy
 - [x] Log terstruktur — `src/utils/logger.js`, satu baris JSON, semua `console.*` diganti
 - [x] `npm audit` bersih — 0 kerentanan
 - [x] `TRUST_PROXY_HOPS` — ember rate limit terpisah per IP di belakang proxy
-- [x] `scripts/test-hardening.js` — 26 asersi
+- [x] `test/test-hardening.js` — 26 asersi
 
 **Keputusan yang mengikat:**
 - **`DB_SSL_VERIFY=true` menolak jalan tanpa CA.** Tanpa penanda ini, koneksi tetap
@@ -425,7 +425,7 @@ memblokir Flutter.
 - [x] Normalisasi nomor `+62…` / `62…` / `08…` → satu bentuk sebelum lookup
 - [x] `confirm-relay` menolak order yang layanannya `requires_machine = 0`
 - [x] `queue_wait_minutes` dihitung ulang saat mesin dilepas dan saat dipakai
-- [x] `scripts/test-auth.js` 44 · `test-lookup.js` 44 · `test-orders-list.js` 40 ·
+- [x] `test/test-auth.js` 44 · `test-lookup.js` 44 · `test-orders-list.js` 40 ·
       `test-orders-status.js` 41 asersi
 
 **Keputusan yang mengikat:**

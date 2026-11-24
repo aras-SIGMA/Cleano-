@@ -10,7 +10,7 @@ Smart Laundry POS & Order Tracking. Satu sistem, dua portal:
 |---|---|
 | `cleano_app/` | Flutter/Dart (Android, iOS, Web) — kedua portal dalam satu aplikasi |
 | `cleano-backend/` | Node.js >= 20, Express 5, mysql2, zod, Midtrans Snap |
-| `database_schema.sql` | MySQL 8 (Aiven Cloud) — 6 tabel, 3 view, 6 trigger |
+| `cleano-backend/database_schema.sql` | MySQL 8 (Aiven Cloud) — 6 tabel, 3 view, 6 trigger |
 | `.github/workflows/ci.yml` | CI: backend (sintaks + boot), Flutter (analyze + test) |
 
 Integritas transaksi ditegakkan di database: harga terkunci, voucher sekali pakai,
@@ -99,16 +99,15 @@ Rincian lengkap: [`cleano-backend/README.md`](cleano-backend/README.md).
 
 ```
 Cleano/
-├── cleano-backend/       REST API, skrip uji, salinan skema
+├── cleano-backend/       REST API, skrip uji, database_schema.sql
 ├── cleano_app/           aplikasi Flutter — layar kasir & pelanggan
 ├── docs/                 PRD, panduan kerja, task, audit skema
-├── database_schema.sql   sumber kebenaran skema (v1.4)
 ├── .github/workflows/    CI
 └── AGENTS.md             aturan kerja yang mengikat
 ```
 
-Skema berubah **hanya** lewat `database_schema.sql`, dan versinya dinaikkan.
-Jangan menambal skema dari kode backend.
+Skema berubah **hanya** lewat `cleano-backend/database_schema.sql`, dan versinya
+dinaikkan. Jangan menambal skema dari kode backend.
 
 ## Dokumentasi
 

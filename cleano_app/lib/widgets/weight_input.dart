@@ -71,7 +71,14 @@ class WeightInput extends StatelessWidget {
                   controller: controller,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'^\d*[.,]?\d{0,2}')),
+                    // \d{0,2} membatasi bagian bulat ke dua digit, jadi
+                    // masukan maksimal 5 karakter ("99,99") dan sejalan dengan
+                    // max(99.99) di orderValidator. Sebelumnya \d* tanpa batas:
+                    // menahan tombol angka menghasilkan string sepanjang apa
+                    // pun, dan tiap perubahan memicu parse + rebuild subtotal.
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d{0,2}([.,]\d{0,2})?'),
+                    ),
                   ],
                   style: const TextStyle(
                     fontSize: 18,

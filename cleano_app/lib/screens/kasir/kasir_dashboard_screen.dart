@@ -25,14 +25,12 @@ class KasirDashboardScreen extends StatefulWidget {
   const KasirDashboardScreen({
     super.key,
     this.onNavigateToOrders,
-    this.onNavigateToPos,
     this.dashboardService,
     this.orderService,
     this.exportService,
   });
 
   final VoidCallback? onNavigateToOrders;
-  final VoidCallback? onNavigateToPos;
   final DashboardService? dashboardService;
   final OrderService? orderService;
   final ExportService? exportService;
@@ -309,24 +307,6 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
           _buildBody(),
         ],
       ),
-      floatingActionButton: widget.onNavigateToPos != null
-          ? Padding(
-              padding: const EdgeInsets.only(bottom: 70),
-              child: FloatingActionButton.extended(
-                heroTag: 'fab_catat_cucian',
-                onPressed: widget.onNavigateToPos,
-                backgroundColor: AppTheme.primary,
-                foregroundColor: Colors.white,
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                icon: const Icon(Icons.add_shopping_cart_rounded),
-                label: const Text(
-                  'Catat Cucian',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-            )
-          : null,
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:cleano_app/models/service_model.dart';
 import 'package:cleano_app/models/user_model.dart';
 import 'package:cleano_app/widgets/member_card.dart';
 import 'package:cleano_app/widgets/service_dropdown.dart';
+import 'package:cleano_app/widgets/voucher_field.dart';
 import 'package:cleano_app/widgets/weight_input.dart';
 
 void main() {
@@ -69,6 +70,53 @@ void main() {
       expect(controller.text, '3.5');
       expect(currentWeight, 3.5);
       expect(find.text('Subtotal: Rp 24.500'), findsOneWidget);
+    });
+
+    testWidgets('WeightInput membatasi panjang masukan ke 5 karakter', (tester) async {
+      final controller = TextEditingController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WeightInput(
+              controller: controller,
+              weight: 0,
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      // Tanpa titik desimal: dengan \d* seluruh 30 digit lolos, dengan \d{0,2}
+      // hanya dua digit pertama yang bertahan.
+      await tester.enterText(find.byType(TextField), '123456789012345678901234567890');
+      await tester.pump();
+      expect(controller.text, '12');
+
+      // Dengan desimal: bagian desimal juga dibatasi dua digit.
+      await tester.enterText(find.byType(TextField), '12.3456789');
+      await tester.pump();
+      expect(controller.text, '12.34');
+    });
+
+    testWidgets('VoucherField membatasi kode voucher ke 30 karakter', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VoucherField(
+              availableVouchers: const [],
+              selectedVoucher: null,
+              onVoucherChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      final field = find.widgetWithText(TextField, 'Ketik kode voucher...');
+      await tester.enterText(field, 'A' * 60);
+      await tester.pump();
+
+      expect(tester.widget<TextField>(field).controller!.text.length, 30);
     });
 
     testWidgets('ServiceDropdown menampilkan daftar layanan dan harga per kg', (tester) async {
