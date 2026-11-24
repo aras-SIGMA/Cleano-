@@ -145,9 +145,11 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
                   labelType: NavigationRailLabelType.all,
                   leading: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: CircleAvatar(
-                      backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-                      child: const Icon(Icons.local_laundry_service_rounded, color: AppTheme.primary),
+                    child: Image.asset(
+                      'assets/logo/cleano-icon.png',
+                      width: 32,
+                      height: 32,
+                      semanticLabel: 'Cleano',
                     ),
                   ),
                   trailing: Expanded(

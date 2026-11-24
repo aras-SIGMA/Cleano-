@@ -1,11 +1,11 @@
 {
-    "name": "cleano_app",
-    "short_name": "cleano_app",
+    "name": "Cleano — Smart Laundry POS",
+    "short_name": "Cleano",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F0F8FF",
+    "theme_color": "#007FFF",
+    "description": "Aplikasi manajemen laundry: pesan, pantau cucian, dan kelola transaksi.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
