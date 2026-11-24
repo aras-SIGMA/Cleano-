@@ -31,9 +31,14 @@ const storage = multer.diskStorage({
 });
 
 // batas 2 MB + whitelist format (PRD-02 acceptance criteria)
+// fieldSize dibatasi 8 KB: tidak ada field teks di form order yang butuh lebih
+// (catatan terpanjang 2000 karakter). Tanpa ini multer memakai bawaan 1 MB per
+// field, sehingga satu permintaan bisa memaksa server menyangga megabyte teks
+// sebelum validator sempat menolaknya. `parts` menutup lubang serupa: tanpa
+// batas, ribuan field kosong tetap harus diparse satu per satu.
 const upload = multer({
   storage,
-  limits: { fileSize: maxBytes, files: 1 },
+  limits: { fileSize: maxBytes, files: 1, fieldSize: 8 * 1024, parts: 10 },
   fileFilter: (req, file, cb) => {
     if (!allowed.has(file.mimetype)) {
       const err = new Error('Format foto harus JPG, PNG, atau WEBP.');

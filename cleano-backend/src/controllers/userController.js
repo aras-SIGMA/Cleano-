@@ -25,6 +25,9 @@ async function me(req, res) {
 async function lookup(req, res) {
   const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
   if (!query) throw badRequest('Parameter query wajib diisi.');
+  // Kode member 8 karakter, nomor HP maksimal 20 digit. Batas ini mencegah
+  // query string sepanjang megabyte ikut dinormalisasi dan dikirim ke MySQL.
+  if (query.length > 30) throw badRequest('Kata kunci pencarian maksimal 30 karakter.');
 
   // Kasir mengetik nomor dari WhatsApp (+62...) atau dari kartu (0812...).
   // Keduanya harus menemukan orang yang sama; tanpa normalisasi, +62812… → 404.

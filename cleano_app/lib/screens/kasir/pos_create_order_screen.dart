@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -469,6 +470,11 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                         Expanded(
                           child: TextField(
                             controller: _searchController,
+                            // Endpoint lookup menerima query bebas; batasi
+                            // sepanjang kode member (MBR-0001) plus kelonggaran.
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(30),
+                            ],
                             decoration: InputDecoration(
                               hintText: 'Cari Kode MBR-XXXX atau No. HP...',
                               prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primary),
@@ -555,6 +561,12 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             TextField(
               controller: _notesController,
               maxLines: 2,
+              // orderValidator menolak catatan di atas 2000 karakter, tapi
+              // tanpa batas di sini pengguna bisa menempelkan teks sepanjang
+              // apa pun lebih dulu.
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(2000),
+              ],
               decoration: InputDecoration(
                 labelText: 'Catatan Khusus (Opsional)',
                 hintText: 'Misal: Pisahkan pakaian putih, ada kancing lepas...',

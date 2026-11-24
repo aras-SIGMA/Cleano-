@@ -66,6 +66,11 @@ async function login(email, password) {
     const space = await call('/api/users/lookup?query=%20%20', { token: kasirToken });
     ok('query hanya spasi 400', space.status === 400, `status ${space.status}`);
 
+    // Kode member 8 karakter, nomor HP maksimal 20 digit. Query panjang harus
+    // ditolak sebelum normalisasi nomor dan query MySQL dijalankan.
+    const longQuery = await call(`/api/users/lookup?query=${'A'.repeat(31)}`, { token: kasirToken });
+    ok('query 31 karakter 400', longQuery.status === 400, `status ${longQuery.status}`);
+
     const missing = await call('/api/users/lookup?query=MBR-9999', { token: kasirToken });
     ok('member tak ada 404', missing.status === 404, `status ${missing.status}`);
 
