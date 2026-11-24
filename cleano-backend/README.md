@@ -145,24 +145,25 @@ OK    rollback bersih          orders 3 -> 3
 ```
 cleano-backend/
 ├── .env / .env.example
-├── database_schema.sql        salinan v1.4 final (identik dgn root proyek)
+├── database_schema.sql        skema v1.4 (6 tabel, 3 view, 6 trigger)
 ├── server.js                  app, /api/health, error handler, graceful shutdown
 ├── certs/                     ca.pem Aiven
-├── uploads/                   foto bukti drop-off
-├── scripts/
+├── uploads/                   foto bukti drop-off (mode lokal; produksi ke Cloudinary)
+├── scripts/                   utilitas, bukan uji
 │   ├── health-check.js        npm run check
 │   ├── load-schema.js         npm run db:load
-│   ├── smoke-test.js          npm run db:smoke
+│   └── smoke-test.js          npm run db:smoke
+├── test/                      suite uji integrasi (10 berkas, 428 asersi)
 │   ├── test-auth.js           npm run test:auth
 │   ├── test-lookup.js         npm run test:lookup
 │   ├── test-master.js         npm run test:master
 │   ├── test-orders-create.js  npm run test:orders-create
 │   ├── test-orders-list.js    npm run test:orders-list
 │   ├── test-orders-status.js  npm run test:orders-status
-│   ├── test-sync-payment.js    npm run test:sync-payment
-│   ├── test-dashboard.js       npm run test:dashboard
-│   ├── test-rewards.js         npm run test:rewards
-│   └── test-hardening.js       npm run test:hardening
+│   ├── test-sync-payment.js   npm run test:sync-payment
+│   ├── test-dashboard.js      npm run test:dashboard
+│   ├── test-rewards.js        npm run test:rewards
+│   └── test-hardening.js      npm run test:hardening
 └── src/
     ├── config/database.js     pool Aiven, TLS, timezone sesi +07:00
     ├── config/midtrans.js     Snap + Core, mode stub bila key kosong

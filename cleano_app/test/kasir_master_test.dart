@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:cleano_app/core/theme/app_theme.dart';
 import 'package:cleano_app/models/machine_model.dart';
 import 'package:cleano_app/models/reward_model.dart';
 import 'package:cleano_app/models/service_model.dart';
@@ -245,6 +246,47 @@ void main() {
       // Verifikasi updateMachine terpanggil dengan maintenance
       expect(mock.updatedMachineId, 1);
       expect(mock.updatedMachineStatus, 'maintenance');
+    });
+
+    // Regresi: tema global memakai OutlinedButton minimumSize Size.fromHeight(52),
+    // yang berarti lebar tak terbatas. Di dalam Row anak non-flex menerima lebar
+    // tak terbatas, sehingga tombol "Perawatan" membuat layout gagal dengan
+    // "BoxConstraints forces an infinite width". Uji di atas tidak menangkapnya
+    // karena memakai MaterialApp tanpa tema aplikasi.
+    testWidgets('tab mesin ter-render dengan tema aplikasi (tombol lebar terbatas)',
+        (tester) async {
+      final mock = MockMasterService(
+        machines: [
+          const MachineModel(
+            id: 1,
+            machineCode: 'MC-01',
+            status: 'tersedia',
+            capacityKg: 8.0,
+          ),
+          const MachineModel(
+            id: 4,
+            machineCode: 'MC-04',
+            status: 'maintenance',
+            capacityKg: 7.0,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: KasirMasterScreen(masterService: mock),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('Mesin'));
+      await tester.pumpAndSettle();
+
+      // Kedua tombol harus ada dan frame harus selesai tanpa exception layout.
+      expect(tester.takeException(), isNull);
+      expect(find.text('Perawatan'), findsOneWidget);
+      expect(find.text('Aktifkan'), findsOneWidget);
     });
 
     testWidgets('berpindah ke Tab Rewards dan men-toggle status aktif kupon', (tester) async {

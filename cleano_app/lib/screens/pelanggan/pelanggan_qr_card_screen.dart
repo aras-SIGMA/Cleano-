@@ -276,15 +276,16 @@ class _PelangganQrCardScreenState extends State<PelangganQrCardScreen> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: Colors.white,
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              Icons.local_laundry_service_rounded,
-                              color: Colors.white,
-                              size: 20,
+                            child: Image.asset(
+                              'assets/logo/cleano-icon.png',
+                              width: 24,
+                              height: 24,
+                              semanticLabel: 'Cleano',
                             ),
                           ),
                           const SizedBox(width: 10),

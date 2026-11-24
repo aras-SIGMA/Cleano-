@@ -4,7 +4,7 @@ require('dotenv').config({ quiet: true });
 
 // Suite ini memanggil login/register puluhan kali dari IP yang sama, jadi batas
 // percobaan bawaan akan memblokirnya di tengah jalan. Dinaikkan hanya di sini;
-// scripts/test-hardening.js yang menguji limiter dengan angka kecil.
+// test/test-hardening.js yang menguji limiter dengan angka kecil.
 process.env.AUTH_LOGIN_LIMIT = '1000';
 process.env.AUTH_REGISTER_LIMIT = '1000';
 

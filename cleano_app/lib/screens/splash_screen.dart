@@ -91,32 +91,10 @@ class _SplashScreenState extends State<SplashScreen> {
             child: Column(
               children: [
                 // Header Logo
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.local_laundry_service_rounded,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Cleano',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
+                Image.asset(
+                  'assets/logo/cleano-logo-horizontal-white.png',
+                  height: 40,
+                  semanticLabel: 'Cleano',
                 ),
 
                 const Spacer(),
@@ -136,11 +114,12 @@ class _SplashScreenState extends State<SplashScreen> {
                       ),
                     ],
                   ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.bubble_chart_rounded,
-                      size: 76,
-                      color: AppTheme.primary,
+                  child: Center(
+                    child: Image.asset(
+                      'assets/logo/cleano-icon.png',
+                      width: 104,
+                      height: 104,
+                      semanticLabel: 'Logo Cleano',
                     ),
                   ),
                 ),

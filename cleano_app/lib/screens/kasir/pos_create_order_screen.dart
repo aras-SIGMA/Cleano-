@@ -1,7 +1,9 @@
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -233,9 +235,9 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
 
       widget.onOrderCreated?.call(order);
 
-      // Jika Midtrans, buka WebView Snap
+      // Jika Midtrans, buka halaman pembayaran Snap
       if (_paymentMethod == 'midtrans' && order.snapRedirectUrl != null) {
-        _openSnapWebView(order);
+        await _openSnapWebView(order);
       } else {
         _showSuccessDialog(order);
       }
@@ -256,10 +258,40 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
     }
   }
 
-  void _openSnapWebView(OrderModel order) {
+  Future<void> _openSnapWebView(OrderModel order) async {
+    final url = Uri.parse(order.snapRedirectUrl!);
+
+    // Web tidak punya implementasi webview_flutter (WebViewPlatform.instance null),
+    // jadi Snap dibuka di tab baru dan status dicek manual.
+    if (kIsWeb) {
+      final opened = await launchUrl(url, webOnlyWindowName: '_blank');
+      if (!mounted) return;
+      if (!opened) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Pop-up diblokir browser. Buka manual: ${order.snapRedirectUrl}'),
+            duration: const Duration(minutes: 10),
+          ),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Pembayaran ${order.orderCode} dibuka di tab baru. '
+              'Tekan Cek Status setelah selesai membayar.'),
+          duration: const Duration(minutes: 10),
+          action: SnackBarAction(
+            label: 'Cek Status',
+            onPressed: () => _checkPaymentStatus(order.id),
+          ),
+        ),
+      );
+      return;
+    }
+
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..loadRequest(Uri.parse(order.snapRedirectUrl!));
+      ..loadRequest(url);
 
     showModalBottomSheet(
       context: context,
@@ -438,6 +470,11 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                         Expanded(
                           child: TextField(
                             controller: _searchController,
+                            // Endpoint lookup menerima query bebas; batasi
+                            // sepanjang kode member (MBR-0001) plus kelonggaran.
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(30),
+                            ],
                             decoration: InputDecoration(
                               hintText: 'Cari Kode MBR-XXXX atau No. HP...',
                               prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primary),
@@ -524,6 +561,12 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             TextField(
               controller: _notesController,
               maxLines: 2,
+              // orderValidator menolak catatan di atas 2000 karakter, tapi
+              // tanpa batas di sini pengguna bisa menempelkan teks sepanjang
+              // apa pun lebih dulu.
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(2000),
+              ],
               decoration: InputDecoration(
                 labelText: 'Catatan Khusus (Opsional)',
                 hintText: 'Misal: Pisahkan pakaian putih, ada kancing lepas...',

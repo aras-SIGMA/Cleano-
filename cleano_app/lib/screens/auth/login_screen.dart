@@ -116,21 +116,13 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top Icon
+                // Top Logo
                 Center(
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surfaceSubtle,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.border, width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.local_laundry_service_rounded,
-                      size: 38,
-                      color: AppTheme.primary,
-                    ),
+                  child: Image.asset(
+                    'assets/logo/cleano-icon.png',
+                    width: 88,
+                    height: 88,
+                    semanticLabel: 'Logo Cleano',
                   ),
                 ),
                 const SizedBox(height: 20),

@@ -218,7 +218,7 @@ flutter build web --release
 
 ### Aturan skrip uji
 
-1. Setiap fitur wajib punya skrip uji di `scripts/`.
+1. Setiap fitur wajib punya skrip uji di `test/`.
 2. Skrip harus **membersihkan dirinya sendiri** — hapus data uji di blok `finally`.
 3. Data yang tidak bisa dihapus (order, karena `trg_before_delete_order`) diuji di dalam
    transaksi lalu `ROLLBACK`. Pola ada di `scripts/smoke-test.js`.

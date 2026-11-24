@@ -105,7 +105,6 @@ class _KasirMainNavState extends State<KasirMainNav> {
     return switch (index) {
       0 => KasirDashboardScreen(
           onNavigateToOrders: () => _onTabChanged(2),
-          onNavigateToPos: () => _onTabChanged(1),
         ),
       1 => PosCreateOrderScreen(
           onOrderCreated: (order) {
@@ -143,9 +142,11 @@ class _KasirMainNavState extends State<KasirMainNav> {
                   labelType: NavigationRailLabelType.all,
                   leading: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: CircleAvatar(
-                      backgroundColor: AppTheme.surfaceSubtle,
-                      child: const Icon(Icons.local_laundry_service_rounded, color: AppTheme.primary),
+                    child: Image.asset(
+                      'assets/logo/cleano-icon.png',
+                      width: 32,
+                      height: 32,
+                      semanticLabel: 'Cleano',
                     ),
                   ),
                   trailing: Expanded(

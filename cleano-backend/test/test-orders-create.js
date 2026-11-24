@@ -121,6 +121,25 @@ const orderBody = (over = {}) => ({
     const weightMissing = await post(orderBody({ weight: undefined }), { token: kasir });
     ok('weight kosong ditolak 400', weightMissing.status === 400, `status ${weightMissing.status}`);
 
+    // Batas panjang masukan: tanpa ini satu permintaan bisa membawa teks
+    // sepanjang apa pun dan server menyangganya sebelum validator menolak.
+    const weightHuge = await post(orderBody({ weight: '100' }), { token: kasir });
+    ok('weight > 99.99 ditolak 400', weightHuge.status === 400, `status ${weightHuge.status}`);
+
+    const voucherLong = await post(orderBody({ voucher_code: 'A'.repeat(31) }), { token: kasir });
+    ok('voucher_code 31 karakter 400', voucherLong.status === 400, `status ${voucherLong.status}`);
+
+    const notesLong = await post(orderBody({ notes: 'x'.repeat(2001) }), { token: kasir });
+    ok('notes 2001 karakter 400', notesLong.status === 400, `status ${notesLong.status}`);
+
+    // Melewati fieldSize multer (8 KB): ditolak di lapisan multipart sebelum
+    // zod sempat membaca. Pesannya membedakan kedua lapisan; tanpa fieldSize
+    // yang ketat, pesan yang keluar justru milik zod.
+    const fieldHuge = await post(orderBody({ notes: 'x'.repeat(9000) }), { token: kasir });
+    ok('field > 8 KB ditolak multer, bukan zod',
+      fieldHuge.status === 400 && /terlalu panjang/.test(fieldHuge.json?.message ?? ''),
+      `status ${fieldHuge.status} ${fieldHuge.json?.message ?? ''}`);
+
     const badPay = await post(orderBody({ payment_method: 'kartu' }), { token: kasir });
     ok('payment_method asing ditolak 400', badPay.status === 400, `status ${badPay.status}`);
 
@@ -138,6 +157,12 @@ const orderBody = (over = {}) => ({
       `${countAfterRejects.n} vs ${ORDERS_AWAL}`);
 
     // ---- jalur sukses: mesin tersedia ----
+    // Mesin seeder bisa saja sudah dipegang order nyata dan order tidak boleh
+    // dihapus (L-07), jadi uji menyiapkan mesinnya sendiri.
+    await pool.query("delete from machines where machine_code like 'MC-UJI-%'");
+    await pool.query(
+      "insert into machines (machine_code, status, capacity_kg) values ('MC-UJI-SUKSES', 'tersedia', 7.00)",
+    );
     const allocTx = await tryTx(async (conn) => {
       const row = await attemptOrder(conn, { body: orderBody(), imageUrl: '/uploads/uji.png' });
       const [[mesin]] = await conn.query('select status, estimated_finish_at from machines where id = ?', [row.machine_id]);
@@ -145,6 +170,7 @@ const orderBody = (over = {}) => ({
       const [[order]] = await conn.query('select payment_status, paid_at, customer_tier_snapshot from orders where id = ?', [row.id]);
       return { row, mesin, svc, order };
     });
+    await pool.query("delete from machines where machine_code like 'MC-UJI-%'");
     ok('order berhasil dibuat', allocTx.ok && allocTx.value.row.id > 0,
       allocTx.ok ? `id ${allocTx.value.row.id}` : allocTx.error);
     if (allocTx.ok) {
@@ -322,9 +348,28 @@ const orderBody = (over = {}) => ({
     const lockTx = await tryTx(async () => {
       // Sisakan tepat satu mesin 'tersedia'. Tanpa ini transaksi kedua wajar
       // mendapat mesin lain dan uji tidak membedakan apa pun.
-      await pool.query(
-        "update machines set status = 'maintenance', estimated_finish_at = null where machine_code in ('MC-02', 'MC-03')",
+      //
+      // Mesin seeder tidak bisa dipakai sebagai "yang satu itu": ia bisa sedang
+      // dipegang order nyata berstatus proses_cuci, dan order tidak boleh
+      // dihapus (trigger L-07), jadi tidak ada cara membebaskannya dari uji.
+      // Karena itu mesin seeder diparkir semua lalu ditambah satu mesin uji.
+      // Sisa dari jalannya uji sebelumnya dibersihkan lebih dulu berdasarkan
+      // awalan, bukan id, supaya jalan ulang tidak bertabrakan.
+      await pool.query("delete from machines where machine_code like 'MC-UJI-%'");
+      const [parked] = await pool.query(
+        "select id from machines where status = 'tersedia' for update",
       );
+      const parkedIds = parked.map((r) => r.id);
+      if (parkedIds.length) {
+        await pool.query(
+          "update machines set status = 'maintenance', estimated_finish_at = null where id in (?)",
+          [parkedIds],
+        );
+      }
+      const [ins] = await pool.query(
+        "insert into machines (machine_code, status, capacity_kg) values ('MC-UJI-KUNCI', 'tersedia', 7.00)",
+      );
+      const testMachineId = ins.insertId;
       const a = await pool.getConnection();
       const b = await pool.getConnection();
       let firstId = null;
@@ -352,15 +397,15 @@ const orderBody = (over = {}) => ({
         await b.rollback().catch(() => {});
         a.release();
         b.release();
-        await pool.query(
-          "update machines set status = 'tersedia', estimated_finish_at = null where machine_code in ('MC-02', 'MC-03')",
-        ).catch(() => {});
-        if (firstId) {
-          await pool.query("update machines set status = 'tersedia', estimated_finish_at = null where id = ?", [firstId])
-            .catch(() => {});
+        await pool.query('delete from machines where id = ?', [testMachineId]).catch(() => {});
+        if (parkedIds.length) {
+          await pool.query(
+            "update machines set status = 'tersedia' where id in (?)",
+            [parkedIds],
+          ).catch(() => {});
         }
       }
-      return { firstId, secondId, blocked };
+      return { firstId, secondId, blocked, testMachineId };
     });
     ok('transaksi pertama mendapat mesin', lockTx.ok && lockTx.value.firstId > 0,
       lockTx.ok ? `id ${lockTx.value.firstId}` : lockTx.error);
