@@ -268,52 +268,69 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
 
   @override
   Widget build(BuildContext context) {
+    final weeklySummary = _buildWeeklySummary();
     return Scaffold(
       backgroundColor: const Color(0xFFEBF4FF),
       body: Stack(
         children: [
           const AmbientBackground(),
-          SafeArea(
-            child: RefreshIndicator(
-              onRefresh: _loadData,
-              color: AppTheme.primary,
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  // 1. Header Pelanggan: Sapaan, Badge Tier, & Poin
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                    sliver: SliverToBoxAdapter(
-                      child: _buildCustomerHeader(),
-                    ),
+          // Di layar laptop/monitor, kolom tunggal yang melebar penuh membuat
+          // kartu dan teks terasa kaku. Batasi lebar konten dan letakkan di
+          // tengah; di ponsel batas ini tidak berpengaruh.
+          Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: SafeArea(
+                child: RefreshIndicator(
+                  onRefresh: _loadData,
+                  color: AppTheme.primary,
+                  child: CustomScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      // 1. Header Pelanggan: Sapaan, Badge Tier, & Poin
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        sliver: SliverToBoxAdapter(
+                          child: _buildCustomerHeader(),
+                        ),
+                      ),
+
+                      // 2. Ringkasan Aktivitas 7 Hari Terakhir
+                      if (weeklySummary != null)
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                          sliver: SliverToBoxAdapter(child: weeklySummary),
+                        ),
+
+                      // 3. Tab Bar: Pesanan Aktif vs Riwayat
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        sliver: SliverToBoxAdapter(
+                          child: _buildTabBar(),
+                        ),
+                      ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 14)),
+
+                      // 4. Konten Daftar Pesanan
+                      if (_isLoading && _activeOrders.isEmpty && _historyOrders.isEmpty)
+                        const SliverFillRemaining(
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (_errorMessage != null && _activeOrders.isEmpty && _historyOrders.isEmpty)
+                        SliverFillRemaining(
+                          child: _buildErrorState(),
+                        )
+                      else
+                        _buildTabContent(),
+
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 100),
+                      ),
+                    ],
                   ),
-
-                  // 2. Tab Bar: Pesanan Aktif vs Riwayat
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    sliver: SliverToBoxAdapter(
-                      child: _buildTabBar(),
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 14)),
-
-                  // 3. Konten Daftar Pesanan
-                  if (_isLoading && _activeOrders.isEmpty && _historyOrders.isEmpty)
-                    const SliverFillRemaining(
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_errorMessage != null && _activeOrders.isEmpty && _historyOrders.isEmpty)
-                    SliverFillRemaining(
-                      child: _buildErrorState(),
-                    )
-                  else
-                    _buildTabContent(),
-
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 100),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -437,6 +454,106 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
               onPressed: widget.onLogout,
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  /// Ringkasan aktivitas 7 hari terakhir dari riwayat yang sudah dimuat.
+  ///
+  /// API hanya mengirim 20 pesanan terakhir, jadi angka ini diberi label
+  /// "dari riwayat terakhir" — bukan klaim total aktivitas pelanggan.
+  Widget? _buildWeeklySummary() {
+    if (_historyOrders.isEmpty) return null;
+
+    final now = DateTime.now();
+    final since = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 6));
+    final recent =
+        _historyOrders.where((o) => !o.createdAt.isBefore(since)).toList();
+
+    final totalBerat = recent.fold<double>(0, (sum, o) => sum + o.weight);
+    final totalPoin = recent.fold<int>(0, (sum, o) => sum + o.pointsAwarded);
+
+    return FrostedGlassCard(
+      padding: const EdgeInsets.all(18),
+      borderRadius: 24,
+      blurSigma: 14,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.insights_rounded, size: 18, color: AppTheme.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Aktivitas 7 Hari Terakhir',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              const Text(
+                'dari riwayat terakhir',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildWeeklyMetric('${recent.length}', 'Cucian'),
+              _buildWeeklyDivider(),
+              _buildWeeklyMetric(Formatters.berat(totalBerat), 'Total Berat'),
+              _buildWeeklyDivider(),
+              _buildWeeklyMetric('$totalPoin', 'Poin Didapat'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyDivider() => Container(
+        width: 1,
+        height: 34,
+        color: AppTheme.border,
+      );
+
+  Widget _buildWeeklyMetric(String value, String label) {
+    return Expanded(
+      child: Column(
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.primary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
         ],
       ),
     );

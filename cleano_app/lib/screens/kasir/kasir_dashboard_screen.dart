@@ -1,15 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/dashboard_summary_model.dart';
 import '../../models/order_model.dart';
 import '../../services/api_service.dart';
+import '../../services/daily_report_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/export_service.dart';
 import '../../services/order_service.dart';
+import '../../utils/daily_report_composer.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/state_view.dart';
@@ -79,6 +84,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
           _activeOrders = orderResult.items;
           _isLoading = false;
         });
+        unawaited(_maybeRunDailyReport());
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -97,9 +103,46 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
     }
   }
 
+  /// Laporan harian otomatis: sekali per hari, saat dashboard berhasil dimuat.
+  ///
+  /// Bukan timer latar — Vercel serverless tidak punya cron, dan timer di
+  /// aplikasi mobile tidak andal. Kegagalan apa pun diabaikan supaya dashboard
+  /// tetap bisa dipakai.
+  Future<void> _maybeRunDailyReport() async {
+    final summary = _summary;
+    if (summary == null) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final content = DailyReportComposer.compose(
+        summary: summary,
+        orders: _activeOrders,
+        day: DateTime.now(),
+      );
+
+      final service = DailyReportService(
+        prefs,
+        onDailyReportReady: ({required summary, required orders}) =>
+            _exportService.exportReport(format: 'PDF', summary: summary, orders: orders),
+      );
+
+      final ran = await service.maybeRunDaily(summary: summary, orders: content.orders);
+      if (!ran || !mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Laporan harian siap dibagikan — ${content.comparisonLabel}'),
+          backgroundColor: AppTheme.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      // Laporan otomatis bersifat tambahan; dashboard tidak boleh terganggu.
+    }
+  }
+
   void _showExportDialog() {
-    if (_summary == null) return;
-    final total7Hari = _summary!.revenue7Days.fold<int>(0, (sum, d) => sum + d.dailyRevenue);
+    if (_summary == null) return;    final total7Hari = _summary!.revenue7Days.fold<int>(0, (sum, d) => sum + d.dailyRevenue);
 
     final summaryRows = [
       ('Omzet Hari Ini', Formatters.rupiah(_summary!.todayRevenue)),
@@ -326,51 +369,58 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
       return true;
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: AppTheme.primary,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 768;
+    // Pada layar laptop/monitor, konten yang melebar penuh terasa kaku dan
+    // grafik jadi terlalu panjang. Batasi lebar kolom dan letakkan di tengah.
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          color: AppTheme.primary,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 768;
 
-          return CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. Horizontal Date Range Pill Selector
-                      _buildPeriodPills(),
-                      const SizedBox(height: 18),
+              return CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. Horizontal Date Range Pill Selector
+                          _buildPeriodPills(),
+                          const SizedBox(height: 18),
 
-                      // 2. Hero Big Metric & Capsule Bar Chart
-                      _buildHeroChartSection(summary),
-                      const SizedBox(height: 18),
+                          // 2. Hero Big Metric & Capsule Bar Chart
+                          _buildHeroChartSection(summary),
+                          const SizedBox(height: 18),
 
-                      // 3. 2x2 Metric Cards Grid
-                      _buildMetricCards(summary, isWide),
-                      const SizedBox(height: 22),
+                          // 3. 2x2 Metric Cards Grid
+                          _buildMetricCards(summary, isWide),
+                          const SizedBox(height: 22),
 
-                      // 4. Header Bar Filter Pesanan Aktif
-                      _buildActiveOrdersHeader(),
-                      const SizedBox(height: 12),
-                    ],
+                          // 4. Header Bar Filter Pesanan Aktif
+                          _buildActiveOrdersHeader(),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
 
-              // 5. Daftar Pesanan Aktif — Virtualized Lazy SliverList untuk performa 60 FPS
-              _buildOrdersSliver(filtered),
+                  // 5. Daftar Pesanan Aktif — Virtualized Lazy SliverList untuk performa 60 FPS
+                  _buildOrdersSliver(filtered),
 
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 110),
-              ),
-            ],
-          );
-        },
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 110),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
