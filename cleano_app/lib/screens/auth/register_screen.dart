@@ -79,7 +79,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       barrierDismissible: false,
       builder: (ctx) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           contentPadding: const EdgeInsets.all(24),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -110,10 +112,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const Text(
                 'Akun Anda telah aktif. Berikut kode member Anda untuk mendapatkan promo & poin:',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppTheme.textSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
               ),
               const SizedBox(height: 16),
               Container(
@@ -169,13 +168,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 900;
+    // Di layar lebar, form dibatasi 460 px dan dipusatkan lewat padding.
+    final horizontalPadding = isDesktop ? (width - 460) / 2 : 24.0;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDesktop ? AppTheme.surfaceSubtle : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDesktop ? AppTheme.surfaceSubtle : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -187,7 +194,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: isDesktop ? 40 : 8,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -275,7 +285,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: 'Nama Lengkap',
-                    prefixIcon: const Icon(Icons.person_outline_rounded, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.person_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -306,7 +319,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: 'Email',
-                    prefixIcon: const Icon(Icons.mail_outline_rounded, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.mail_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -337,7 +353,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: 'Nomor HP (WhatsApp)',
-                    prefixIcon: const Icon(Icons.phone_outlined, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.phone_outlined,
+                      color: AppTheme.primary,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     hintText: '081234567890',
@@ -370,7 +389,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -413,7 +435,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   onFieldSubmitted: (_) => _handleRegister(),
                   decoration: InputDecoration(
                     labelText: 'Konfirmasi Password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscureConfirm
@@ -487,11 +512,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   children: [
                     const Text(
                       'Already have an account? ',
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                     GestureDetector(
                       onTap: () {
-                        Navigator.of(context).pushReplacementNamed(AppRouter.login);
+                        Navigator.of(context)
+                            .pushReplacementNamed(AppRouter.login);
                       },
                       child: const Text(
                         'Sign in',

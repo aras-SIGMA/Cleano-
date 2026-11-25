@@ -92,13 +92,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 900;
+    // Di layar lebar, form dibatasi 460 px dan dipusatkan lewat padding —
+    // bukan isian selebar monitor.
+    final horizontalPadding = isDesktop ? (width - 460) / 2 : 24.0;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDesktop ? AppTheme.surfaceSubtle : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDesktop ? AppTheme.surfaceSubtle : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -110,7 +119,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: isDesktop ? 40 : 8,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -191,7 +203,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: 'Email',
-                    prefixIcon: const Icon(Icons.mail_outline_rounded, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.mail_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -204,7 +219,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primary,
+                        width: 2,
+                      ),
                     ),
                   ),
                   validator: (value) {
@@ -227,7 +245,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   onFieldSubmitted: (_) => _handleLogin(),
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.primary),
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -251,7 +272,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primary,
+                        width: 2,
+                      ),
                     ),
                   ),
                   validator: (value) {
@@ -342,8 +366,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _fillFastLogin('kasir@cleano.id', 'password123'),
-                              icon: const Icon(Icons.store_mall_directory_rounded, size: 18),
+                              onPressed: () => _fillFastLogin(
+                                'kasir@cleano.id',
+                                'password123',
+                              ),
+                              icon: const Icon(
+                                Icons.store_mall_directory_rounded,
+                                size: 18,
+                              ),
                               label: const Text('Kasir'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppTheme.primary,
@@ -358,7 +388,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _fillFastLogin('rina@gmail.com', 'password123'),
+                              onPressed: () => _fillFastLogin(
+                                'rina@gmail.com',
+                                'password123',
+                              ),
                               icon: const Icon(Icons.person_rounded, size: 18),
                               label: const Text('Pelanggan'),
                               style: OutlinedButton.styleFrom(
@@ -393,11 +426,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     const Text(
                       "Don't have an account? ",
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                      style: TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                     GestureDetector(
                       onTap: () {
-                        Navigator.of(context).pushReplacementNamed(AppRouter.register);
+                        Navigator.of(context)
+                            .pushReplacementNamed(AppRouter.register);
                       },
                       child: const Text(
                         'Sign up',

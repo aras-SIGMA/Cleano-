@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/router/app_router.dart';
@@ -37,16 +38,21 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (cachedUser != null) {
-      final destination = cachedUser.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
+      final destination = cachedUser.isKasir
+          ? AppRouter.kasir
+          : AppRouter.pelanggan;
       Navigator.of(context).pushReplacementNamed(destination);
 
       // Sinkronisasi profil terbaru di latar belakang tanpa memblokir startup
       unawaited(
-        AuthService.instance.getMe().then((fresh) async {
-          if (fresh != null) {
-            await SessionService.instance.updateUser(fresh);
-          }
-        }).catchError((_) {}),
+        AuthService.instance
+            .getMe()
+            .then((fresh) async {
+              if (fresh != null) {
+                await SessionService.instance.updateUser(fresh);
+              }
+            })
+            .catchError((_) {}),
       );
       return;
     }
@@ -59,7 +65,9 @@ class _SplashScreenState extends State<SplashScreen> {
       if (user != null) {
         await SessionService.instance.updateUser(user);
         if (!mounted) return;
-        final destination = user.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
+        final destination = user.isKasir
+            ? AppRouter.kasir
+            : AppRouter.pelanggan;
         Navigator.of(context).pushReplacementNamed(destination);
         return;
       }
@@ -74,6 +82,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    // Di layar lebar, kolom dipusatkan dan dibatasi 460 px supaya tombol
+    // tidak melebar sampai tepi monitor.
+    final horizontalPadding = width > 516 ? (width - 460) / 2 : 28.0;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -87,7 +100,10 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 24,
+            ),
             child: Column(
               children: [
                 // Header Logo
@@ -216,4 +232,3 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-
