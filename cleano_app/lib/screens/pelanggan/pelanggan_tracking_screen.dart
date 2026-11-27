@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
+import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/order_model.dart';
@@ -145,7 +146,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
                 const SizedBox(height: 16),
 
                 // Foto kondisi awal drop-off jika ada
-                if (order.imageUrl != null && order.imageUrl!.isNotEmpty) ...[
+                if (ApiConstants.resolveMediaUrl(order.imageUrl) case final imageUrl?) ...[
                   Text(
                     l10n.dropoffPhotoTitle,
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary),
@@ -156,7 +157,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
                       child: Image.network(
-                        order.imageUrl!,
+                        imageUrl,
                         fit: BoxFit.cover,
                         errorBuilder: (_, _, _) => Container(
                           color: const Color(0xFFF1F5F9),

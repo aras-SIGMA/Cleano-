@@ -942,7 +942,7 @@ abstract class AppLocalizations {
   ///
   /// In id, this message translates to:
   /// **'{pts} poin menuju Platinum'**
-  String pointsToPlatinum(Object pts);
+  String pointsToPlatinum(int pts);
 
   /// No description provided for @favOutletTitle.
   ///

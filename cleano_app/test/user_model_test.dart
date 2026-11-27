@@ -1,3 +1,4 @@
+import 'package:cleano_app/core/constants/api_constants.dart';
 import 'package:cleano_app/models/user_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -85,6 +86,21 @@ void main() {
 
       final noAvatar = UserModel.fromJson({...json, 'avatar_url': null});
       expect(noAvatar.avatarUrl, isNull);
+    });
+  });
+
+  group('ApiConstants', () {
+    test('resolveMediaUrl aman tanpa dotenv dan menggabungkan path relatif', () {
+      expect(ApiConstants.resolveMediaUrl(null), isNull);
+      expect(ApiConstants.resolveMediaUrl('   '), isNull);
+      expect(
+        ApiConstants.resolveMediaUrl('https://cdn.example.com/a.jpg'),
+        'https://cdn.example.com/a.jpg',
+      );
+      expect(
+        ApiConstants.resolveMediaUrl('/uploads/foto.png'),
+        '${ApiConstants.baseUrl}/uploads/foto.png',
+      );
     });
   });
 }

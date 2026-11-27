@@ -456,7 +456,7 @@ class AppLocalizationsId extends AppLocalizations {
   }
 
   @override
-  String pointsToPlatinum(Object pts) {
+  String pointsToPlatinum(int pts) {
     return '$pts poin menuju Platinum';
   }
 

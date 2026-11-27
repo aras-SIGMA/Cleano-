@@ -150,7 +150,7 @@
   "pointsToGold": "{pts} poin menuju Gold",
   "@pointsToGold": { "placeholders": { "pts": { "type": "int" } } },
   "pointsToPlatinum": "{pts} poin menuju Platinum",
-  "@pointsToPlatinum": { "placeholders": { "pts": { "pts": { "type": "int" } } } },
+  "@pointsToPlatinum": { "placeholders": { "pts": { "type": "int" } } },
   "favOutletTitle": "Outlet Langganan Utama",
   "favOutletSubtitle": "Cleano Outlet 01 — Pusat Sukajadi (Bandung)",
   "favOutletInfo": "Cleano Outlet 01 adalah cabang utama akun Anda.",

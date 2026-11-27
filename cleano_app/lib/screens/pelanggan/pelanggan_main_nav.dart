@@ -4,6 +4,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/language_picker_sheet.dart';
@@ -51,9 +52,14 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
       }
     } catch (_) {
       if (mounted) {
+        final isEn = LocaleService.instance.locale.value.languageCode == 'en';
         setState(() {
           _isLoading = false;
-          if (_user == null) _profileError = 'Gagal memuat profil. Periksa koneksi Anda.';
+          if (_user == null) {
+            _profileError = isEn
+                ? 'Failed to load profile. Check your connection.'
+                : 'Gagal memuat profil. Periksa koneksi Anda.';
+          }
         });
       }
     }
@@ -107,10 +113,11 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
     }
 
     if (_user == null) {
+      final isEn = LocaleService.instance.locale.value.languageCode == 'en';
       return Scaffold(
         backgroundColor: const Color(0xFFEBF4FF),
         body: StateErrorView(
-          message: _profileError ?? 'Profil tidak tersedia.',
+          message: _profileError ?? (isEn ? 'Profile unavailable.' : 'Profil tidak tersedia.'),
           onRetry: () {
             setState(() {
               _isLoading = true;

@@ -71,47 +71,17 @@ Future<void> showLanguagePickerSheet(BuildContext context) {
           ),
           const SizedBox(height: 16),
           _LanguageOptionTile(
-            code: 'id',
             label: l10n.languageIndonesian,
             badge: 'ID',
             selected: currentCode == 'id',
-            onTap: () async {
-              await LocaleService.instance.setLocale('id');
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              if (context.mounted) {
-                final updatedL10n = lookupAppLocalizations(const Locale('id'));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(updatedL10n.languageChanged(updatedL10n.languageIndonesian)),
-                    backgroundColor: AppTheme.primary,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
+            onTap: () => _applyLanguage(ctx, context, 'id', (u) => u.languageIndonesian),
           ),
           const SizedBox(height: 10),
           _LanguageOptionTile(
-            code: 'en',
             label: l10n.languageEnglish,
             badge: 'EN',
             selected: currentCode == 'en',
-            onTap: () async {
-              await LocaleService.instance.setLocale('en');
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              if (context.mounted) {
-                final updatedL10n = lookupAppLocalizations(const Locale('en'));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(updatedL10n.languageChanged(updatedL10n.languageEnglish)),
-                    backgroundColor: AppTheme.primary,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            },
+            onTap: () => _applyLanguage(ctx, context, 'en', (u) => u.languageEnglish),
           ),
         ],
       ),
@@ -119,16 +89,34 @@ Future<void> showLanguagePickerSheet(BuildContext context) {
   );
 }
 
+Future<void> _applyLanguage(
+  BuildContext sheetCtx,
+  BuildContext parentCtx,
+  String code,
+  String Function(AppLocalizations) labelOf,
+) async {
+  await LocaleService.instance.setLocale(code);
+  if (!sheetCtx.mounted) return;
+  Navigator.pop(sheetCtx);
+  if (!parentCtx.mounted) return;
+  final updated = lookupAppLocalizations(Locale(code));
+  ScaffoldMessenger.of(parentCtx).showSnackBar(
+    SnackBar(
+      content: Text(updated.languageChanged(labelOf(updated))),
+      backgroundColor: AppTheme.primary,
+      behavior: SnackBarBehavior.floating,
+    ),
+  );
+}
+
 class _LanguageOptionTile extends StatelessWidget {
   const _LanguageOptionTile({
-    required this.code,
     required this.label,
     required this.badge,
     required this.selected,
     required this.onTap,
   });
 
-  final String code;
   final String label;
   final String badge;
   final bool selected;
