@@ -8,15 +8,11 @@ import '../../services/api_service.dart';
 import '../../services/order_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 import '../../widgets/state_view.dart';
 import '../../widgets/tracking_order_card.dart';
 
-/// Layar Pelanggan: Pelacakan Cucian Real-Time & Riwayat Transaksi (M7).
-/// - Header profil pelanggan: sapaan, badge tier, saldo poin aktif
-/// - Tab 1: Pesanan Aktif (dengan Visual Stepper 4 tahap, status mesin cuci, antrean, & pembayaran)
-/// - Tab 2: Riwayat Selesai (dengan informasi perolehan poin loyalti)
-/// - Bottom sheet rincian pesanan: foto pakaian drop-off, catatan, dan rincian biaya
-/// - Pull-to-refresh
+/// Layar Pelacakan Cucian Real-Time & Riwayat Transaksi Pelanggan (M7).
 class PelangganTrackingScreen extends StatefulWidget {
   const PelangganTrackingScreen({
     super.key,
@@ -27,8 +23,7 @@ class PelangganTrackingScreen extends StatefulWidget {
 
   final OrderService? orderService;
 
-  /// Profil pelanggan, dimuat sekali oleh navigasi induk. `null` berarti profil
-  /// belum tersedia; header menampilkan keadaan itu alih-alih data karangan.
+  /// Profil pelanggan dari induk; tampilkan keterangan resmi jika masih null.
   final UserModel? user;
 
   final VoidCallback? onLogout;
@@ -89,8 +84,11 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() {
-          _errorMessage = 'Gagal memuat status cucian: $e';
+          _errorMessage = isEn
+              ? 'Failed to load laundry status: $e'
+              : 'Gagal memuat status cucian: $e';
           _isLoading = false;
         });
       }
@@ -102,141 +100,147 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.orderCode,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 16,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        Formatters.tanggal(order.createdAt),
-                        style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-
-              // Foto kondisi awal drop-off jika ada
-              if (order.imageUrl != null && order.imageUrl!.isNotEmpty) ...[
-                const Text(
-                  'Foto Bukti Drop-Off Pakaian',
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Image.network(
-                      order.imageUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: const Color(0xFFF1F5F9),
-                        child: const Center(
-                          child: Icon(Icons.broken_image_rounded, color: AppTheme.textSecondary, size: 36),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Catatan khusus
-              if (order.notes != null && order.notes!.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.notes_rounded, size: 18, color: AppTheme.textSecondary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Catatan: ${order.notes!}',
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Rincian Biaya
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.border),
-                ),
-                child: Column(
+      builder: (ctx) {
+        final l10n = ctx.l10n;
+        final isEn = l10n.localeName == 'en';
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildCostRow('Layanan', order.serviceName),
-                    const SizedBox(height: 6),
-                    _buildCostRow('Berat Cucian', Formatters.berat(order.weight)),
-                    const SizedBox(height: 6),
-                    _buildCostRow('Subtotal', Formatters.rupiah(order.subtotalPrice)),
-                    if (order.discountAmount > 0) ...[
-                      const SizedBox(height: 6),
-                      _buildCostRow(
-                        'Potongan Voucher (${order.voucherCode ?? 'PROMO'})',
-                        '- ${Formatters.rupiah(order.discountAmount)}',
-                        isDiscount: true,
-                      ),
-                    ],
-                    const Divider(height: 20),
-                    _buildCostRow(
-                      'Total Pembayaran',
-                      Formatters.rupiah(order.totalPrice),
-                      isTotal: true,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          order.orderCode,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          Formatters.tanggal(order.createdAt),
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    _buildCostRow(
-                      'Metode / Status',
-                      '${order.paymentMethod.toUpperCase()} • ${order.paymentStatus.toUpperCase()}',
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 16),
+
+                // Foto kondisi awal drop-off jika ada
+                if (order.imageUrl != null && order.imageUrl!.isNotEmpty) ...[
+                  Text(
+                    l10n.dropoffPhotoTitle,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppTheme.textPrimary),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        order.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => Container(
+                          color: const Color(0xFFF1F5F9),
+                          child: const Center(
+                            child: Icon(Icons.broken_image_rounded, color: AppTheme.textSecondary, size: 36),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Catatan khusus
+                if (order.notes != null && order.notes!.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.border),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.notes_rounded, size: 18, color: AppTheme.textSecondary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            isEn ? 'Notes: ${order.notes!}' : 'Catatan: ${order.notes!}',
+                            style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Rincian Biaya
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppTheme.border),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildCostRow(l10n.serviceLabel, order.serviceName),
+                      const SizedBox(height: 6),
+                      _buildCostRow(l10n.weightLabel, Formatters.berat(order.weight)),
+                      const SizedBox(height: 6),
+                      _buildCostRow('Subtotal', Formatters.rupiah(order.subtotalPrice)),
+                      if (order.discountAmount > 0) ...[
+                        const SizedBox(height: 6),
+                        _buildCostRow(
+                          isEn
+                              ? 'Voucher Discount (${order.voucherCode ?? 'PROMO'})'
+                              : 'Potongan Voucher (${order.voucherCode ?? 'PROMO'})',
+                          '- ${Formatters.rupiah(order.discountAmount)}',
+                          isDiscount: true,
+                        ),
+                      ],
+                      const Divider(height: 20),
+                      _buildCostRow(
+                        l10n.totalPaymentLabel,
+                        Formatters.rupiah(order.totalPrice),
+                        isTotal: true,
+                      ),
+                      const SizedBox(height: 6),
+                      _buildCostRow(
+                        l10n.methodStatusLabel,
+                        '${order.paymentMethod.toUpperCase()} • ${order.paymentStatus.toUpperCase()}',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -274,9 +278,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
       body: Stack(
         children: [
           const AmbientBackground(),
-          // Di layar laptop/monitor, kolom tunggal yang melebar penuh membuat
-          // kartu dan teks terasa kaku. Batasi lebar konten dan letakkan di
-          // tengah; di ponsel batas ini tidak berpengaruh.
+          // Batasi lebar konten dan pusatkan pada layar desktop agar nyaman dibaca.
           Align(
             alignment: Alignment.topCenter,
             child: ConstrainedBox(
@@ -340,6 +342,8 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
   }
 
   Widget _buildCustomerHeader() {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final user = widget.user;
     if (user == null) {
       return FrostedGlassCard(
@@ -350,16 +354,16 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
           children: [
             const Icon(Icons.person_outline_rounded, color: AppTheme.textSecondary, size: 22),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: Text(
-                'Profil belum termuat.',
-                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                isEn ? 'Profile not loaded yet.' : 'Profil belum termuat.',
+                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
               ),
             ),
             if (widget.onLogout != null)
               IconButton(
                 icon: const Icon(Icons.logout_rounded, color: AppTheme.textSecondary, size: 20),
-                tooltip: 'Keluar',
+                tooltip: l10n.logout,
                 onPressed: widget.onLogout,
               ),
           ],
@@ -388,7 +392,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
                   children: [
                     Flexible(
                       child: Text(
-                        'Halo, ${user.name} 👋',
+                        l10n.helloGreeting(user.name),
                         style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
@@ -430,13 +434,13 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const Text(
-                  'Saldo Poin',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+                Text(
+                  l10n.pointsBalanceLabel,
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '${user.points} Poin',
+                  '${user.points} ${l10n.pointsUnit}',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -450,7 +454,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.logout_rounded, color: AppTheme.textSecondary, size: 20),
-              tooltip: 'Keluar',
+              tooltip: l10n.logout,
               onPressed: widget.onLogout,
             ),
           ],
@@ -459,13 +463,11 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
     );
   }
 
-  /// Ringkasan aktivitas 7 hari terakhir dari riwayat yang sudah dimuat.
-  ///
-  /// API hanya mengirim 20 pesanan terakhir, jadi angka ini diberi label
-  /// "dari riwayat terakhir" — bukan klaim total aktivitas pelanggan.
+  /// Ringkas aktivitas 7 hari terakhir dari 20 riwayat pesanan yang dimuat.
   Widget? _buildWeeklySummary() {
     if (_historyOrders.isEmpty) return null;
 
+    final l10n = context.l10n;
     final now = DateTime.now();
     final since = DateTime(now.year, now.month, now.day)
         .subtract(const Duration(days: 6));
@@ -486,19 +488,19 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
             children: [
               const Icon(Icons.insights_rounded, size: 18, color: AppTheme.primary),
               const SizedBox(width: 8),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Aktivitas 7 Hari Terakhir',
-                  style: TextStyle(
+                  l10n.weeklyActivityTitle,
+                  style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.textPrimary,
                   ),
                 ),
               ),
-              const Text(
-                'dari riwayat terakhir',
-                style: TextStyle(
+              Text(
+                l10n.fromRecentHistory,
+                style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textMuted,
@@ -509,11 +511,11 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
           const SizedBox(height: 14),
           Row(
             children: [
-              _buildWeeklyMetric('${recent.length}', 'Cucian'),
+              _buildWeeklyMetric('${recent.length}', l10n.laundryCountLabel),
               _buildWeeklyDivider(),
-              _buildWeeklyMetric(Formatters.berat(totalBerat), 'Total Berat'),
+              _buildWeeklyMetric(Formatters.berat(totalBerat), l10n.totalWeightLabel),
               _buildWeeklyDivider(),
-              _buildWeeklyMetric('$totalPoin', 'Poin Didapat'),
+              _buildWeeklyMetric('$totalPoin', l10n.pointsEarnedLabel),
             ],
           ),
         ],
@@ -560,6 +562,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
   }
 
   Widget _buildTabBar() {
+    final l10n = context.l10n;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.7),
@@ -587,14 +590,15 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
         tabs: [
-          Tab(text: 'Cucian Aktif (${_activeOrders.length})'),
-          Tab(text: 'Riwayat Selesai (${_historyOrders.length})'),
+          Tab(text: l10n.activeLaundryTab(_activeOrders.length)),
+          Tab(text: l10n.completedHistoryTab(_historyOrders.length)),
         ],
       ),
     );
   }
 
   Widget _buildTabContent() {
+    final l10n = context.l10n;
     final isAktifTab = _tabController.index == 0;
     final orders = isAktifTab ? _activeOrders : _historyOrders;
 
@@ -602,9 +606,7 @@ class _PelangganTrackingScreenState extends State<PelangganTrackingScreen> with 
       return SliverFillRemaining(
         hasScrollBody: false,
         child: StateEmptyView(
-          message: isAktifTab
-              ? 'Tidak ada cucian yang sedang diproses.'
-              : 'Belum ada riwayat pesanan yang selesai.',
+          message: isAktifTab ? l10n.noActiveLaundry : l10n.noCompletedHistory,
           icon: isAktifTab ? Icons.check_circle_outline_rounded : Icons.history_rounded,
         ),
       );

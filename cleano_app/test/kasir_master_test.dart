@@ -248,11 +248,7 @@ void main() {
       expect(mock.updatedMachineStatus, 'maintenance');
     });
 
-    // Regresi: tema global memakai OutlinedButton minimumSize Size.fromHeight(52),
-    // yang berarti lebar tak terbatas. Di dalam Row anak non-flex menerima lebar
-    // tak terbatas, sehingga tombol "Perawatan" membuat layout gagal dengan
-    // "BoxConstraints forces an infinite width". Uji di atas tidak menangkapnya
-    // karena memakai MaterialApp tanpa tema aplikasi.
+    // Uji regresi: tombol Perawatan di Row tidak error lebar tak terbatas.
     testWidgets('tab mesin ter-render dengan tema aplikasi (tombol lebar terbatas)',
         (tester) async {
       final mock = MockMasterService(

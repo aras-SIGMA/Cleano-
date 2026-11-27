@@ -14,7 +14,7 @@ typedef ShareFileCallback = Future<bool> Function({
   required String filename,
 });
 
-/// Service manajemen ekspor laporan operasional kasir (CSV & PDF) dengan fitur share sheet (M10).
+/// Service ekspor laporan operasional kasir ke CSV dan PDF (M10).
 class ExportService {
   ExportService({ShareFileCallback? shareCallback})
       : _shareCallback = shareCallback ?? Printing.sharePdf;
@@ -83,8 +83,7 @@ class ExportService {
       }
     }
 
-    // csv 8.0.0: `ListToCsvConverter` dihapus, encoder sekarang `Csv.encode`.
-    // `Csv()` = koma, tanpa BOM, `\r\n` — sama dengan default v6 sebelumnya.
+    // Gunakan Csv().encode sesuai pembaruan paket csv 8.0.0.
     final csvString = Csv().encode(rows);
     return Uint8List.fromList(utf8.encode(csvString));
   }

@@ -11,12 +11,7 @@ import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
 import '../../widgets/state_view.dart';
 
-/// Layar Kartu Member Digital & QR Code Pelanggan (M8).
-/// - QR Code (qr_flutter) hanya memuat member_code (mis. MBR-0001).
-/// - Menampilkan nama lengkap, tier badge berwarna (Silver/Gold/Platinum), teks MBR-XXXX di bawah QR.
-/// - Nomor WhatsApp disensor melalui Formatters.sensorTelepon (0812-****-7890).
-/// - Privasi & Keamanan: EMAIL TIDAK DITAMPILKAN SAMA SEKALI.
-/// - Desain frosted glass modern ala iOS Wallet Pass.
+/// Layar Kartu Member Digital & QR Code Pelanggan (M8) berprivasi tinggi.
 class PelangganQrCardScreen extends StatefulWidget {
   const PelangganQrCardScreen({
     super.key,
@@ -29,8 +24,7 @@ class PelangganQrCardScreen extends StatefulWidget {
   final SessionService? sessionService;
   final AuthService? authService;
 
-  /// Profil dari navigasi induk. Bila diisi, layar tidak mengambil `/users/me`
-  /// lagi — cukup satu permintaan profil untuk seluruh portal pelanggan.
+  /// Profil dari navigasi induk untuk menghindari permintaan /users/me berulang.
   final UserModel? user;
 
   final VoidCallback? onLogout;
@@ -58,12 +52,7 @@ class _PelangganQrCardScreenState extends State<PelangganQrCardScreen> {
   @override
   void didUpdateWidget(PelangganQrCardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Induk memuat ulang profil setelah tab ini terpasang (poin/tier berubah).
-    // State dipertahankan oleh IndexedStack, jadi initState tidak jalan lagi.
-    // Hanya bereaksi bila induk mengirim objek profil baru, supaya hasil
-    // refresh lokal tidak ditimpa saat induk rebuild karena hal lain.
-    // Perbandingan pakai identitas: `UserModel ==` hanya melihat id dan email,
-    // sehingga perubahan poin/tier tidak terdeteksi olehnya.
+    // Sinkronkan profil baru dari induk menggunakan perbandingan identitas objek.
     if (widget.user != null && !identical(widget.user, oldWidget.user)) {
       _user = widget.user;
       _isLoading = false;
@@ -96,8 +85,7 @@ class _PelangganQrCardScreenState extends State<PelangganQrCardScreen> {
           _isLoading = false;
         });
       } else if (_user == null) {
-        // Respons tanpa data bukan kegagalan jaringan: tanpa cabang ini
-        // indikator loading berputar tanpa henti.
+        // Hentikan loading jika respons profil kosong agar tidak berputar terus.
         setState(() {
           _errorMessage = 'Profil tidak tersedia. Coba lagi.';
           _isLoading = false;

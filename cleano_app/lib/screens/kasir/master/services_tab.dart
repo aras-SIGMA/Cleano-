@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/service_model.dart';
+import '../../../services/locale_service.dart';
 import '../../../widgets/frosted_glass_card.dart';
 import '../../../widgets/state_view.dart';
 
@@ -36,7 +37,10 @@ class ServicesTab extends StatelessWidget {
     }
 
     if (services.isEmpty) {
-      return const StateEmptyView(message: 'Belum ada paket layanan laundry yang terdaftar.');
+      final isEn = LocaleService.instance.locale.value.languageCode == 'en';
+      return StateEmptyView(
+        message: isEn ? 'No laundry services registered yet.' : 'Belum ada paket layanan laundry yang terdaftar.',
+      );
     }
 
     return RefreshIndicator(
@@ -65,6 +69,7 @@ class _ServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
@@ -99,7 +104,9 @@ class _ServiceCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  service.requiresMachine ? 'Pakai Mesin' : 'Tanpa Mesin',
+                  service.requiresMachine
+                      ? (isEn ? 'Uses Machine' : 'Pakai Mesin')
+                      : (isEn ? 'No Machine' : 'Tanpa Mesin'),
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -110,7 +117,9 @@ class _ServiceCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Estimasi: ${service.estimatedHours} jam • Cuci: ${service.washDurationMinutes} mnt',
+                  isEn
+                      ? 'Est: ${service.estimatedHours} hrs • Wash: ${service.washDurationMinutes} min'
+                      : 'Estimasi: ${service.estimatedHours} jam • Cuci: ${service.washDurationMinutes} mnt',
                   style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -141,7 +150,7 @@ class _ServiceCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: () => onDelete(service),
                 icon: const Icon(Icons.delete_outline_rounded, size: 15, color: AppTheme.danger),
-                label: const Text('Hapus', style: TextStyle(fontSize: 12, color: AppTheme.danger)),
+                label: Text(isEn ? 'Delete' : 'Hapus', style: const TextStyle(fontSize: 12, color: AppTheme.danger)),
                 style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
               ),
             ],

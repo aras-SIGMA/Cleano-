@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
 import '../models/service_model.dart';
+import 'language_picker_sheet.dart';
 
 /// Dropdown pemilih layanan laundry Cleano di POS Kasir.
 class ServiceDropdown extends StatelessWidget {
@@ -21,6 +22,9 @@ class ServiceDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
+
     if (isLoading) {
       return Container(
         height: 56,
@@ -31,11 +35,14 @@ class ServiceDropdown extends StatelessWidget {
           border: Border.all(color: AppTheme.border),
         ),
         alignment: Alignment.centerLeft,
-        child: const Row(
+        child: Row(
           children: [
-            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-            SizedBox(width: 12),
-            Text('Memuat daftar layanan...', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            const SizedBox(width: 12),
+            Text(
+              isEn ? 'Loading services...' : 'Memuat daftar layanan...',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            ),
           ],
         ),
       );
@@ -52,11 +59,11 @@ class ServiceDropdown extends StatelessWidget {
         child: DropdownButton<ServiceModel>(
           isExpanded: true,
           value: selectedService,
-          hint: const Row(
+          hint: Row(
             children: [
-              Icon(Icons.local_laundry_service_outlined, color: AppTheme.textSecondary, size: 20),
-              SizedBox(width: 10),
-              Text('Pilih Jenis Layanan Laundry', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+              const Icon(Icons.local_laundry_service_outlined, color: AppTheme.textSecondary, size: 20),
+              const SizedBox(width: 10),
+              Text(l10n.selectLaundryService, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
             ],
           ),
           icon: const Icon(Icons.arrow_drop_down_rounded, color: AppTheme.textPrimary),
@@ -81,8 +88,8 @@ class ServiceDropdown extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          '${Formatters.rupiah(service.pricePerKg)}/kg • Est. ${service.estimatedHours} jam'
-                          '${service.requiresMachine ? ' (Mesin Cuci)' : ''}',
+                          '${Formatters.rupiah(service.pricePerKg)}/kg • Est. ${service.estimatedHours} ${isEn ? 'hrs' : 'jam'}'
+                          '${service.requiresMachine ? (isEn ? ' (Washing Machine)' : ' (Mesin Cuci)') : ''}',
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppTheme.textSecondary,

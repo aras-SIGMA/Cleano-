@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/reward_model.dart';
+import '../../../services/locale_service.dart';
 import '../../../widgets/frosted_glass_card.dart';
 import '../../../widgets/state_view.dart';
 
-/// Tab 3 master data: katalog kupon loyalti beserta aksi edit dan toggle aktif.
+/// Tab 3 Master Data: katalog kupon loyalti, edit, dan toggle aktif.
 class RewardsTab extends StatelessWidget {
   const RewardsTab({
     super.key,
@@ -36,7 +37,10 @@ class RewardsTab extends StatelessWidget {
     }
 
     if (rewards.isEmpty) {
-      return const StateEmptyView(message: 'Belum ada katalog promo reward loyalti.');
+      final isEn = LocaleService.instance.locale.value.languageCode == 'en';
+      return StateEmptyView(
+        message: isEn ? 'No loyalty reward promos yet.' : 'Belum ada katalog promo reward loyalti.',
+      );
     }
 
     return RefreshIndicator(
@@ -65,6 +69,7 @@ class _RewardCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
@@ -96,7 +101,7 @@ class _RewardCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  reward.isActive ? 'Aktif' : 'Nonaktif',
+                  reward.isActive ? (isEn ? 'Active' : 'Aktif') : (isEn ? 'Inactive' : 'Nonaktif'),
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
@@ -116,13 +121,13 @@ class _RewardCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '${reward.pointsRequired} Poin',
+                  '${reward.pointsRequired} ${isEn ? 'Pts' : 'Poin'}',
                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB45309)),
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                'Potongan ${Formatters.rupiah(reward.discountAmount)}',
+                '${isEn ? 'Discount' : 'Potongan'} ${Formatters.rupiah(reward.discountAmount)}',
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.primary),
               ),
             ],
@@ -155,7 +160,7 @@ class _RewardCard extends StatelessWidget {
                   color: reward.isActive ? AppTheme.success : AppTheme.textMuted,
                 ),
                 label: Text(
-                  reward.isActive ? 'Nonaktifkan' : 'Aktifkan',
+                  reward.isActive ? (isEn ? 'Deactivate' : 'Nonaktifkan') : (isEn ? 'Activate' : 'Aktifkan'),
                   style: TextStyle(
                     fontSize: 12,
                     color: reward.isActive ? AppTheme.danger : AppTheme.success,

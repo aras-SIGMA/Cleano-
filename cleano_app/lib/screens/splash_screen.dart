@@ -6,6 +6,7 @@ import '../core/router/app_router.dart';
 import '../core/theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
+import '../widgets/language_picker_sheet.dart';
 
 /// Layar pembuka (Splash / Welcome Screen) dengan pengecekan sesi otomatis.
 class SplashScreen extends StatefulWidget {
@@ -83,8 +84,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    // Di layar lebar, kolom dipusatkan dan dibatasi 460 px supaya tombol
-    // tidak melebar sampai tepi monitor.
+    // Pusatkan kolom dan batasi lebar 460 px pada layar lebar.
     final horizontalPadding = width > 516 ? (width - 460) / 2 : 28.0;
 
     return Scaffold(
@@ -154,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Solusi manajemen laundry modern, cepat, dan terpercaya untuk kasir dan pelanggan.',
+                  context.l10n.splashSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
@@ -189,9 +189,9 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.login,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -213,9 +213,9 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Sign up',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.signUp,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),

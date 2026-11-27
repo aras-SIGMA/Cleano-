@@ -4,6 +4,7 @@ import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
 import '../models/order_model.dart';
 import 'frosted_glass_card.dart';
+import 'language_picker_sheet.dart';
 import 'order_payment_badge.dart';
 
 /// Kartu rincian pesanan kasir dengan informasi lengkap & tombol aksi cepat.
@@ -27,6 +28,9 @@ class OrderListItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
+
     return FrostedGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
@@ -51,7 +55,7 @@ class OrderListItemCard extends StatelessWidget {
                 children: [
                   _buildPaymentBadge(),
                   const SizedBox(width: 6),
-                  _buildStatusBadge(),
+                  _buildStatusBadge(context),
                 ],
               ),
             ],
@@ -122,8 +126,8 @@ class OrderListItemCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Mesin: ${order.machineCode}'
-                      '${order.machineFinishAt != null ? ' (Selesai ~${Formatters.jam(order.machineFinishAt!)})' : ''}',
+                      '${isEn ? 'Machine' : 'Mesin'}: ${order.machineCode}'
+                      '${order.machineFinishAt != null ? ' (${isEn ? 'Done' : 'Selesai'} ~${Formatters.jam(order.machineFinishAt!)})' : ''}',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF0369A1)),
                     ),
                   ),
@@ -147,8 +151,12 @@ class OrderListItemCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       order.queueWaitMinutes > 0
-                          ? 'Menunggu mesin kosong (estimasi ~${order.queueWaitMinutes} menit)'
-                          : 'Menunggu alokasi mesin berikutnya',
+                          ? (isEn
+                              ? 'Waiting for free machine (est. ~${order.queueWaitMinutes} mins)'
+                              : 'Menunggu mesin kosong (estimasi ~${order.queueWaitMinutes} menit)')
+                          : (isEn
+                              ? 'Waiting for next machine allocation'
+                              : 'Menunggu alokasi mesin berikutnya'),
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFB45309)),
                     ),
                   ),
@@ -160,7 +168,7 @@ class OrderListItemCard extends StatelessWidget {
           // 4. Tombol Aksi Operasional Berdasarkan Status
           if (_hasActionButton) ...[
             const SizedBox(height: 12),
-            _buildActionButtons(),
+            _buildActionButtons(context),
           ],
         ],
       ),
@@ -177,7 +185,8 @@ class OrderListItemCard extends StatelessWidget {
   /// Pesanan yang belum dilunaskan boleh dibatalkan selama belum final.
   bool get _canCancel => order.isBelumBayar && !order.isSelesai && !order.isBatal;
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(BuildContext context) {
+    final l10n = context.l10n;
     if (isActionLoading) {
       return const Center(
         child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -194,7 +203,7 @@ class OrderListItemCard extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: onSyncPayment,
                   icon: const Icon(Icons.sync_rounded, size: 16),
-                  label: const Text('Cek Bayar', style: TextStyle(fontSize: 12)),
+                  label: Text(l10n.checkPayment, style: const TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -204,15 +213,14 @@ class OrderListItemCard extends StatelessWidget {
               const SizedBox(width: 8),
             ],
 
-            // Layanan tanpa mesin tidak punya drum untuk dilepas, tapi transisi
-            // sedang_diproses -> siap_diambil tetap sah dan tetap butuh tombol.
+            // Sediakan tombol transisi siap_diambil meski layanan tidak memakai mesin.
             if (order.isProsesCuci || order.isSedangDiproses)
               Expanded(
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: onMarkReady,
                   icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
-                  label: const Text('Tandai Siap Diambil', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  label: Text(l10n.markReady, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.secondary,
                     foregroundColor: Colors.white,
@@ -228,7 +236,7 @@ class OrderListItemCard extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: onComplete,
                   icon: const Icon(Icons.task_alt_rounded, size: 16),
-                  label: const Text('Selesaikan Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  label: Text(l10n.completeOrder, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.success,
                     foregroundColor: Colors.white,
@@ -244,7 +252,7 @@ class OrderListItemCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onCancel,
             icon: const Icon(Icons.cancel_outlined, size: 16),
-            label: const Text('Batalkan Pesanan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            label: Text(l10n.cancelOrder, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.danger,
               side: const BorderSide(color: AppTheme.danger),
@@ -259,14 +267,15 @@ class OrderListItemCard extends StatelessWidget {
 
   Widget _buildPaymentBadge() => OrderPaymentBadge(isLunas: order.isLunas);
 
-  Widget _buildStatusBadge() {
+  Widget _buildStatusBadge(BuildContext context) {
+    final l10n = context.l10n;
     final (bg, fg, text) = switch (order) {
-      _ when order.isAntre => (const Color(0xFFFEF3C7), const Color(0xFFB45309), 'Antre'),
-      _ when order.isProsesCuci => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), 'Proses Cuci'),
-      _ when order.isSedangDiproses => (const Color(0xFFEDE9FE), const Color(0xFF6D28D9), 'Sedang Diproses'),
-      _ when order.isSiapDiambil => (const Color(0xFFDCFCE7), const Color(0xFF15803D), 'Siap Diambil'),
-      _ when order.isSelesai => (const Color(0xFFF1F5F9), const Color(0xFF475569), 'Selesai'),
-      _ when order.isBatal => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C), 'Batal'),
+      _ when order.isAntre => (const Color(0xFFFEF3C7), const Color(0xFFB45309), l10n.statusQueue),
+      _ when order.isProsesCuci => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), l10n.statusWashing),
+      _ when order.isSedangDiproses => (const Color(0xFFEDE9FE), const Color(0xFF6D28D9), l10n.statusProcessing),
+      _ when order.isSiapDiambil => (const Color(0xFFDCFCE7), const Color(0xFF15803D), l10n.statusReady),
+      _ when order.isSelesai => (const Color(0xFFF1F5F9), const Color(0xFF475569), l10n.statusDone),
+      _ when order.isBatal => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C), l10n.statusCancelled),
       _ => (const Color(0xFFF1F5F9), AppTheme.textSecondary, order.status),
     };
 

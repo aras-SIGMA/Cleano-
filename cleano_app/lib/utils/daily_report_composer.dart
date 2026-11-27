@@ -2,8 +2,7 @@ import '../core/utils/formatters.dart';
 import '../models/dashboard_summary_model.dart';
 import '../models/order_model.dart';
 
-/// Isi laporan harian: pesanan hari ini dan pembandingnya terhadap rata-rata
-/// tujuh hari terakhir.
+/// Penyusun isi laporan harian dan pembanding omzet rata-rata tujuh hari.
 class DailyReportContent {
   const DailyReportContent({
     required this.orders,
@@ -21,12 +20,7 @@ class DailyReportContent {
   final String comparisonLabel;
 }
 
-/// Penyusun isi laporan harian. Fungsi murni tanpa I/O, sehingga bisa diuji
-/// tanpa widget.
-///
-/// Berkasnya sendiri ditulis oleh [ExportService], memakai jalur ekspor yang
-/// sama dengan tombol "Unduh Rekap". Yang berbeda hanya cakupan datanya: satu
-/// hari, bukan seluruh pesanan aktif.
+/// Fungsi murni penyusun isi laporan harian agar mudah diuji tanpa I/O.
 class DailyReportComposer {
   const DailyReportComposer._();
 

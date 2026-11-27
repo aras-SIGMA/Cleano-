@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import '../../services/locale_service.dart';
+
 /// Formatter tampilan: Rupiah, tanggal, sensor telepon, normalisasi nomor telepon.
 class Formatters {
   const Formatters._();
@@ -24,8 +26,9 @@ class Formatters {
 
   /// Format tanggal: `19 Nov 2026`
   static String tanggal(DateTime value) {
+    final loc = LocaleService.instance.intlLocale;
     try {
-      return DateFormat('dd MMM yyyy', 'id_ID').format(value);
+      return DateFormat('dd MMM yyyy', loc).format(value);
     } catch (_) {
       return '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
     }
@@ -33,8 +36,9 @@ class Formatters {
 
   /// Format jam: `14:30`
   static String jam(DateTime value) {
+    final loc = LocaleService.instance.intlLocale;
     try {
-      return DateFormat('HH:mm', 'id_ID').format(value);
+      return DateFormat('HH:mm', loc).format(value);
     } catch (_) {
       return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
     }

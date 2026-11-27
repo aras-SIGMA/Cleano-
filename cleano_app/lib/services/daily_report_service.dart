@@ -3,12 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/dashboard_summary_model.dart';
 import '../models/order_model.dart';
 
-/// Penjaga "sekali per hari" untuk laporan harian kasir.
-///
-/// Pemeriksaan dilakukan saat aplikasi dibuka (bukan timer latar), karena
-/// Vercel serverless tidak punya cron dan timer di aplikasi mobile tidak
-/// andal. Laporan dianggap sudah dibuat pada hari ini bila
-/// `lastReportDate` sama dengan tanggal lokal perangkat saat ini.
+/// Penjaga pengiriman laporan harian kasir maksimal satu kali per hari.
 class DailyReportService {
   DailyReportService(
     this._prefs, {
@@ -20,11 +15,7 @@ class DailyReportService {
   final SharedPreferences _prefs;
   final DailyReportReadyCallback onDailyReportReady;
 
-  /// Dipanggil sekali saja pada hari pertama aplikasi dibuka.
-  ///
-  /// [orders] adalah daftar pesanan hari ini (sudah difilter pemanggil).
-  /// [summary] adalah ringkasan dashboard yang sudah dimuat.
-  /// Mengembalikan `true` bila laporan benar-benar dibuat pada panggilan ini.
+  /// Buat laporan harian sekali sehari saat dibuka; kembalikan true jika sukses.
   Future<bool> maybeRunDaily({
     required DashboardSummaryModel summary,
     required List<OrderModel> orders,

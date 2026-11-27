@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
+import '../l10n/app_localizations.dart';
 import '../models/order_model.dart';
 import 'frosted_glass_card.dart';
+import 'language_picker_sheet.dart';
 import 'order_payment_badge.dart';
 
 /// Kartu Pelacakan Pesanan Pelanggan dengan Visual Stepper 4 Tahap & Indikator Mesin.
@@ -21,6 +23,8 @@ class TrackingOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.all(18),
       borderRadius: 22,
@@ -82,12 +86,12 @@ class TrackingOrderCard extends StatelessWidget {
 
           // 3. Visual Stepper 4 Tahap (khusus tab aktif)
           if (!isHistory) ...[
-            _buildVisualStepper(order),
+            _buildVisualStepper(order, l10n, isEn),
             const SizedBox(height: 14),
           ],
 
           // 4. Indikator Status Mesin / Antrean
-          _buildMachineOrQueueBanner(order),
+          _buildMachineOrQueueBanner(order, isEn),
 
           // 5. Informasi Poin (untuk riwayat selesai)
           if (isHistory && order.pointsAwarded > 0) ...[
@@ -103,7 +107,9 @@ class TrackingOrderCard extends StatelessWidget {
                   const Icon(Icons.star_rounded, size: 16, color: Color(0xFFD97706)),
                   const SizedBox(width: 6),
                   Text(
-                    'Mendapatkan +${order.pointsAwarded} Poin Loyalti',
+                    isEn
+                        ? 'Earned +${order.pointsAwarded} Loyalty Points'
+                        : 'Mendapatkan +${order.pointsAwarded} Poin Loyalti',
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB45309)),
                   ),
                 ],
@@ -115,7 +121,7 @@ class TrackingOrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMachineOrQueueBanner(OrderModel order) {
+  Widget _buildMachineOrQueueBanner(OrderModel order, bool isEn) {
     if (order.isProsesCuci) {
       return Container(
         padding: const EdgeInsets.all(10),
@@ -129,8 +135,11 @@ class TrackingOrderCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Sedang Dicuci di Mesin ${order.machineCode ?? '-'}'
-                '${order.machineFinishAt != null ? ' • Estimasi selesai ~${Formatters.jam(order.machineFinishAt!)}' : ''}',
+                isEn
+                    ? 'Washing in Machine ${order.machineCode ?? '-'}'
+                        '${order.machineFinishAt != null ? ' • Est. finish ~${Formatters.jam(order.machineFinishAt!)}' : ''}'
+                    : 'Sedang Dicuci di Mesin ${order.machineCode ?? '-'}'
+                        '${order.machineFinishAt != null ? ' • Estimasi selesai ~${Formatters.jam(order.machineFinishAt!)}' : ''}',
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF0369A1)),
               ),
             ),
@@ -153,8 +162,12 @@ class TrackingOrderCard extends StatelessWidget {
             Expanded(
               child: Text(
                 order.queueWaitMinutes > 0
-                    ? 'Menunggu Antrean — Estimasi ± ${order.queueWaitMinutes} Menit'
-                    : 'Menunggu Alokasi Mesin Cuci',
+                    ? (isEn
+                        ? 'Waiting in Queue — Est. ± ${order.queueWaitMinutes} Mins'
+                        : 'Menunggu Antrean — Estimasi ± ${order.queueWaitMinutes} Menit')
+                    : (isEn
+                        ? 'Waiting for Machine Allocation'
+                        : 'Menunggu Alokasi Mesin Cuci'),
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFB45309)),
               ),
             ),
@@ -170,14 +183,16 @@ class TrackingOrderCard extends StatelessWidget {
           color: const Color(0xFFDCFCE7),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF15803D), size: 18),
-            SizedBox(width: 8),
+            const Icon(Icons.check_circle_rounded, color: Color(0xFF15803D), size: 18),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Cucian Siap Diambil di Outlet! 🎉',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF15803D)),
+                isEn
+                    ? 'Laundry Ready for Pickup at Outlet! 🎉'
+                    : 'Cucian Siap Diambil di Outlet! 🎉',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF15803D)),
               ),
             ),
           ],
@@ -192,14 +207,16 @@ class TrackingOrderCard extends StatelessWidget {
           color: const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.dry_cleaning_rounded, color: AppTheme.secondary, size: 18),
-            SizedBox(width: 8),
+            const Icon(Icons.dry_cleaning_rounded, color: AppTheme.secondary, size: 18),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Pakaian sedang dalam proses pengerjaan.',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                isEn
+                    ? 'Clothes are currently being processed.'
+                    : 'Pakaian sedang dalam proses pengerjaan.',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
               ),
             ),
           ],
@@ -210,8 +227,8 @@ class TrackingOrderCard extends StatelessWidget {
     return const SizedBox.shrink();
   }
 
-  Widget _buildVisualStepper(OrderModel order) {
-    // Tahap: 0: Antre, 1: Proses Cuci / Diproses, 2: Siap Diambil, 3: Selesai
+  Widget _buildVisualStepper(OrderModel order, AppLocalizations l10n, bool isEn) {
+    // Tahap stepper: 0 Antre, 1 Proses Cuci, 2 Siap Diambil, 3 Selesai.
     final currentStep = switch (order.status) {
       'antre' => 0,
       'proses_cuci' || 'sedang_diproses' => 1,
@@ -220,7 +237,12 @@ class TrackingOrderCard extends StatelessWidget {
       _ => 0,
     };
 
-    final steps = ['Antre', 'Cuci', 'Siap', 'Selesai'];
+    final steps = [
+      l10n.statusQueue,
+      isEn ? 'Wash' : 'Cuci',
+      l10n.readyShort,
+      l10n.statusDone,
+    ];
 
     return Row(
       children: List.generate(steps.length, (idx) {

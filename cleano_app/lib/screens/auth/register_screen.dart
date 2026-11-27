@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/language_picker_sheet.dart';
 
 /// Layar Registrasi Akun Pelanggan Cleano dengan dialog kode member.
 class RegisterScreen extends StatefulWidget {
@@ -63,7 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Terjadi kesalahan sistem. Silakan coba lagi.';
+          _errorMessage = context.l10n.systemError;
         });
       }
     } finally {
@@ -100,19 +101,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Registrasi Berhasil!',
-                style: TextStyle(
+              Text(
+                ctx.l10n.registerSuccessTitle,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w800,
                   color: AppTheme.textPrimary,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Akun Anda telah aktif. Berikut kode member Anda untuk mendapatkan promo & poin:',
+              Text(
+                ctx.l10n.registerSuccessSubtitle,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
               ),
               const SizedBox(height: 16),
               Container(
@@ -153,9 +154,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Mulai Gunakan Cleano',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  child: Text(
+                    ctx.l10n.startUsingCleano,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                 ),
               ),
@@ -223,10 +224,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 20),
 
                 // Title & Subtitle
-                const Text(
-                  'Register',
+                Text(
+                  context.l10n.registerTitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.primary,
@@ -234,10 +235,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Buat akun baru untuk mulai mencuci dan kumpulkan poin member.',
+                Text(
+                  context.l10n.registerSubtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppTheme.textSecondary,
                     height: 1.4,
@@ -284,7 +285,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   controller: _nameController,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Nama Lengkap',
+                    labelText: context.l10n.fullNameLabel,
                     prefixIcon: const Icon(
                       Icons.person_outline_rounded,
                       color: AppTheme.primary,
@@ -302,10 +303,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Nama lengkap wajib diisi.';
+                      return context.l10n.fullNameRequired;
                     }
                     if (value.trim().length < 2) {
-                      return 'Nama minimal 2 karakter.';
+                      return context.l10n.fullNameMin2;
                     }
                     return null;
                   },
@@ -318,7 +319,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Email',
+                    labelText: context.l10n.emailLabel,
                     prefixIcon: const Icon(
                       Icons.mail_outline_rounded,
                       color: AppTheme.primary,
@@ -336,10 +337,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Email wajib diisi.';
+                      return context.l10n.emailRequired;
                     }
                     if (!value.contains('@') || !value.contains('.')) {
-                      return 'Format email tidak valid.';
+                      return context.l10n.emailInvalid;
                     }
                     return null;
                   },
@@ -352,7 +353,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Nomor HP (WhatsApp)',
+                    labelText: context.l10n.phoneLabel,
                     prefixIcon: const Icon(
                       Icons.phone_outlined,
                       color: AppTheme.primary,
@@ -371,11 +372,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Nomor HP wajib diisi.';
+                      return context.l10n.phoneRequired;
                     }
                     final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
                     if (digits.length < 8 || digits.length > 20) {
-                      return 'Nomor HP harus berupa 8-20 digit angka.';
+                      return context.l10n.phoneDigitsRule;
                     }
                     return null;
                   },
@@ -388,7 +389,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Password',
+                    labelText: context.l10n.passwordLabel,
                     prefixIcon: const Icon(
                       Icons.lock_outline_rounded,
                       color: AppTheme.primary,
@@ -417,10 +418,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Password wajib diisi.';
+                      return context.l10n.passwordRequired;
                     }
                     if (value.length < 8) {
-                      return 'Password minimal 8 karakter.';
+                      return context.l10n.passwordMin8;
                     }
                     return null;
                   },
@@ -434,7 +435,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _handleRegister(),
                   decoration: InputDecoration(
-                    labelText: 'Konfirmasi Password',
+                    labelText: context.l10n.confirmPasswordLabel,
                     prefixIcon: const Icon(
                       Icons.lock_outline_rounded,
                       color: AppTheme.primary,
@@ -463,10 +464,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Konfirmasi password wajib diisi.';
+                      return context.l10n.confirmPasswordRequired;
                     }
                     if (value != _passwordController.text) {
-                      return 'Konfirmasi password tidak cocok.';
+                      return context.l10n.confirmPasswordMismatch;
                     }
                     return null;
                   },
@@ -495,9 +496,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               strokeWidth: 2.5,
                             ),
                           )
-                        : const Text(
-                            'Sign up',
-                            style: TextStyle(
+                        : Text(
+                            context.l10n.signUp,
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
@@ -510,9 +511,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Already have an account? ',
-                      style: TextStyle(
+                    Text(
+                      context.l10n.alreadyHaveAccount,
+                      style: const TextStyle(
                         color: AppTheme.textSecondary,
                         fontSize: 14,
                       ),
@@ -522,9 +523,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Navigator.of(context)
                             .pushReplacementNamed(AppRouter.login);
                       },
-                      child: const Text(
-                        'Sign in',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.signIn,
+                        style: const TextStyle(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,

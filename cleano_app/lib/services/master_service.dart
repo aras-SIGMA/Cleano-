@@ -4,8 +4,7 @@ import '../models/reward_model.dart';
 import '../models/service_model.dart';
 import 'api_service.dart';
 
-/// Service manajemen master data outlet (Layanan, Mesin, dan Promo Rewards)
-/// dengan in-memory caching untuk mengurangi query redundan dan meningkatkan responsivitas POS.
+/// Service Master Data outlet (Layanan, Mesin, Rewards) dengan cache memori.
 class MasterService {
   MasterService({ApiService? apiService}) : _api = apiService ?? ApiService.instance;
 

@@ -4,8 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cleano_app/services/api_service.dart';
 import 'package:cleano_app/services/reward_service.dart';
 
-/// ApiService palsu: hanya `post`/`get` yang dipakai RewardService.
-/// `implements` dipakai supaya kode produksi tidak perlu diubah demi uji.
+/// ApiService palsu khusus menguji method post/get pada RewardService.
 class FakeApiService implements ApiService {
   FakeApiService({this.payload});
 
@@ -41,8 +40,7 @@ class FakeApiService implements ApiService {
 }
 
 void main() {
-  // Bentuk respons asli POST /api/rewards/redeem: field voucher disebar
-  // langsung di `data` (lihat rewardController.redeem), BUKAN di `data.voucher`.
+  // Format respons asli redeem meletakkan field voucher langsung di data.
   Map<String, dynamic> redeemPayload() => {
         'success': true,
         'message': 'Voucher CLN-VCR-9K3M berhasil diklaim.',
@@ -82,10 +80,7 @@ void main() {
       },
     });
 
-    // Bentuk bersarang tidak dikirim backend sekarang. `VoucherModel.fromJson`
-    // mengisi kode kosong alih-alih melempar, jadi parser harus menolak
-    // sendiri — kalau tidak, UI menampilkan kartu voucher tanpa kode QR dan
-    // kasir tidak bisa memakainya.
+    // Tolak respons voucher tanpa kode agar UI tidak menampilkan kartu kosong.
     await expectLater(
       RewardService(apiService: api).redeem(1),
       throwsA(isA<ApiException>()),

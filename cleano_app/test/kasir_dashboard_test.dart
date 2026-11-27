@@ -125,8 +125,7 @@ void main() {
     expect(find.textContaining('Ahmad Subagyo'), findsOneWidget);
     expect(find.text('Sedang Dicuci'), findsWidgets);
 
-    // 4. Di layar lebar, konten dibatasi 1100 px dan diletakkan di tengah
-    //    supaya grafik dan daftar tidak melebar penuh.
+    // Batasi lebar konten 1100 px dan pusatkan pada layar lebar.
     final content = find.byType(CustomScrollView);
     expect(tester.getSize(content).width, 1100);
     expect(tester.getCenter(content).dx, closeTo(640, 0.5));

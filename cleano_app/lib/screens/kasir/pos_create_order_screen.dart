@@ -16,17 +16,14 @@ import '../../services/api_service.dart';
 import '../../services/master_service.dart';
 import '../../services/order_service.dart';
 import '../../services/user_service.dart';
+import '../../widgets/language_picker_sheet.dart';
 import '../../widgets/member_card.dart';
 import '../../widgets/photo_picker_field.dart';
 import '../../widgets/service_dropdown.dart';
 import '../../widgets/voucher_field.dart';
 import '../../widgets/weight_input.dart';
 
-/// Layar POS Kasir — Pembuatan Transaksi Pesanan Baru Cleano:
-/// - Langkah 1: Lookup Pelanggan via QR Member Scanner atau Nomor HP
-/// - Langkah 2: Pilih Layanan, Berat Cucian (kg), dan Unggah Foto Wajib Bukti Pakaian
-/// - Langkah 3: Terapkan Voucher Diskon & Kalkulasi Total
-/// - Langkah 4: Pembayaran (Tunai atau Midtrans Snap WebView) & Sinkronisasi Status
+/// Layar POS Kasir (M4) untuk pembuatan pesanan dan pembayaran baru.
 class PosCreateOrderScreen extends StatefulWidget {
   const PosCreateOrderScreen({
     super.key,
@@ -129,15 +126,20 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() => _isSearchingCustomer = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mencari pelanggan: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(
+            content: Text(isEn ? 'Failed to find customer: $e' : 'Gagal mencari pelanggan: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
         );
       }
     }
   }
 
   void _showQrScanner() {
+    final isEn = context.l10n.localeName == 'en';
     final scannerController = MobileScannerController();
 
     showModalBottomSheet(
@@ -155,7 +157,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                 backgroundColor: Colors.transparent,
                 elevation: 0,
                 foregroundColor: Colors.white,
-                title: const Text('Pindai QR Member Cleano'),
+                title: Text(isEn ? 'Scan Cleano Member QR' : 'Pindai QR Member Cleano'),
               ),
               Expanded(
                 child: MobileScanner(
@@ -175,12 +177,14 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                   },
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.all(20),
+              Padding(
+                padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Arahkan kamera ke QR Code pada kartu pelanggan di aplikasi Cleano',
+                  isEn
+                      ? 'Point the camera at the QR Code on the customer card in the Cleano app'
+                      : 'Arahkan kamera ke QR Code pada kartu pelanggan di aplikasi Cleano',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ),
             ],
@@ -250,26 +254,34 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() => _isSubmitting = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memproses pesanan: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(
+            content: Text(isEn ? 'Failed to process order: $e' : 'Gagal memproses pesanan: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
         );
       }
     }
   }
 
   Future<void> _openSnapWebView(OrderModel order) async {
+    final isEn = context.l10n.localeName == 'en';
     final url = Uri.parse(order.snapRedirectUrl!);
 
-    // Web tidak punya implementasi webview_flutter (WebViewPlatform.instance null),
-    // jadi Snap dibuka di tab baru dan status dicek manual.
+    // Buka Snap di tab baru pada Web karena webview_flutter tidak tersedia.
     if (kIsWeb) {
       final opened = await launchUrl(url, webOnlyWindowName: '_blank');
       if (!mounted) return;
       if (!opened) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Pop-up diblokir browser. Buka manual: ${order.snapRedirectUrl}'),
+            content: Text(
+              isEn
+                  ? 'Pop-up blocked by browser. Open manually: ${order.snapRedirectUrl}'
+                  : 'Pop-up diblokir browser. Buka manual: ${order.snapRedirectUrl}',
+            ),
             duration: const Duration(minutes: 10),
           ),
         );
@@ -277,11 +289,14 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pembayaran ${order.orderCode} dibuka di tab baru. '
-              'Tekan Cek Status setelah selesai membayar.'),
+          content: Text(
+            isEn
+                ? 'Payment ${order.orderCode} opened in a new tab. Tap Check Status after completing payment.'
+                : 'Pembayaran ${order.orderCode} dibuka di tab baru. Tekan Cek Status setelah selesai membayar.',
+          ),
           duration: const Duration(minutes: 10),
           action: SnackBarAction(
-            label: 'Cek Status',
+            label: isEn ? 'Check Status' : 'Cek Status',
             onPressed: () => _checkPaymentStatus(order.id),
           ),
         ),
@@ -304,7 +319,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
           child: Column(
             children: [
               AppBar(
-                title: Text('Pembayaran Online ${order.orderCode}'),
+                title: Text(isEn ? 'Online Payment ${order.orderCode}' : 'Pembayaran Online ${order.orderCode}'),
                 actions: [
                   TextButton.icon(
                     onPressed: () async {
@@ -312,7 +327,10 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                       _checkPaymentStatus(order.id);
                     },
                     icon: const Icon(Icons.sync_rounded, color: AppTheme.primary),
-                    label: const Text('Cek Status', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w700)),
+                    label: Text(
+                      isEn ? 'Check Status' : 'Cek Status',
+                      style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ],
               ),
@@ -325,6 +343,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
   }
 
   Future<void> _checkPaymentStatus(int orderId) async {
+    final isEn = context.l10n.localeName == 'en';
     try {
       final updated = await _orderService.syncPayment(orderId);
       if (mounted) {
@@ -333,13 +352,18 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Status pembayaran: $e'), backgroundColor: AppTheme.warning),
+          SnackBar(
+            content: Text(isEn ? 'Payment status: $e' : 'Status pembayaran: $e'),
+            backgroundColor: AppTheme.warning,
+          ),
         );
       }
     }
   }
 
   void _showSuccessDialog(OrderModel order) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -353,29 +377,29 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
               child: const Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 28),
             ),
             const SizedBox(width: 12),
-            const Text('Pesanan Berhasil Disimpan!'),
+            Expanded(child: Text(l10n.orderSavedSuccess)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildReceiptRow('Nomor Order', order.orderCode, isBold: true),
+            _buildReceiptRow(isEn ? 'Order Number' : 'Nomor Order', order.orderCode, isBold: true),
             const SizedBox(height: 6),
-            _buildReceiptRow('Pelanggan', order.customerName),
+            _buildReceiptRow(l10n.customer, order.customerName),
             const SizedBox(height: 6),
-            _buildReceiptRow('Layanan', '${order.serviceName} (${Formatters.berat(order.weight)})'),
+            _buildReceiptRow(l10n.serviceLabel, '${order.serviceName} (${Formatters.berat(order.weight)})'),
             const SizedBox(height: 6),
-            _buildReceiptRow('Total Bayar', Formatters.rupiah(order.totalPrice), isBold: true),
+            _buildReceiptRow(isEn ? 'Total Payment' : 'Total Bayar', Formatters.rupiah(order.totalPrice), isBold: true),
             const SizedBox(height: 6),
             _buildReceiptRow(
-              'Status Pembayaran',
-              order.isLunas ? 'LUNAS' : 'BELUM BAYAR',
+              isEn ? 'Payment Status' : 'Status Pembayaran',
+              order.isLunas ? l10n.paidBadge : l10n.unpaidBadge,
               statusColor: order.isLunas ? AppTheme.success : AppTheme.warning,
             ),
             if (order.machineCode != null) ...[
               const SizedBox(height: 6),
-              _buildReceiptRow('Mesin Cuci', order.machineCode!),
+              _buildReceiptRow(isEn ? 'Washing Machine' : 'Mesin Cuci', order.machineCode!),
             ],
           ],
         ),
@@ -390,7 +414,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Cucian Baru'),
+            child: Text(l10n.newLaundryBtn),
           ),
         ],
       ),
@@ -432,10 +456,12 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Catat Cucian Baru'),
+        title: Text(l10n.posTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.restart_alt_rounded),
@@ -452,7 +478,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             // ==========================================
             // LANGKAH 1: IDENTIFIKASI PELANGGAN
             // ==========================================
-            _buildSectionHeader(number: '1', title: 'Pilih Pelanggan'),
+            _buildSectionHeader(number: '1', title: l10n.stepSelectCustomer),
             const SizedBox(height: 10),
             if (_customer == null)
               Container(
@@ -476,7 +502,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                               LengthLimitingTextInputFormatter(30),
                             ],
                             decoration: InputDecoration(
-                              hintText: 'Cari Kode MBR-XXXX atau No. HP...',
+                              hintText: l10n.searchCustomerHint,
                               prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primary),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -502,7 +528,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                     OutlinedButton.icon(
                       onPressed: _showQrScanner,
                       icon: const Icon(Icons.qr_code_scanner_rounded, color: AppTheme.primary),
-                      label: const Text('Scan QR Member Pelanggan'),
+                      label: Text(l10n.scanQrMember),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(double.infinity, 44),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -525,7 +551,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             // ==========================================
             // LANGKAH 2: LAYANAN, BERAT & BUKTI FOTO
             // ==========================================
-            _buildSectionHeader(number: '2', title: 'Layanan & Berat Cucian'),
+            _buildSectionHeader(number: '2', title: l10n.stepServiceWeight),
             const SizedBox(height: 10),
             ServiceDropdown(
               services: _services,
@@ -561,15 +587,15 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             TextField(
               controller: _notesController,
               maxLines: 2,
-              // orderValidator menolak catatan di atas 2000 karakter, tapi
-              // tanpa batas di sini pengguna bisa menempelkan teks sepanjang
-              // apa pun lebih dulu.
+              // Batasi panjang catatan di input agar tidak melebihi batas validator (2000).
               inputFormatters: [
                 LengthLimitingTextInputFormatter(2000),
               ],
               decoration: InputDecoration(
-                labelText: 'Catatan Khusus (Opsional)',
-                hintText: 'Misal: Pisahkan pakaian putih, ada kancing lepas...',
+                labelText: l10n.notesOptional,
+                hintText: isEn
+                    ? 'e.g., Separate white clothes, loose button...'
+                    : 'Misal: Pisahkan pakaian putih, ada kancing lepas...',
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -580,7 +606,10 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             // ==========================================
             // LANGKAH 3: VOUCHER & KALKULASI BIAYA
             // ==========================================
-            _buildSectionHeader(number: '3', title: 'Kupon Diskon & Total Biaya'),
+            _buildSectionHeader(
+              number: '3',
+              title: isEn ? 'Discount Coupon & Total Cost' : 'Kupon Diskon & Total Biaya',
+            ),
             const SizedBox(height: 10),
             VoucherField(
               availableVouchers: _customerVouchers,
@@ -594,7 +623,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
             // ==========================================
             // LANGKAH 4: METODE PEMBAYARAN & SUBMIT
             // ==========================================
-            _buildSectionHeader(number: '4', title: 'Cara Pembayaran'),
+            _buildSectionHeader(number: '4', title: isEn ? 'Payment Method' : 'Cara Pembayaran'),
             const SizedBox(height: 10),
             _buildPaymentMethodSelector(),
             const SizedBox(height: 24),
@@ -615,7 +644,7 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                     )
                   : Text(
-                      'Simpan & Buat Pesanan • ${Formatters.rupiah(_total)}',
+                      '${isEn ? 'Save & Create Order' : 'Simpan & Buat Pesanan'} • ${Formatters.rupiah(_total)}',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                     ),
             ),
@@ -646,6 +675,8 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
   }
 
   Widget _buildSummaryCard() {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -655,16 +686,16 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
       ),
       child: Column(
         children: [
-          _buildRow('Subtotal Cucian', Formatters.rupiah(_subtotal)),
+          _buildRow(isEn ? 'Laundry Subtotal' : 'Subtotal Cucian', Formatters.rupiah(_subtotal)),
           if (_discount > 0) ...[
             const SizedBox(height: 6),
-            _buildRow('Potongan Voucher', '- ${Formatters.rupiah(_discount)}', color: AppTheme.accent),
+            _buildRow(isEn ? 'Voucher Discount' : 'Potongan Voucher', '- ${Formatters.rupiah(_discount)}', color: AppTheme.accent),
           ],
           const Divider(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Pembayaran', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+              Text(l10n.totalPaymentLabel, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
               Text(
                 Formatters.rupiah(_total),
                 style: const TextStyle(
@@ -698,20 +729,25 @@ class _PosCreateOrderScreenState extends State<PosCreateOrderScreen> {
   }
 
   Widget _buildPaymentMethodSelector() {
+    final isEn = context.l10n.localeName == 'en';
     return Column(
       children: [
         _buildPaymentOption(
           id: 'tunai',
-          title: 'Bayar Tunai',
-          subtitle: 'Uang tunai diterima langsung di meja kasir',
+          title: isEn ? 'Cash Payment' : 'Bayar Tunai',
+          subtitle: isEn
+              ? 'Cash received directly at cashier desk'
+              : 'Uang tunai diterima langsung di meja kasir',
           icon: Icons.payments_rounded,
           iconColor: AppTheme.primary,
         ),
         const SizedBox(height: 10),
         _buildPaymentOption(
           id: 'midtrans',
-          title: 'QRIS / Transfer Digital',
-          subtitle: 'Bayar via QRIS, GoPay, OVO, ShopeePay, atau Virtual Account',
+          title: isEn ? 'QRIS / Digital Transfer' : 'QRIS / Transfer Digital',
+          subtitle: isEn
+              ? 'Pay via QRIS, GoPay, OVO, ShopeePay, or Virtual Account'
+              : 'Bayar via QRIS, GoPay, OVO, ShopeePay, atau Virtual Account',
           icon: Icons.qr_code_2_rounded,
           iconColor: AppTheme.secondary,
         ),
