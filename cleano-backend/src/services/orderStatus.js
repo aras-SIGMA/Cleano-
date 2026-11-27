@@ -124,8 +124,12 @@ async function attemptConfirmRelay(conn, { orderId, machineId }) {
   return { orderId, machineId, machineCode: machine.machine_code };
 }
 
+const isLockError = (err) => (
+  err.code === 'ER_LOCK_DEADLOCK' || err.code === 'ER_LOCK_WAIT_TIMEOUT'
+);
+
 // Satu percobaan penuh termasuk transaksi dan pengulangan saat bentrok kunci.
-async function runTx(fn) {
+async function runTx(fn, shouldRetry = isLockError) {
   for (let attempt = 1; ; attempt += 1) {
     const conn = await pool.getConnection();
     try {
@@ -135,8 +139,7 @@ async function runTx(fn) {
       return result;
     } catch (err) {
       await conn.rollback().catch(() => {});
-      const retryable = err.code === 'ER_LOCK_DEADLOCK' || err.code === 'ER_LOCK_WAIT_TIMEOUT';
-      if (attempt >= 3 || !retryable) throw err;
+      if (attempt >= 3 || !shouldRetry(err)) throw err;
     } finally {
       conn.release();
     }

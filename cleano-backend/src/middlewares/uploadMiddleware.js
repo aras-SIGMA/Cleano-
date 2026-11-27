@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const cloudinary = require('../config/cloudinary');
+const { badRequest } = require('../utils/response');
 
 // Buat folder upload secara malas di os.tmpdir() agar aman di Vercel.
 const uploadDir = process.env.VERCEL
@@ -63,4 +65,36 @@ function verifyImageMagicBytes(filePath) {
   }
 }
 
-module.exports = { upload, uploadDir, maxBytes, verifyImageMagicBytes };
+/** Kelola validasi foto, unggahan Cloudinary/lokal, dan pembersihan file otomatis. */
+async function withUploadedImage(req, {
+  missingMessage,
+  parseBody,
+  beforeUpload,
+  uploadOptions,
+}, handler) {
+  let uploaded = null;
+  let validFile = false;
+  try {
+    const context = parseBody ? parseBody(req) : null;
+    if (!req.file) throw badRequest(missingMessage);
+    if (!verifyImageMagicBytes(req.file.path)) {
+      throw badRequest('Format foto harus JPG, PNG, atau WEBP yang valid.');
+    }
+    validFile = true;
+    if (beforeUpload) beforeUpload(context);
+
+    uploaded = cloudinary.enabled
+      ? await cloudinary.uploadImage(req.file.path, uploadOptions)
+      : { url: `/uploads/${req.file.filename}`, publicId: null };
+
+    return await handler(uploaded.url, context);
+  } catch (err) {
+    if (uploaded?.publicId) await cloudinary.destroyImage(uploaded.publicId);
+    if (req.file && (!cloudinary.enabled || !validFile)) fs.unlink(req.file.path, () => {});
+    throw err;
+  } finally {
+    if (cloudinary.enabled && req.file) fs.unlink(req.file.path, () => {});
+  }
+}
+
+module.exports = { upload, uploadDir, maxBytes, verifyImageMagicBytes, withUploadedImage };

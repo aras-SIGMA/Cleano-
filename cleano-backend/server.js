@@ -35,18 +35,17 @@ app.use(helmet({
 // Izinkan request tanpa Origin untuk mobile; batasi origin browser di produksi.
 const origins = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 const isProd = process.env.NODE_ENV === 'production';
-app.use(cors(
-  origins.length
-    ? {
-        origin: (origin, cb) => {
-          if (!origin || origins.includes(origin)) return cb(null, true);
-          return cb(null, false);
-        },
-      }
-    : isProd
-      ? { origin: false }
-      : {},
-));
+
+function buildCorsOptions() {
+  if (origins.length) {
+    return {
+      origin: (origin, cb) => cb(null, !origin || origins.includes(origin)),
+    };
+  }
+  return isProd ? { origin: false } : {};
+}
+
+app.use(cors(buildCorsOptions()));
 
 // Batasi ukuran body JSON (default 1 MB) untuk mencegah banjir memori.
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
@@ -87,23 +86,27 @@ const MULTER_MESSAGES = {
   LIMIT_PART_COUNT: 'Jumlah bagian formulir melebihi batas.',
 };
 
+function formatError(err, fromTrigger) {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`;
+  }
+  if (MULTER_MESSAGES[err.code]) return MULTER_MESSAGES[err.code];
+  if (err.name === 'MulterError') return 'Unggahan berkas tidak valid.';
+  if (err.type === 'entity.too.large') {
+    return `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.`;
+  }
+  if (fromTrigger) return err.sqlMessage || err.message || 'Terjadi kesalahan pada server.';
+  return err.message || 'Terjadi kesalahan pada server.';
+}
+
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   // SQLSTATE '45000' dari trigger dipetakan ke HTTP 400 dengan pesan bisnis.
   const fromTrigger = err.sqlState === '45000' || err.errno === 1644
     || err.code === 'ER_SIGNAL_EXCEPTION';
   const isMulter = err.name === 'MulterError';
-  const tooLarge = err.type === 'entity.too.large';
-
   const status = err.status || (fromTrigger || isMulter ? 400 : 500);
-  const multerMessage = err.code === 'LIMIT_FILE_SIZE'
-    ? `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`
-    : MULTER_MESSAGES[err.code] || (isMulter ? 'Unggahan berkas tidak valid.' : null);
-
-  const message = multerMessage
-    || (tooLarge ? `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.` : null)
-    || (fromTrigger ? err.sqlMessage || err.message : err.message)
-    || 'Terjadi kesalahan pada server.';
+  const message = formatError(err, fromTrigger);
 
   if (status >= 500) {
     log.error('permintaan gagal', { ...describe(err), method: req.method, path: req.originalUrl });

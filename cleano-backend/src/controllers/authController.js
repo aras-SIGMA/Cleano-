@@ -31,6 +31,12 @@ function publicUser(row) {
   };
 }
 
+/** Ambil profil publik pengguna berdasarkan id dari pool atau transaksi. */
+async function findUserById(db, id) {
+  const [rows] = await db.query(`select ${USER_COLS} from users where id = ? limit 1`, [id]);
+  return rows.length ? publicUser(rows[0]) : null;
+}
+
 function signToken(row) {
   return jwt.sign(
     { id: row.id, member_code: row.member_code, role: row.role },
@@ -61,10 +67,9 @@ async function register(req, res) {
         [name, email, hash, phone, memberCode],
       );
       // Baca user di dalam transaksi sebelum commit agar koneksi tetap konsisten.
-      const [fresh] = await conn.query(`select ${USER_COLS} from users where id = ?`, [result.insertId]);
-      const user = fresh[0];
+      const user = await findUserById(conn, result.insertId);
       // Buat token sebelum commit agar tidak ada kegagalan setelah user tersimpan.
-      const body = { token: signToken(user), user: publicUser(user) };
+      const body = { token: signToken(user), user };
       await conn.commit();
       return created(res, body, 'Registrasi berhasil.');
     } catch (err) {
@@ -123,4 +128,4 @@ async function changePassword(req, res) {
   return ok(res, null, 'Kata sandi berhasil diperbarui.');
 }
 
-module.exports = { register, login, changePassword, tierOf, publicUser };
+module.exports = { register, login, changePassword, tierOf, publicUser, findUserById };

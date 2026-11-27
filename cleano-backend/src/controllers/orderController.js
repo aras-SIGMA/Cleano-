@@ -1,6 +1,5 @@
 'use strict';
 
-const fs = require('fs');
 const { pool } = require('../config/database');
 const { created, ok, badRequest, notFound, HttpError } = require('../utils/response');
 const { parse, parseId } = require('../utils/validate');
@@ -11,16 +10,13 @@ const { allocateMachine, estimateQueueWait } = require('../services/orderAllocat
 const { runTx, attemptStatusChange, attemptConfirmRelay } = require('../services/orderStatus');
 const { attemptSyncPayment } = require('../services/paymentSync');
 const { snap, enabled } = require('../config/midtrans');
-const cloudinary = require('../config/cloudinary');
-const { verifyImageMagicBytes } = require('../middlewares/uploadMiddleware');
+const { withUploadedImage } = require('../middlewares/uploadMiddleware');
 
 // Ambil kolom view tanpa snap_token karena merupakan kredensial pembayaran.
 const COLS = `id, order_code, user_id, customer_name, customer_phone, member_code, customer_tier,
   service_id, service_name, machine_id, machine_code, machine_finish_at, weight,
   subtotal_price, discount_amount, total_price, payment_method, payment_status, paid_at,
   snap_redirect_url, status, queue_wait_minutes, image_url, notes, voucher_id, voucher_code, created_at`;
-
-const MAX_ATTEMPTS = 3;
 
 // Kelompok 'aktif' menggabungkan 4 status berjalan untuk filter dashboard kasir.
 const AKTIF = ['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil'];
@@ -113,60 +109,26 @@ function isRetryable(err) {
 }
 
 // Satu percobaan termasuk transaksi dan pengulangan bila bentrok.
-async function placeOrder(input) {
-  for (let attempt = 1; ; attempt += 1) {
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      const row = await attemptOrder(conn, input);
-      // Commit setelah semua langkah sukses karena transaksi Midtrans tidak bisa di-rollback.
-      await conn.commit();
-      return row;
-    } catch (err) {
-      // Rollback transaksi otomatis membatalkan penandaan mesin dan voucher.
-      await conn.rollback().catch(() => {});
-      if (attempt >= MAX_ATTEMPTS || !isRetryable(err)) throw err;
-    } finally {
-      conn.release();
-    }
-  }
+function placeOrder(input) {
+  return runTx((conn) => attemptOrder(conn, input), isRetryable);
 }
 
 // POST /api/orders — kasir, multipart dengan foto wajib
 async function create(req, res) {
-  // Bersihkan berkas sementara multer di blok finally apa pun hasilnya.
-  let uploaded = null;
-  let validFile = false;
-  try {
-    const body = parse(orderCreateBody, req.body);
-    if (!req.file) throw badRequest('Foto bukti kondisi pakaian wajib diunggah pada field "image".');
-    if (!verifyImageMagicBytes(req.file.path)) {
-      throw badRequest('Format foto harus JPG, PNG, atau WEBP yang valid.');
-    }
-    validFile = true;
-
-    if (body.payment_method === 'midtrans' && !enabled) {
-      throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
-    }
-
-    // Diunggah setelah validasi lolos, supaya request yang ditolak tidak
-    // menghabiskan kuota Cloudinary.
-    uploaded = cloudinary.enabled
-      ? await cloudinary.uploadImage(req.file.path)
-      : { url: `/uploads/${req.file.filename}`, publicId: null };
-
-    const row = await placeOrder({ body, imageUrl: uploaded.url });
-    return created(res, row, 'Order dibuat.');
-  } catch (err) {
-    // Hapus foto Cloudinary bila pembuatan order ditolak agar tidak yatim.
-    if (uploaded?.publicId) await cloudinary.destroyImage(uploaded.publicId);
-    // Hapus berkas lokal jika order/validasi gagal agar tidak menumpuk sampah di disk.
-    if (req.file && (!cloudinary.enabled || !validFile)) fs.unlink(req.file.path, () => {});
-    throw err;
-  } finally {
-    // Hapus salinan disk lokal hanya setelah foto tersimpan di Cloudinary.
-    if (cloudinary.enabled && req.file) fs.unlink(req.file.path, () => {});
-  }
+  const row = await withUploadedImage(
+    req,
+    {
+      missingMessage: 'Foto bukti kondisi pakaian wajib diunggah pada field "image".',
+      parseBody: () => parse(orderCreateBody, req.body),
+      beforeUpload: (body) => {
+        if (body.payment_method === 'midtrans' && !enabled) {
+          throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
+        }
+      },
+    },
+    (imageUrl, body) => placeOrder({ body, imageUrl }),
+  );
+  return created(res, row, 'Order dibuat.');
 }
 
 // GET /api/orders: tanpa snap_token; snap_redirect_url hanya untuk kasir.
