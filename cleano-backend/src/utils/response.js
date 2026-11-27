@@ -10,8 +10,7 @@ function created(res, data, message = 'Data berhasil dibuat.') {
   return res.status(201).json({ success: true, message, data });
 }
 
-// Error terstruktur. Controller melempar HttpError, error handler di server.js
-// yang mengubahnya jadi JSON.
+// Kelas HttpError agar error handler server.js membentuk respons JSON seragam.
 class HttpError extends Error {
   constructor(status, message) {
     super(message);

@@ -2,8 +2,7 @@
 
 const { z } = require('zod');
 
-// Batas field mengikuti kolom database_schema.sql v1.4. Default di sini
-// mencerminkan default kolom, supaya insert bisa satu pernyataan tetap.
+// Skema validasi layanan mengikuti kolom dan nilai default database_schema.sql.
 
 const nullableText = (max, label) =>
   z.string().max(max, `${label} maksimal ${max} karakter.`).nullish();
@@ -26,10 +25,7 @@ const serviceFields = {
   description: nullableText(2000, 'Deskripsi'),
 };
 
-// PUT: semua field wajib. Kalau PUT memakai default, field yang tidak dikirim
-// akan ditimpa diam-diam. Sudah pernah terjadi: mengubah harga layanan
-// "Setrika & Pengeringan Saja" ikut mengubah requires_machine 0 -> 1 dan
-// durasi 0 -> 45, sehingga layanan tanpa mesin mendadak butuh mesin.
+// PUT layanan mewajibkan semua field agar nilai default tidak menimpa data.
 const servicePutBody = z.object({ ...serviceFields, description: serviceFields.description.default(null) });
 
 // POST: tiga field teknis boleh dihilangkan dan memakai default kolom.
@@ -41,16 +37,12 @@ const serviceCreateBody = z.object({
   description: serviceFields.description.default(null),
 });
 
-// DATETIME MySQL: 'YYYY-MM-DD HH:MM:SS'. Divalidasi di sini supaya nilai cacat
-// tidak sampai ke kolom dan berubah jadi 500 dari MySQL.
+// Validasi format DATETIME MySQL sebelum nilai dikirim ke database.
 const dateTime = z.string({ error: 'Waktu selesai harus teks YYYY-MM-DD HH:MM:SS.' })
   .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, 'Waktu selesai harus format YYYY-MM-DD HH:MM:SS.')
   .refine((v) => !Number.isNaN(Date.parse(v.replace(' ', 'T'))), 'Waktu selesai bukan tanggal yang valid.');
 
-// 'digunakan' bukan status yang boleh ditulis manusia, baik saat membuat
-// maupun mengubah mesin. Status itu milik alur order. Kalau kasir bisa
-// menyetelnya sendiri, mesin tampak terpakai tanpa order dan tidak akan pernah
-// dilepas — alur order hanya membebaskan mesin yang dipakainya sendiri.
+// Larang status 'digunakan' ditulis manual karena dikelola penuh oleh alur order.
 const machineBody = z.object({
   machine_code: z.string({ error: 'Kode mesin wajib diisi.' }).trim()
     .min(1, 'Kode mesin wajib diisi.')
@@ -64,9 +56,7 @@ const machineBody = z.object({
   estimated_finish_at: dateTime.nullish().default(null),
 });
 
-// PATCH hanya untuk menandai kondisi unit. capacity_kg tidak ada di sini:
-// kapasitas adalah spesifikasi unit fisik yang ditetapkan sekali saat mesin
-// didaftarkan, bukan sesuatu yang diubah dari layar POS.
+// PATCH mesin hanya ubah status; capacity_kg tetap sesuai spesifikasi awal.
 const machinePatchBody = z.object({
   status: z.enum(['tersedia', 'maintenance'], { error: 'Status mesin hanya boleh tersedia atau maintenance.' }).optional(),
   estimated_finish_at: dateTime.nullish(),
@@ -92,9 +82,7 @@ const rewardCreateBody = z.object({
   is_active: rewardFields.is_active.default(1),
 });
 
-// Status aktif reward milik PATCH /:id/toggle, bukan PUT. Kalau PUT ikut
-// menulis is_active dengan default, reward yang sudah dinonaktifkan akan aktif
-// kembali hanya karena judulnya diubah. Karena itu is_active tidak ada di sini.
+// PUT reward mengecualikan is_active karena status aktif dikelola endpoint toggle.
 const rewardPutBody = z.object({
   title: rewardFields.title,
   description: rewardFields.description.default(null),
@@ -102,8 +90,7 @@ const rewardPutBody = z.object({
   discount_amount: rewardFields.discount_amount,
 });
 
-// Klaim voucher oleh pelanggan. Hanya reward_id: kode voucher dibuat backend,
-// dan poin dipotong trigger — keduanya tidak boleh ditentukan klien.
+// Skema klaim voucher hanya menerima reward_id; kode dan poin oleh server.
 const rewardRedeemBody = z.object({
   reward_id: z.preprocess(
     (v) => (v === undefined || v === null || v === '' ? null : Number(v)),

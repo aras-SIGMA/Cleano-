@@ -1,6 +1,5 @@
 'use strict';
 
-const fs = require('fs');
 const { pool } = require('../config/database');
 const { created, ok, badRequest, notFound, HttpError } = require('../utils/response');
 const { parse, parseId } = require('../utils/validate');
@@ -11,26 +10,18 @@ const { allocateMachine, estimateQueueWait } = require('../services/orderAllocat
 const { runTx, attemptStatusChange, attemptConfirmRelay } = require('../services/orderStatus');
 const { attemptSyncPayment } = require('../services/paymentSync');
 const { snap, enabled } = require('../config/midtrans');
-const cloudinary = require('../config/cloudinary');
+const { withUploadedImage } = require('../middlewares/uploadMiddleware');
 
-// Kolom respons diambil dari view supaya nama pelanggan/layanan ikut terbawa.
-// snap_token sengaja tidak ada: itu kredensial pembayaran dan tidak pernah perlu
-// sampai ke klien (aturan yang sama dipakai B5).
+// Ambil kolom view tanpa snap_token karena merupakan kredensial pembayaran.
 const COLS = `id, order_code, user_id, customer_name, customer_phone, member_code, customer_tier,
   service_id, service_name, machine_id, machine_code, machine_finish_at, weight,
   subtotal_price, discount_amount, total_price, payment_method, payment_status, paid_at,
   snap_redirect_url, status, queue_wait_minutes, image_url, notes, voucher_id, voucher_code, created_at`;
 
-const MAX_ATTEMPTS = 3;
-
-// 'aktif' adalah nama grup, bukan nilai enum di tabel. Dashboard kasir
-// (PRD-03 §4) memintanya sebagai satu permintaan, bukan empat filter terpisah.
+// Kelompok 'aktif' menggabungkan 4 status berjalan untuk filter dashboard kasir.
 const AKTIF = ['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil'];
 
-// Nomor urut diambil dari MAX per tanggal. Dua request pada milidetik yang sama
-// bisa mendapat nomor yang sama; indeks unik order_code yang memutuskan, lalu
-// percobaan diulang dengan nomor baru. Jangan dikunci FOR UPDATE — agregat tidak
-// mengunci baris yang belum ada.
+// Ambil nomor urut harian dari MAX; bentrok ditangani unique index order_code.
 async function nextOrderCode(conn) {
   const [[row]] = await conn.query(
     "select max(order_code) as last, date_format(now(), '%Y%m%d') as today "
@@ -41,10 +32,7 @@ async function nextOrderCode(conn) {
   return `CLN-${row.today}-${String(lastNumber + 1).padStart(4, '0')}`;
 }
 
-// Satu percobaan penuh di atas koneksi yang sudah membuka transaksi. Tidak
-// memulai atau mengakhiri transaksi sendiri supaya skrip uji bisa menjalankannya
-// lalu ROLLBACK — order tidak boleh dihapus (trigger L-07), jadi rollback adalah
-// satu-satunya cara membersihkan hasil uji.
+// Jalankan percobaan pembuatan order dalam transaksi agar tes bisa ROLLBACK.
 async function attemptOrder(conn, { body, imageUrl }) {
   const [[user]] = await conn.query('select id from users where id = ?', [body.user_id]);
   if (!user) throw notFound('Pelanggan tidak ditemukan.');
@@ -55,9 +43,7 @@ async function attemptOrder(conn, { body, imageUrl }) {
   );
   if (!service) throw notFound('Paket layanan tidak ditemukan.');
 
-  // Dikunci supaya dua order tidak memakai kupon sekali-pakai yang sama.
-  // Trigger juga memeriksa, tapi pemeriksaan itu baru berjalan saat INSERT —
-  // dua transaksi paralel sudah sama-sama membaca is_used = 0 saat itu.
+  // Kunci baris voucher dengan FOR UPDATE mencegah pemakaian ganda paralel.
   let voucherId = null;
   if (body.voucher_code) {
     const [[voucher]] = await conn.query(
@@ -88,9 +74,7 @@ async function attemptOrder(conn, { body, imageUrl }) {
 
   const orderCode = await nextOrderCode(conn);
 
-  // subtotal_price / discount_amount / total_price / paid_at /
-  // customer_tier_snapshot / points_awarded sengaja tidak dikirim: trigger
-  // BEFORE INSERT yang menghitung dan menimpanya.
+  // Harga, diskon, total, paid_at, tier, dan poin dihitung oleh trigger.
   const [ins] = await conn.query(
     `insert into orders
        (order_code, user_id, service_id, machine_id, weight, payment_method, status,
@@ -102,10 +86,7 @@ async function attemptOrder(conn, { body, imageUrl }) {
 
   if (body.payment_method === 'midtrans') {
     const [[priced]] = await conn.query('select total_price from orders where id = ?', [ins.insertId]);
-    // ponytail: panggilan HTTP Midtrans terjadi di dalam transaksi, sesuai
-    // PRD-02 §4.3 langkah 5. Konsekuensinya lock voucher/mesin ditahan selama
-    // round-trip gateway. Pindahkan ke pola outbox kalau latensi Midtrans mulai
-    // menahan kasir lain.
+    // Panggilan Midtrans berjalan dalam transaksi sesuai alur PRD-02 §4.3.
     const [[cust]] = await conn.query('select name, phone, email from users where id = ?', [body.user_id]);
     const tx = await snap.createTransaction({
       transaction_details: { order_id: orderCode, gross_amount: priced.total_price },
@@ -123,71 +104,34 @@ async function attemptOrder(conn, { body, imageUrl }) {
 
 function isRetryable(err) {
   if (err.code === 'ER_LOCK_DEADLOCK' || err.code === 'ER_LOCK_WAIT_TIMEOUT') return true;
-  // Nomor order bentrok boleh diulang. ER_DUP_ENTRY dari uq_orders_voucher tidak:
-  // itu berarti voucher sudah dipakai order lain, dan mengulang tidak menolong.
+  // Ulangi bila order_code bentrok; tolak langsung bila voucher sudah dipakai.
   return err.code === 'ER_DUP_ENTRY' && String(err.sqlMessage || '').includes('order_code');
 }
 
 // Satu percobaan termasuk transaksi dan pengulangan bila bentrok.
-async function placeOrder(input) {
-  for (let attempt = 1; ; attempt += 1) {
-    const conn = await pool.getConnection();
-    try {
-      await conn.beginTransaction();
-      const row = await attemptOrder(conn, input);
-      // Commit setelah semua langkah selesai: rollback tidak bisa menarik kembali
-      // transaksi Midtrans yang sudah terlanjur dibuat.
-      await conn.commit();
-      return row;
-    } catch (err) {
-      // Mesin dan voucher ditandai di dalam transaksi ini, jadi rollback sudah
-      // mengembalikannya. Tidak ada pelepasan manual di sini.
-      await conn.rollback().catch(() => {});
-      if (attempt >= MAX_ATTEMPTS || !isRetryable(err)) throw err;
-    } finally {
-      conn.release();
-    }
-  }
+function placeOrder(input) {
+  return runTx((conn) => attemptOrder(conn, input), isRetryable);
 }
 
 // POST /api/orders — kasir, multipart dengan foto wajib
 async function create(req, res) {
-  // multer sudah menulis berkas ke disk sebelum handler ini jalan, jadi berkas
-  // sementara perlu dibersihkan apa pun hasilnya.
-  let uploaded = null;
-  try {
-    const body = parse(orderCreateBody, req.body);
-    if (!req.file) throw badRequest('Foto bukti kondisi pakaian wajib diunggah pada field "image".');
-
-    if (body.payment_method === 'midtrans' && !enabled) {
-      throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
-    }
-
-    // Diunggah setelah validasi lolos, supaya request yang ditolak tidak
-    // menghabiskan kuota Cloudinary.
-    uploaded = cloudinary.enabled
-      ? await cloudinary.uploadImage(req.file.path)
-      : { url: `/uploads/${req.file.filename}`, publicId: null };
-
-    const row = await placeOrder({ body, imageUrl: uploaded.url });
-    return created(res, row, 'Order dibuat.');
-  } catch (err) {
-    // Foto bisa sudah terunggah sebelum order ditolak (mis. voucher tidak
-    // sah). Jangan tinggalkan foto yatim yang menagih kuota.
-    if (uploaded?.publicId) await cloudinary.destroyImage(uploaded.publicId);
-    throw err;
-  } finally {
-    // Salinan sementara di disk hanya sampah bila Cloudinary yang menyimpan.
-    // Di mode lokal berkas itulah yang disajikan lewat /uploads.
-    if (cloudinary.enabled && req.file) fs.unlink(req.file.path, () => {});
-  }
+  const row = await withUploadedImage(
+    req,
+    {
+      missingMessage: 'Foto bukti kondisi pakaian wajib diunggah pada field "image".',
+      parseBody: () => parse(orderCreateBody, req.body),
+      beforeUpload: (body) => {
+        if (body.payment_method === 'midtrans' && !enabled) {
+          throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
+        }
+      },
+    },
+    (imageUrl, body) => placeOrder({ body, imageUrl }),
+  );
+  return created(res, row, 'Order dibuat.');
 }
 
-// GET /api/orders — semua login. Pelanggan hanya melihat ordernya sendiri.
-//
-// Kolom eksplisit, tanpa select *: view memuat snap_token dan snap_redirect_url,
-// dan keduanya kredensial pembayaran. snap_token tidak pernah dikirim ke siapa
-// pun; snap_redirect_url hanya ke kasir yang memang menjalankan pembayaran.
+// GET /api/orders: tanpa snap_token; snap_redirect_url hanya untuk kasir.
 const LIST_COLS_KASIR = `id, order_code, user_id, customer_name, customer_phone, member_code,
   customer_tier, service_id, service_name, price_per_kg, requires_machine, machine_id, machine_code,
   machine_finish_at, weight, subtotal_price, discount_amount, total_price, payment_method,
@@ -203,13 +147,11 @@ async function list(req, res) {
   const q = parse(orderListQuery, req.query);
   const isKasir = req.user.role === 'kasir';
 
-  // user_id diambil dari token, tidak pernah dari query string — kalau dari
-  // query, pelanggan cukup mengubah angkanya untuk membaca order orang lain.
+  // Ambil user_id dari token, bukan query, untuk mencegah akses lintas akun.
   const where = [];
   const values = [];
   if (!isKasir) { where.push('user_id = ?'); values.push(req.user.id); }
-  // LIKE: % dan _ dari pengguna di-escape supaya "CLN_2%" tidak berubah jadi
-  // pola buatan. Driver mysql2 memakai escape char default backslash.
+  // Escape karakter % dan _ sebelum query LIKE di MySQL.
   if (q.search) {
     const like = `%${q.search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
     where.push('(order_code like ? or customer_name like ? or customer_phone like ?)');
@@ -257,8 +199,7 @@ async function updateStatus(req, res) {
 
   return ok(res, {
     ...row,
-    // Hanya terisi ketika mesin benar-benar dilepas pada transisi ini. UI memakai
-    // null sebagai "tidak ada estafet", jadi jangan kirim objek kosong.
+    // Kirim objek next_queue_order hanya bila mesin benar-benar baru dilepas.
     freed_machine_id: result.freedMachineId,
     next_queue_order: result.nextQueueOrder,
   }, 'Status order diperbarui.');
@@ -279,8 +220,7 @@ async function confirmRelay(req, res) {
 async function syncPayment(req, res) {
   const id = parseId(req.params.id);
 
-  // Mode stub: tanpa server key, Midtrans tidak bisa dihubungi. Jangan pernah
-  // membalas sukses palsu — kasir akan mengira pelanggan sudah lunas.
+  // Mode stub: jangan balas sukses palsu saat server key Midtrans kosong.
   if (!enabled) {
     throw new HttpError(503, 'Pembayaran Midtrans belum dikonfigurasi (MIDTRANS_SERVER_KEY kosong).');
   }

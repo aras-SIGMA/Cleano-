@@ -17,7 +17,7 @@ const core = new midtransClient.CoreApi({
   clientKey: process.env.MIDTRANS_CLIENT_KEY || '',
 });
 
-// server key kosong = mode stub; jangan sampai app diam-diam minta ke Midtrans
+// Mode stub saat server key kosong; jangan hubungi Midtrans diam-diam.
 const enabled = Boolean(process.env.MIDTRANS_SERVER_KEY);
 
 module.exports = { snap, core, enabled, isProduction };

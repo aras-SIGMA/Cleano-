@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
 import '../models/voucher_model.dart';
+import 'language_picker_sheet.dart';
 
 /// Komponen pemilih / input kode voucher diskon di POS Kasir.
 class VoucherField extends StatefulWidget {
@@ -60,6 +61,8 @@ class _VoucherFieldState extends State<VoucherField> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final hasSelected = widget.selectedVoucher != null;
 
     return Container(
@@ -75,13 +78,13 @@ class _VoucherFieldState extends State<VoucherField> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.confirmation_number_outlined, size: 18, color: AppTheme.primary),
-                  SizedBox(width: 8),
+                  const Icon(Icons.confirmation_number_outlined, size: 18, color: AppTheme.primary),
+                  const SizedBox(width: 8),
                   Text(
-                    'Voucher Diskon',
-                    style: TextStyle(
+                    l10n.stepVoucher,
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
@@ -96,7 +99,7 @@ class _VoucherFieldState extends State<VoucherField> {
                     visualDensity: VisualDensity.compact,
                     foregroundColor: AppTheme.danger,
                   ),
-                  child: const Text('Batal Pakai', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  child: Text(isEn ? 'Remove' : 'Batal Pakai', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 ),
             ],
           ),
@@ -128,8 +131,8 @@ class _VoucherFieldState extends State<VoucherField> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          'Kode: ${widget.selectedVoucher!.voucherCode}'
-                          '${widget.selectedVoucher!.discountAmount > 0 ? ' • Hemat ${Formatters.rupiah(widget.selectedVoucher!.discountAmount)}' : ''}',
+                          '${isEn ? 'Code' : 'Kode'}: ${widget.selectedVoucher!.voucherCode}'
+                          '${widget.selectedVoucher!.discountAmount > 0 ? ' • ${isEn ? 'Save' : 'Hemat'} ${Formatters.rupiah(widget.selectedVoucher!.discountAmount)}' : ''}',
                           style: const TextStyle(
                             fontSize: 11,
                             color: Color(0xFFB45309),
@@ -151,9 +154,7 @@ class _VoucherFieldState extends State<VoucherField> {
                   child: TextField(
                     controller: _codeController,
                     textCapitalization: TextCapitalization.characters,
-                    // Kolom voucher_code di skema varchar(30) dan validator
-                    // menolak di atas 30 karakter. Dibatasi di sini supaya
-                    // masukan panjang tidak pernah sampai ke lapisan render.
+                    // Batasi input voucher_code ke 30 karakter sesuai kolom varchar(30).
                     inputFormatters: [
                       LengthLimitingTextInputFormatter(30),
                     ],
@@ -163,7 +164,7 @@ class _VoucherFieldState extends State<VoucherField> {
                       fontFamily: 'monospace',
                     ),
                     decoration: InputDecoration(
-                      hintText: 'Ketik kode voucher...',
+                      hintText: l10n.typeVoucherHint,
                       prefixIcon: const Icon(Icons.discount_outlined, size: 18, color: AppTheme.textSecondary),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(
@@ -187,7 +188,7 @@ class _VoucherFieldState extends State<VoucherField> {
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  child: const Text('Terapkan', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  child: Text(l10n.applyVoucher, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
@@ -195,9 +196,9 @@ class _VoucherFieldState extends State<VoucherField> {
             // Daftar voucher aktif milik pelanggan (jika ada)
             if (widget.availableVouchers.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const Text(
-                'Voucher Aktif Milik Pelanggan:',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
+              Text(
+                isEn ? 'Customer Active Vouchers:' : 'Voucher Aktif Milik Pelanggan:',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textSecondary),
               ),
               const SizedBox(height: 6),
               Wrap(

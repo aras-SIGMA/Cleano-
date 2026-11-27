@@ -1,26 +1,26 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/dashboard_summary_model.dart';
 import '../../models/order_model.dart';
 import '../../services/api_service.dart';
+import '../../services/daily_report_service.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/export_service.dart';
 import '../../services/order_service.dart';
+import '../../utils/daily_report_composer.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 import '../../widgets/state_view.dart';
 
-/// Layar Dashboard Kasir Cleano dengan inspirasi visual modern & minimalis:
-/// - Top Bar dengan tombol aksi pill 'Download'
-/// - Hero Stat omzet besar yang bersih & fokus
-/// - Grafik Batang capsule fl_chart dengan pill penanda rata-rata
-/// - Grid 2x2 kartu metrik ringkas & proporsional
-/// - Filter tab pill untuk daftar antrean pesanan aktif
-/// - Ekspor laporan operasional & pull-to-refresh
+/// Layar Dashboard Kasir dengan hero omzet, grafik, metrik, dan ekspor.
 class KasirDashboardScreen extends StatefulWidget {
   const KasirDashboardScreen({
     super.key,
@@ -79,6 +79,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
           _activeOrders = orderResult.items;
           _isLoading = false;
         });
+        unawaited(_maybeRunDailyReport());
       }
     } on ApiException catch (e) {
       if (mounted) {
@@ -89,23 +90,70 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() {
-          _errorMessage = 'Gagal memuat data dashboard: $e';
+          _errorMessage = isEn ? 'Failed to load dashboard data: $e' : 'Gagal memuat data dashboard: $e';
           _isLoading = false;
         });
       }
     }
   }
 
+  /// Kirim laporan harian otomatis sekali sehari saat dashboard berhasil dimuat.
+  Future<void> _maybeRunDailyReport() async {
+    final summary = _summary;
+    if (summary == null) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final content = DailyReportComposer.compose(
+        summary: summary,
+        orders: _activeOrders,
+        day: DateTime.now(),
+      );
+
+      final service = DailyReportService(
+        prefs,
+        onDailyReportReady: ({required summary, required orders}) =>
+            _exportService.exportReport(format: 'PDF', summary: summary, orders: orders),
+      );
+
+      final ran = await service.maybeRunDaily(summary: summary, orders: content.orders);
+      if (!ran || !mounted) return;
+      final isEn = context.l10n.localeName == 'en';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isEn
+                ? 'Daily report ready to share — ${content.comparisonLabel}'
+                : 'Laporan harian siap dibagikan — ${content.comparisonLabel}',
+          ),
+          backgroundColor: AppTheme.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      // Laporan otomatis bersifat tambahan; dashboard tidak boleh terganggu.
+    }
+  }
+
   void _showExportDialog() {
     if (_summary == null) return;
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final total7Hari = _summary!.revenue7Days.fold<int>(0, (sum, d) => sum + d.dailyRevenue);
 
     final summaryRows = [
-      ('Omzet Hari Ini', Formatters.rupiah(_summary!.todayRevenue)),
-      ('Total Omzet 7 Hari', Formatters.rupiah(total7Hari)),
-      ('Pesanan Aktif', '${_summary!.activeOrders} Pesanan'),
-      ('Kapasitas Mesin', '${_summary!.availableMachines} / ${_summary!.totalOperationalMachines} Tersedia'),
+      (isEn ? 'Today Revenue' : 'Omzet Hari Ini', Formatters.rupiah(_summary!.todayRevenue)),
+      (isEn ? '7-Day Total Revenue' : 'Total Omzet 7 Hari', Formatters.rupiah(total7Hari)),
+      (l10n.metricActiveOrders, isEn ? '${_summary!.activeOrders} Orders' : '${_summary!.activeOrders} Pesanan'),
+      (
+        isEn ? 'Machine Capacity' : 'Kapasitas Mesin',
+        isEn
+            ? '${_summary!.availableMachines} / ${_summary!.totalOperationalMachines} Available'
+            : '${_summary!.availableMachines} / ${_summary!.totalOperationalMachines} Tersedia',
+      ),
     ];
 
     showModalBottomSheet(
@@ -125,7 +173,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Laporan format $format berhasil diekspor.'),
+                  content: Text(l10n.exportSuccess(format)),
                   backgroundColor: AppTheme.success,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -135,7 +183,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Gagal mengekspor laporan: $e'),
+                  content: Text(l10n.exportFailed(e.toString())),
                   backgroundColor: AppTheme.danger,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -161,17 +209,17 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                     child: const Icon(Icons.file_download_outlined, color: AppTheme.primary),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ekspor Ringkasan Laporan',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                          l10n.exportModalTitle,
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
                         ),
                         Text(
-                          'Unduh rekap data operasional kasir Cleano',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          l10n.exportModalSubtitle,
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                         ),
                       ],
                     ),
@@ -202,7 +250,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () => triggerExport('CSV'),
                       icon: const Icon(Icons.table_chart_outlined, size: 18),
-                      label: const Text('Ekspor CSV'),
+                      label: Text(l10n.exportCsv),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -214,7 +262,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                     child: ElevatedButton.icon(
                       onPressed: () => triggerExport('PDF'),
                       icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
-                      label: const Text('Ekspor PDF'),
+                      label: Text(l10n.exportPdf),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: AppTheme.primary,
@@ -259,6 +307,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       backgroundColor: const Color(0xFFEBF4FF),
       appBar: AppBar(
@@ -266,9 +315,9 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text(
-          'Beranda Kasir',
-          style: TextStyle(
+        title: Text(
+          l10n.dashboardTitle,
+          style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 17,
@@ -282,19 +331,19 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
               borderRadius: 20,
               blurSigma: 12,
               onTap: _summary != null ? _showExportDialog : null,
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Unduh Rekap',
-                    style: TextStyle(
+                    l10n.downloadRecap,
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                     ),
                   ),
-                  SizedBox(width: 4),
-                  Icon(Icons.download_rounded, size: 16, color: AppTheme.textPrimary),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.download_rounded, size: 16, color: AppTheme.textPrimary),
                 ],
               ),
             ),
@@ -326,51 +375,57 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
       return true;
     }).toList();
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      color: AppTheme.primary,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 768;
+    // Batasi lebar konten dan pusatkan pada layar desktop agar proporsional.
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1100),
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          color: AppTheme.primary,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 768;
 
-          return CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 1. Horizontal Date Range Pill Selector
-                      _buildPeriodPills(),
-                      const SizedBox(height: 18),
+              return CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 1. Horizontal Date Range Pill Selector
+                          _buildPeriodPills(),
+                          const SizedBox(height: 18),
 
-                      // 2. Hero Big Metric & Capsule Bar Chart
-                      _buildHeroChartSection(summary),
-                      const SizedBox(height: 18),
+                          // 2. Hero Big Metric & Capsule Bar Chart
+                          _buildHeroChartSection(summary),
+                          const SizedBox(height: 18),
 
-                      // 3. 2x2 Metric Cards Grid
-                      _buildMetricCards(summary, isWide),
-                      const SizedBox(height: 22),
+                          // 3. 2x2 Metric Cards Grid
+                          _buildMetricCards(summary, isWide),
+                          const SizedBox(height: 22),
 
-                      // 4. Header Bar Filter Pesanan Aktif
-                      _buildActiveOrdersHeader(),
-                      const SizedBox(height: 12),
-                    ],
+                          // 4. Header Bar Filter Pesanan Aktif
+                          _buildActiveOrdersHeader(),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
 
-              // 5. Daftar Pesanan Aktif — Virtualized Lazy SliverList untuk performa 60 FPS
-              _buildOrdersSliver(filtered),
+                  // 5. Daftar Pesanan Aktif — Virtualized Lazy SliverList untuk performa 60 FPS
+                  _buildOrdersSliver(filtered),
 
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 110),
-              ),
-            ],
-          );
-        },
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 110),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -386,14 +441,14 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
             padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
             borderRadius: 20,
             blurSigma: 14,
-            child: const Center(
+            child: Center(
               child: Column(
                 children: [
-                  Icon(Icons.check_circle_outline_rounded, color: AppTheme.success, size: 36),
-                  SizedBox(height: 8),
+                  const Icon(Icons.check_circle_outline_rounded, color: AppTheme.success, size: 36),
+                  const SizedBox(height: 8),
                   Text(
-                    'Tidak ada cucian aktif pada kategori ini.',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
+                    context.l10n.noActiveOrdersInCategory,
+                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
@@ -414,7 +469,8 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   }
 
   Widget _buildPeriodPills() {
-    final periods = ['Hari Ini', '7 Hari Terakhir', 'Bulan Ini'];
+    final l10n = context.l10n;
+    final periods = [l10n.periodToday, l10n.period7Days, l10n.periodThisMonth];
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -496,6 +552,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   }
 
   Widget _buildHeroHeader(int total7Hari, int avgDaily) {
+    final isEn = context.l10n.localeName == 'en';
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -504,9 +561,9 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Total Omzet 7 Hari',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary),
+              Text(
+                isEn ? '7-Day Total Revenue' : 'Total Omzet 7 Hari',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary),
               ),
               const SizedBox(height: 4),
               FittedBox(
@@ -542,7 +599,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
               ],
             ),
             child: Text(
-              'Rata-rata: ${Formatters.rupiah(avgDaily)}',
+              '${isEn ? 'Average' : 'Rata-rata'}: ${Formatters.rupiah(avgDaily)}',
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
             ),
           ),
@@ -551,11 +608,13 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   }
 
   Widget _buildBarChart(List<DailyRevenueModel> rev7, int maxIndex, double maxY) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     if (rev7.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'Belum ada data pendapatan 7 hari terakhir.',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+          l10n.noRevenue7Days,
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
         ),
       );
     }
@@ -602,10 +661,10 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                 final item = rev7[group.x];
                 final dateParsed = DateTime.tryParse(item.orderDate);
                 final formattedDate = dateParsed != null
-                    ? DateFormat('dd MMM', 'id_ID').format(dateParsed)
+                    ? DateFormat('dd MMM', isEn ? 'en_US' : 'id_ID').format(dateParsed)
                     : item.orderDate;
                 return BarTooltipItem(
-                  '$formattedDate\n${Formatters.rupiah(item.dailyRevenue)}\n(${item.totalTransactions} transaksi)',
+                  '$formattedDate\n${Formatters.rupiah(item.dailyRevenue)}\n(${item.totalTransactions} ${isEn ? 'transactions' : 'transaksi'})',
                   const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -637,25 +696,28 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   }
 
   Widget _buildMetricCards(DashboardSummaryModel summary, bool isWide) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
+    final orderUnit = isEn ? 'Orders' : 'Pesanan';
     final cards = [
       _MetricPillCard(
-        label: 'Pendapatan Hari Ini',
+        label: l10n.metricTodayRevenue,
         value: Formatters.rupiah(summary.todayRevenue),
       ),
       _MetricPillCard(
-        label: 'Pesanan Aktif',
+        label: l10n.metricActiveOrders,
         value: '${summary.activeOrders}',
-        unit: 'Pesanan',
+        unit: orderUnit,
       ),
       _MetricPillCard(
-        label: 'Siap Diambil',
+        label: l10n.metricReadyOrders,
         value: '${summary.readyOrders}',
-        unit: 'Pesanan',
+        unit: orderUnit,
       ),
       _MetricPillCard(
-        label: 'Mesin Tersedia',
+        label: l10n.metricAvailableMachines,
         value: '${summary.availableMachines}/${summary.totalOperationalMachines}',
-        unit: 'Siap',
+        unit: l10n.readyShort,
       ),
     ];
 
@@ -687,15 +749,16 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   }
 
   Widget _buildActiveOrdersHeader() {
+    final l10n = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'Pesanan Aktif',
-              style: TextStyle(
+            Text(
+              l10n.activeOrdersTitle,
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: AppTheme.textPrimary,
@@ -709,7 +772,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
                   visualDensity: VisualDensity.compact,
                   foregroundColor: AppTheme.primary,
                 ),
-                child: const Text('Lihat Semua >', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                child: Text(l10n.seeAll, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
               ),
           ],
         ),
@@ -722,11 +785,11 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
             blurSigma: 12,
             child: Row(
               children: [
-                _buildTogglePill('semua', 'Semua (${_activeOrders.length})'),
+                _buildTogglePill('semua', l10n.filterAllCount(_activeOrders.length)),
                 const SizedBox(width: 4),
-                _buildTogglePill('antre', 'Menunggu Mesin'),
+                _buildTogglePill('antre', l10n.filterWaitingMachine),
                 const SizedBox(width: 4),
-                _buildTogglePill('proses_cuci', 'Sedang Dicuci'),
+                _buildTogglePill('proses_cuci', l10n.filterWashing),
               ],
             ),
           ),
@@ -770,8 +833,7 @@ class _KasirDashboardScreenState extends State<KasirDashboardScreen> {
   }
 }
 
-/// Kartu metrik 2x2 yang terinspirasi dari kartu finansial di referensi:
-/// Label muted di bagian atas, dan angka besar tegas di bagian bawah dengan estetika Frosted Glass.
+/// Kartu metrik 2x2 bergaya Frosted Glass untuk ringkasan operasional kasir.
 class _MetricPillCard extends StatelessWidget {
   const _MetricPillCard({
     required this.label,
@@ -848,6 +910,8 @@ class _ActiveOrderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 20,
@@ -867,7 +931,7 @@ class _ActiveOrderCard extends StatelessWidget {
                   fontFamily: 'monospace',
                 ),
               ),
-              _buildStatusBadge(order),
+              _buildStatusBadge(context, order),
             ],
           ),
           const SizedBox(height: 6),
@@ -903,7 +967,9 @@ class _ActiveOrderCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    'Estimasi antrean: ~${order.queueWaitMinutes} menit',
+                    isEn
+                        ? 'Queue est.: ~${order.queueWaitMinutes} mins'
+                        : 'Estimasi antrean: ~${order.queueWaitMinutes} menit',
                     style: const TextStyle(fontSize: 11, color: AppTheme.accent, fontWeight: FontWeight.w600),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -920,8 +986,8 @@ class _ActiveOrderCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(
-                    'Mesin: ${order.machineCode}'
-                    '${order.machineFinishAt != null ? ' (Selesai ~${Formatters.jam(order.machineFinishAt!)})' : ''}',
+                    '${isEn ? 'Machine' : 'Mesin'}: ${order.machineCode}'
+                    '${order.machineFinishAt != null ? ' (${isEn ? 'Done' : 'Selesai'} ~${Formatters.jam(order.machineFinishAt!)})' : ''}',
                     style: const TextStyle(fontSize: 11, color: AppTheme.secondary, fontWeight: FontWeight.w600),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -935,11 +1001,12 @@ class _ActiveOrderCard extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusBadge(OrderModel order) {
+  Widget _buildStatusBadge(BuildContext context, OrderModel order) {
+    final l10n = context.l10n;
     final (bg, fg, text) = switch (order) {
-      _ when order.isAntre => (const Color(0xFFFEF3C7), const Color(0xFFB45309), 'Menunggu Mesin'),
-      _ when order.isProsesCuci => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), 'Sedang Dicuci'),
-      _ when order.isSiapDiambil => (const Color(0xFFDCFCE7), const Color(0xFF15803D), 'Siap Diambil'),
+      _ when order.isAntre => (const Color(0xFFFEF3C7), const Color(0xFFB45309), l10n.filterWaitingMachine),
+      _ when order.isProsesCuci => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), l10n.filterWashing),
+      _ when order.isSiapDiambil => (const Color(0xFFDCFCE7), const Color(0xFF15803D), l10n.statusReady),
       _ => (const Color(0xFFF1F5F9), AppTheme.textSecondary, order.status),
     };
 

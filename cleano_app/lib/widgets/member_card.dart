@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
 import '../models/user_model.dart';
+import 'language_picker_sheet.dart';
 
-/// Kartu konfirmasi profil pelanggan di POS Kasir:
-/// Menampilkan Nama, Member Code (MBR-XXXX), Badge Tier, Poin, dan Nomor WA tersensor.
+/// Kartu konfirmasi profil pelanggan di POS dengan nomor WA tersensor.
 class MemberCard extends StatelessWidget {
   const MemberCard({
     super.key,
@@ -107,7 +107,7 @@ class MemberCard extends StatelessWidget {
               if (onReset != null)
                 IconButton(
                   icon: const Icon(Icons.change_circle_outlined, color: AppTheme.textSecondary),
-                  tooltip: 'Ganti Pelanggan',
+                  tooltip: context.l10n.changeCustomer,
                   onPressed: onReset,
                 ),
             ],
@@ -141,7 +141,7 @@ class MemberCard extends StatelessWidget {
                     const Icon(Icons.stars_rounded, size: 14, color: AppTheme.accent),
                     const SizedBox(width: 4),
                     Text(
-                      '${user.points} Poin',
+                      '${user.points} ${context.l10n.pointsUnit}',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,

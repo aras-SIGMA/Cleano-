@@ -87,8 +87,7 @@ void main() {
         ),
       );
 
-      // Tanpa titik desimal: dengan \d* seluruh 30 digit lolos, dengan \d{0,2}
-      // hanya dua digit pertama yang bertahan.
+      // Pastikan input desimal membatasi dua digit sebelum koma.
       await tester.enterText(find.byType(TextField), '123456789012345678901234567890');
       await tester.pump();
       expect(controller.text, '12');

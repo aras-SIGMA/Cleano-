@@ -4,10 +4,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../models/reward_model.dart';
 import '../../../models/service_model.dart';
 import '../../../services/api_service.dart';
+import '../../../services/locale_service.dart';
 import '../../../services/master_service.dart';
 
-/// Form tambah/ubah layanan. `onSaved` dipanggil setelah server menerima data
-/// supaya pemanggil menyegarkan daftarnya.
+/// Form tambah/ubah layanan; panggil onSaved setelah server menyimpan data.
 void showServiceFormDialog(
   BuildContext context, {
   required MasterService masterService,
@@ -20,6 +20,7 @@ void showServiceFormDialog(
   final estHoursCtrl = TextEditingController(text: existing != null ? '${existing.estimatedHours}' : '24');
   final descCtrl = TextEditingController(text: existing?.description ?? '');
   bool reqMachine = existing?.requiresMachine ?? true;
+  final isEn = LocaleService.instance.locale.value.languageCode == 'en';
 
   showModalBottomSheet(
     context: context,
@@ -44,7 +45,9 @@ void showServiceFormDialog(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        existing == null ? 'Tambah Layanan Baru' : 'Edit Layanan',
+                        existing == null
+                            ? (isEn ? 'Add New Service' : 'Tambah Layanan Baru')
+                            : (isEn ? 'Edit Service' : 'Edit Layanan'),
                         style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
                       ),
                       IconButton(
@@ -56,10 +59,10 @@ void showServiceFormDialog(
                   const SizedBox(height: 16),
                   TextField(
                     controller: nameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Nama Layanan *',
-                      hintText: 'Contoh: Cuci Komplit Kilat',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                    decoration: InputDecoration(
+                      labelText: isEn ? 'Service Name *' : 'Nama Layanan *',
+                      hintText: isEn ? 'Example: Express Wash' : 'Contoh: Cuci Komplit Kilat',
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -69,10 +72,10 @@ void showServiceFormDialog(
                         child: TextField(
                           controller: priceCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Tarif / kg (Rp) *',
+                          decoration: InputDecoration(
+                            labelText: isEn ? 'Rate / kg (Rp) *' : 'Tarif / kg (Rp) *',
                             hintText: '7000',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                            border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
                           ),
                         ),
                       ),
@@ -81,10 +84,10 @@ void showServiceFormDialog(
                         child: TextField(
                           controller: estHoursCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Estimasi (Jam) *',
+                          decoration: InputDecoration(
+                            labelText: isEn ? 'Est. Time (Hours) *' : 'Estimasi (Jam) *',
                             hintText: '24',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                            border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
                           ),
                         ),
                       ),
@@ -97,10 +100,10 @@ void showServiceFormDialog(
                         child: TextField(
                           controller: washDurCtrl,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Durasi Cuci (Menit)',
+                          decoration: InputDecoration(
+                            labelText: isEn ? 'Wash Duration (Min)' : 'Durasi Cuci (Menit)',
                             hintText: '45',
-                            border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                            border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
                           ),
                         ),
                       ),
@@ -110,7 +113,10 @@ void showServiceFormDialog(
                           color: Colors.transparent,
                           child: SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('Butuh Mesin', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            title: Text(
+                              isEn ? 'Needs Machine' : 'Butuh Mesin',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
                             value: reqMachine,
                             onChanged: (val) => setModalState(() => reqMachine = val),
                           ),
@@ -122,10 +128,10 @@ void showServiceFormDialog(
                   TextField(
                     controller: descCtrl,
                     maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Deskripsi Singkat',
-                      hintText: 'Opsional: keterangan layanan',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+                    decoration: InputDecoration(
+                      labelText: isEn ? 'Short Description' : 'Deskripsi Singkat',
+                      hintText: isEn ? 'Optional: service notes' : 'Opsional: keterangan layanan',
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -138,7 +144,13 @@ void showServiceFormDialog(
 
                       if (name.isEmpty || price <= 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Nama layanan dan tarif valid wajib diisi.')),
+                          SnackBar(
+                            content: Text(
+                              isEn
+                                  ? 'Service name and valid rate are required.'
+                                  : 'Nama layanan dan tarif valid wajib diisi.',
+                            ),
+                          ),
                         );
                         return;
                       }
@@ -158,7 +170,10 @@ void showServiceFormDialog(
                           );
                           if (!context.mounted) return;
                           messenger.showSnackBar(
-                            const SnackBar(content: Text('Layanan berhasil ditambahkan.'), backgroundColor: AppTheme.success),
+                            SnackBar(
+                              content: Text(isEn ? 'Service added successfully.' : 'Layanan berhasil ditambahkan.'),
+                              backgroundColor: AppTheme.success,
+                            ),
                           );
                         } else {
                           await masterService.updateService(
@@ -172,7 +187,10 @@ void showServiceFormDialog(
                           );
                           if (!context.mounted) return;
                           messenger.showSnackBar(
-                            const SnackBar(content: Text('Layanan berhasil diperbarui.'), backgroundColor: AppTheme.success),
+                            SnackBar(
+                              content: Text(isEn ? 'Service updated successfully.' : 'Layanan berhasil diperbarui.'),
+                              backgroundColor: AppTheme.success,
+                            ),
                           );
                         }
                         onSaved();
@@ -190,7 +208,9 @@ void showServiceFormDialog(
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
                     child: Text(
-                      existing == null ? 'Simpan Layanan' : 'Perbarui Layanan',
+                      existing == null
+                          ? (isEn ? 'Save Service' : 'Simpan Layanan')
+                          : (isEn ? 'Update Service' : 'Perbarui Layanan'),
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
@@ -204,8 +224,7 @@ void showServiceFormDialog(
   );
 }
 
-/// Form tambah unit mesin. Tidak ada form ubah: spesifikasi unit tetap, status
-/// diubah lewat tombol di kartu.
+/// Form tambah unit mesin baru; status dikelola lewat tombol kartu.
 void showMachineFormDialog(
   BuildContext context, {
   required MasterService masterService,
@@ -213,45 +232,55 @@ void showMachineFormDialog(
 }) {
   final codeCtrl = TextEditingController();
   final capCtrl = TextEditingController(text: '7.0');
+  final isEn = LocaleService.instance.locale.value.languageCode == 'en';
 
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Tambah Unit Mesin Cuci', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+      title: Text(
+        isEn ? 'Add Washing Machine Unit' : 'Tambah Unit Mesin Cuci',
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+      ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: codeCtrl,
             textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
-              labelText: 'Kode Mesin (MC-XX) *',
+            decoration: InputDecoration(
+              labelText: isEn ? 'Machine Code (MC-XX) *' : 'Kode Mesin (MC-XX) *',
               hintText: 'MC-05',
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: capCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Kapasitas (kg) *',
+            decoration: InputDecoration(
+              labelText: isEn ? 'Capacity (kg) *' : 'Kapasitas (kg) *',
               hintText: '7.0',
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
             ),
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isEn ? 'Cancel' : 'Batal')),
         ElevatedButton(
           onPressed: () async {
             final code = codeCtrl.text.trim().toUpperCase();
             final cap = double.tryParse(capCtrl.text.trim()) ?? 0.0;
             if (code.isEmpty || cap <= 0) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Kode mesin dan kapasitas valid wajib diisi.')),
+                SnackBar(
+                  content: Text(
+                    isEn
+                        ? 'Machine code and valid capacity are required.'
+                        : 'Kode mesin dan kapasitas valid wajib diisi.',
+                  ),
+                ),
               );
               return;
             }
@@ -262,7 +291,10 @@ void showMachineFormDialog(
               await masterService.createMachine(machineCode: code, capacityKg: cap);
               if (!context.mounted) return;
               messenger.showSnackBar(
-                SnackBar(content: Text('Mesin $code berhasil ditambahkan.'), backgroundColor: AppTheme.success),
+                SnackBar(
+                  content: Text(isEn ? 'Machine $code added successfully.' : 'Mesin $code berhasil ditambahkan.'),
+                  backgroundColor: AppTheme.success,
+                ),
               );
               onSaved();
             } on ApiException catch (e) {
@@ -273,15 +305,14 @@ void showMachineFormDialog(
             }
           },
           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
-          child: const Text('Simpan Mesin'),
+          child: Text(isEn ? 'Save Machine' : 'Simpan Mesin'),
         ),
       ],
     ),
   );
 }
 
-/// Form tambah/ubah kupon reward. `is_active` sengaja tidak dikirim: status
-/// aktif dimiliki tombol toggle, bukan form.
+/// Form tambah/ubah kupon reward tanpa is_active karena dikelola tombol toggle.
 void showRewardFormDialog(
   BuildContext context, {
   required MasterService masterService,
@@ -292,13 +323,16 @@ void showRewardFormDialog(
   final descCtrl = TextEditingController(text: existing?.description ?? '');
   final pointsCtrl = TextEditingController(text: existing != null ? '${existing.pointsRequired}' : '50');
   final discountCtrl = TextEditingController(text: existing != null ? '${existing.discountAmount}' : '5000');
+  final isEn = LocaleService.instance.locale.value.languageCode == 'en';
 
   showDialog(
     context: context,
     builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Text(
-        existing == null ? 'Buat Kupon Reward Baru' : 'Edit Kupon Reward',
+        existing == null
+            ? (isEn ? 'Create New Reward Voucher' : 'Buat Kupon Reward Baru')
+            : (isEn ? 'Edit Reward Voucher' : 'Edit Kupon Reward'),
         style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
       ),
       content: SingleChildScrollView(
@@ -307,20 +341,20 @@ void showRewardFormDialog(
           children: [
             TextField(
               controller: titleCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Judul Kupon Promo *',
-                hintText: 'Contoh: Diskon Hemat Rp 5.000',
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              decoration: InputDecoration(
+                labelText: isEn ? 'Promo Voucher Title *' : 'Judul Kupon Promo *',
+                hintText: isEn ? 'Example: Discount Rp 5,000' : 'Contoh: Diskon Hemat Rp 5.000',
+                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: descCtrl,
               maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Deskripsi Singkat',
-                hintText: 'Keterangan promo',
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+              decoration: InputDecoration(
+                labelText: isEn ? 'Short Description' : 'Deskripsi Singkat',
+                hintText: isEn ? 'Promo notes' : 'Keterangan promo',
+                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
               ),
             ),
             const SizedBox(height: 12),
@@ -330,10 +364,10 @@ void showRewardFormDialog(
                   child: TextField(
                     controller: pointsCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Poin Tukar *',
+                    decoration: InputDecoration(
+                      labelText: isEn ? 'Points Required *' : 'Poin Tukar *',
                       hintText: '50',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                     ),
                   ),
                 ),
@@ -342,10 +376,10 @@ void showRewardFormDialog(
                   child: TextField(
                     controller: discountCtrl,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Nilai Potongan (Rp) *',
+                    decoration: InputDecoration(
+                      labelText: isEn ? 'Discount Value (Rp) *' : 'Nilai Potongan (Rp) *',
                       hintText: '5000',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                     ),
                   ),
                 ),
@@ -355,7 +389,7 @@ void showRewardFormDialog(
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text(isEn ? 'Cancel' : 'Batal')),
         ElevatedButton(
           onPressed: () async {
             final title = titleCtrl.text.trim();
@@ -364,7 +398,13 @@ void showRewardFormDialog(
 
             if (title.isEmpty || points <= 0 || discount <= 0) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Semua field bertanda * wajib diisi dengan benar.')),
+                SnackBar(
+                  content: Text(
+                    isEn
+                        ? 'All fields marked * must be filled properly.'
+                        : 'Semua field bertanda * wajib diisi dengan benar.',
+                  ),
+                ),
               );
               return;
             }
@@ -382,7 +422,10 @@ void showRewardFormDialog(
                 );
                 if (!context.mounted) return;
                 messenger.showSnackBar(
-                  const SnackBar(content: Text('Kupon reward berhasil ditambahkan.'), backgroundColor: AppTheme.success),
+                  SnackBar(
+                    content: Text(isEn ? 'Reward voucher added successfully.' : 'Kupon reward berhasil ditambahkan.'),
+                    backgroundColor: AppTheme.success,
+                  ),
                 );
               } else {
                 await masterService.updateReward(
@@ -394,7 +437,10 @@ void showRewardFormDialog(
                 );
                 if (!context.mounted) return;
                 messenger.showSnackBar(
-                  const SnackBar(content: Text('Kupon reward berhasil diperbarui.'), backgroundColor: AppTheme.success),
+                  SnackBar(
+                    content: Text(isEn ? 'Reward voucher updated successfully.' : 'Kupon reward berhasil diperbarui.'),
+                    backgroundColor: AppTheme.success,
+                  ),
                 );
               }
               onSaved();
@@ -406,7 +452,11 @@ void showRewardFormDialog(
             }
           },
           style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
-          child: Text(existing == null ? 'Simpan Reward' : 'Perbarui Reward'),
+          child: Text(
+            existing == null
+                ? (isEn ? 'Save Reward' : 'Simpan Reward')
+                : (isEn ? 'Update Reward' : 'Perbarui Reward'),
+          ),
         ),
       ],
     ),

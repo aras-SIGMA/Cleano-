@@ -1,9 +1,17 @@
-// Uji GET /api/users/lookup terhadap Aiven. Tidak mengubah data apa pun.
-// Jalankan: npm run test:lookup
+// Uji lookup, /me, dan /me/avatar terhadap Aiven; jalankan npm run test:lookup.
 require('dotenv').config({ quiet: true });
 
+const fs = require('fs');
+const path = require('path');
+const jwt = require('jsonwebtoken');
 const { pool } = require('../src/config/database');
 const app = require('../server');
+const { uploadDir } = require('../src/middlewares/uploadMiddleware');
+
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 const rows = [];
 const ok = (name, pass, detail = '') => rows.push({ name, pass, detail });
@@ -66,15 +74,14 @@ async function login(email, password) {
     const space = await call('/api/users/lookup?query=%20%20', { token: kasirToken });
     ok('query hanya spasi 400', space.status === 400, `status ${space.status}`);
 
-    // Kode member 8 karakter, nomor HP maksimal 20 digit. Query panjang harus
-    // ditolak sebelum normalisasi nomor dan query MySQL dijalankan.
+    // Pastikan query lookup terlalu panjang ditolak sebelum menyentuh database.
     const longQuery = await call(`/api/users/lookup?query=${'A'.repeat(31)}`, { token: kasirToken });
     ok('query 31 karakter 400', longQuery.status === 400, `status ${longQuery.status}`);
 
     const missing = await call('/api/users/lookup?query=MBR-9999', { token: kasirToken });
     ok('member tak ada 404', missing.status === 404, `status ${missing.status}`);
 
-    // ---- dual lookup: kode member dan nomor HP harus menemukan orang yang sama ----
+    // Uji dual lookup: kode member dan nomor HP menemukan pelanggan sama.
     const byCode = await call('/api/users/lookup?query=MBR-0001', { token: kasirToken });
     ok('cari via member_code 200', byCode.status === 200, `status ${byCode.status}`);
 
@@ -93,9 +100,7 @@ async function login(email, password) {
     const dashed = await call('/api/users/lookup?query=0812-3456-7890', { token: kasirToken });
     ok('nomor HP dengan tanda hubung', dashed.json?.data?.id === 2, `id ${dashed.json?.data?.id}`);
 
-    // ---- awalan WhatsApp (+62 / 62) ----
-    // Kasir menyalin nomor dari chat, bukan dari kartu. Tanpa normalisasi,
-    // +6281234567890 dicocokkan apa adanya ke kolom phone '081234567890' -> 404.
+    // Uji normalisasi awalan WhatsApp (+62 dan 62) menemukan nomor 08xx.
     const plus62 = await call('/api/users/lookup?query=%2B6281234567890', { token: kasirToken });
     ok('nomor +62 menemukan pelanggan', plus62.json?.data?.id === 2,
       `status ${plus62.status} id ${plus62.json?.data?.id}`);
@@ -125,9 +130,7 @@ async function login(email, password) {
     const budi = await call('/api/users/lookup?query=MBR-0002', { token: kasirToken });
     ok('budi tanpa voucher -> array kosong', Array.isArray(budi.json?.data?.vouchers) && budi.json.data.vouchers.length === 0, `${budi.json?.data?.vouchers?.length}`);
 
-    // ---- GET /api/users/me ----
-    // Token hanya berisi id/member_code/role, jadi poin & tier harus dibaca ulang
-    // dari DB. Portal pelanggan (PRD-04 §3.1) menampilkan keduanya di header.
+    // Uji GET /api/users/me membaca poin dan tier terbaru dari database.
     const meNoToken = await call('/api/users/me');
     ok('me tanpa token 401', meNoToken.status === 401, `status ${meNoToken.status}`);
 
@@ -146,7 +149,7 @@ async function login(email, password) {
     ok('me kasir 200 (tanpa batas role)', meKasir.status === 200, `status ${meKasir.status}`);
     ok('me kasir role kasir', meKasir.json?.data?.role === 'kasir', `${meKasir.json?.data?.role}`);
 
-    // Poin harus ikut berubah tanpa login ulang — inti alasan endpoint ini ada.
+    // Pastikan perubahan poin langsung terbaca dari /me tanpa login ulang.
     const [[poinAsli]] = await pool.query('select points from users where id = 2');
     try {
       await pool.query('update users set points = 320 where id = 2');
@@ -168,9 +171,7 @@ async function login(email, password) {
     const staffPhone = await call('/api/users/lookup?query=081200000001', { token: kasirToken });
     ok('nomor staf 404 (hanya pelanggan)', staffPhone.status === 404, `status ${staffPhone.status}`);
 
-    // ---- R-5: filter is_used = 0 terbukti menyaring ----
-    // User sementara + poin cukup untuk klaim voucher (trigger memotong poin).
-    // Regresi "hapus and uv.is_used = 0" harus GAGAL di sini. Seluruhnya dihapus di akhir.
+    // Uji R-5: voucher terpakai (is_used=1) tersaring keluar dari daftar aktif.
     const tmpEmail = `vcr.${Date.now()}@cleano.test`;
     const tmpCode = `TST-${Date.now().toString().slice(-6)}`; // bukan MBR-%: jangan ganggu penomoran
     const [tmp] = await pool.query(
@@ -180,8 +181,7 @@ async function login(email, password) {
     const tmpId = tmp.insertId;
     const voucherCode = `CLN-TST-${Date.now().toString().slice(-8)}`;
 
-    // Reward aktif diambil dari DB: id 1 bisa dinonaktifkan dari panel kasir,
-    // dan trigger menolak voucher untuk reward nonaktif.
+    // Ambil reward aktif dari DB agar tes kebal perubahan data seeder.
     const [[reward]] = await pool.query(
       'select id from rewards where is_active = 1 order by id limit 1',
     );
@@ -207,6 +207,81 @@ async function login(email, password) {
     }
     const [[leftTmp]] = await pool.query('select count(*) as n from users where id = ?', [tmpId]);
     ok('R-5c: user uji voucher dibersihkan', leftTmp.n === 0, `sisa ${leftTmp.n}`);
+
+    // ---- PATCH /api/users/me/avatar (kasir & pelanggan) ----
+    async function patchAvatar(token, {
+      image = PNG_1X1, filename = 'avatar.png', type = 'image/png', field = 'image',
+    } = {}) {
+      const form = new FormData();
+      if (image !== null) form.append(field, new Blob([image], { type }), filename);
+      const headers = {};
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(`${base}/api/users/me/avatar`, { method: 'PATCH', headers, body: form });
+      const json = await res.json().catch(() => null);
+      return { status: res.status, json };
+    }
+
+    const avtNoToken = await patchAvatar(null);
+    ok('avatar tanpa token 401', avtNoToken.status === 401, `status ${avtNoToken.status}`);
+
+    const avtNoFile = await patchAvatar(pelangganToken, { image: null });
+    ok('avatar tanpa foto 400', avtNoFile.status === 400, `status ${avtNoFile.status}`);
+
+    const avtWrongField = await patchAvatar(pelangganToken, { field: 'avatar' });
+    ok('avatar field salah ditolak 400', avtWrongField.status === 400, `status ${avtWrongField.status}`);
+
+    const avtFakeMime = await patchAvatar(pelangganToken, {
+      image: Buffer.from('<html><script>alert(1)</script></html>'),
+      filename: 'fake.jpg',
+      type: 'image/jpeg',
+    });
+    ok('avatar magic bytes palsu 400', avtFakeMime.status === 400, `status ${avtFakeMime.status}`);
+
+    const ts = Date.now();
+    const avtPrefix = `avt-${ts}`;
+    const [pIns] = await pool.query(
+      "insert into users (name, email, password, role, phone, member_code, points) values ('Uji Avatar Pelanggan', ?, '-', 'pelanggan', ?, ?, 0)",
+      [`${avtPrefix}-pel@cleano.test`, `0896${String(ts).slice(-8)}`, `AVP-${String(ts).slice(-6)}`],
+    );
+    const [kIns] = await pool.query(
+      "insert into users (name, email, password, role, phone, member_code, points) values ('Uji Avatar Kasir', ?, '-', 'kasir', ?, ?, 0)",
+      [`${avtPrefix}-ksr@cleano.test`, `0897${String(ts).slice(-8)}`, `AVK-${String(ts).slice(-6)}`],
+    );
+    const localFilesToDelete = [];
+    try {
+      const tmpPelToken = jwt.sign(
+        { id: pIns.insertId, member_code: `AVP-${String(ts).slice(-6)}`, role: 'pelanggan' },
+        process.env.JWT_SECRET,
+        { expiresIn: '5m' },
+      );
+      const tmpKsrToken = jwt.sign(
+        { id: kIns.insertId, member_code: `AVK-${String(ts).slice(-6)}`, role: 'kasir' },
+        process.env.JWT_SECRET,
+        { expiresIn: '5m' },
+      );
+
+      const pelUp = await patchAvatar(tmpPelToken);
+      const pelUrl = pelUp.json?.data?.avatar_url ?? '';
+      if (pelUrl.startsWith('/uploads/')) localFilesToDelete.push(path.join(uploadDir, path.basename(pelUrl)));
+      ok('avatar pelanggan sukses 200', pelUp.status === 200 && pelUrl.length > 0,
+        pelUrl || `${pelUp.status} ${pelUp.json?.message ?? ''}`);
+
+      const pelMe = await call('/api/users/me', { token: tmpPelToken });
+      ok('me mengembalikan avatar_url terbaru', pelMe.json?.data?.avatar_url === pelUrl, pelMe.json?.data?.avatar_url);
+
+      const ksrUp = await patchAvatar(tmpKsrToken);
+      const ksrUrl = ksrUp.json?.data?.avatar_url ?? '';
+      if (ksrUrl.startsWith('/uploads/')) localFilesToDelete.push(path.join(uploadDir, path.basename(ksrUrl)));
+      ok('avatar kasir sukses 200', ksrUp.status === 200 && ksrUrl.length > 0,
+        ksrUrl || `${ksrUp.status} ${ksrUp.json?.message ?? ''}`);
+    } finally {
+      await pool.query('delete from users where email like ?', [`${avtPrefix}%`]).catch(() => {});
+      for (const f of localFilesToDelete) {
+        try { fs.unlinkSync(f); } catch { /* abaikan bila sudah terhapus */ }
+      }
+    }
+    const [[leftAvt]] = await pool.query('select count(*) as n from users where email like ?', [`${avtPrefix}%`]);
+    ok('user uji avatar dibersihkan', leftAvt.n === 0, `sisa ${leftAvt.n}`);
   } catch (err) {
     ok('tes lookup tidak melempar error', false, err.message);
   } finally {

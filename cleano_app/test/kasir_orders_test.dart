@@ -20,8 +20,7 @@ class MockOrderService implements OrderService {
   String? lastSearch;
   int? lastPage;
 
-  // Gerbang per panggilan: entri ke-N menahan panggilan ke-N sampai di-release.
-  // Dipakai uji balapan untuk mengatur urutan respons.
+  // Gerbang uji untuk menahan panggilan ke-N saat simulasi balapan request.
   final List<Completer<void>> gates = [];
 
   int? updatedOrderId;

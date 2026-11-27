@@ -8,16 +8,12 @@ import '../../services/session_service.dart';
 import 'kasir_dashboard_screen.dart';
 import 'kasir_master_screen.dart';
 import 'kasir_orders_screen.dart';
+import 'kasir_profile_screen.dart';
 import 'pos_create_order_screen.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 
-/// Navigasi Utama Portal Kasir Cleano:
-/// - Responsif: NavigationRail di layar lebar (tablet/desktop) dan NavigationBar di ponsel
-/// - Tab 0: Dashboard Operasional
-/// - Tab 1: POS Transaksi Baru
-/// - Tab 2: Daftar Pesanan & Estafet Mesin
-/// - Tab 3: Master Data Outlet
-/// - Tab 4: Profil Kasir & Logout
+/// Navigasi utama Portal Kasir responsif dengan 5 tab operasional.
 class KasirMainNav extends StatefulWidget {
   const KasirMainNav({super.key});
 
@@ -71,12 +67,12 @@ class _KasirMainNavState extends State<KasirMainNav> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Konfirmasi Keluar'),
-        content: const Text('Apakah Anda yakin ingin keluar dari akun kasir?'),
+        title: Text(ctx.l10n.logoutConfirmTitle),
+        content: Text(ctx.l10n.logoutConfirmKasir),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
+            child: Text(ctx.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -84,7 +80,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
               backgroundColor: AppTheme.danger,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Keluar'),
+            child: Text(ctx.l10n.logout),
           ),
         ],
       ),
@@ -113,7 +109,11 @@ class _KasirMainNavState extends State<KasirMainNav> {
         ),
       2 => const KasirOrdersScreen(),
       3 => const KasirMasterScreen(),
-      4 => _buildProfileView(),
+      4 => KasirProfileScreen(
+          user: _user,
+          onLogout: _handleLogout,
+          onUserUpdated: (updated) => setState(() => _user = updated),
+        ),
       _ => const SizedBox.shrink(),
     };
   }
@@ -162,31 +162,31 @@ class _KasirMainNavState extends State<KasirMainNav> {
                       ),
                     ),
                   ),
-                  destinations: const [
+                  destinations: [
                     NavigationRailDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home_rounded),
-                      label: Text('Beranda'),
+                      icon: const Icon(Icons.home_outlined),
+                      selectedIcon: const Icon(Icons.home_rounded),
+                      label: Text(context.l10n.navHome),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.add_shopping_cart_outlined),
-                      selectedIcon: Icon(Icons.add_shopping_cart_rounded),
-                      label: Text('Catat Cucian'),
+                      icon: const Icon(Icons.add_shopping_cart_outlined),
+                      selectedIcon: const Icon(Icons.add_shopping_cart_rounded),
+                      label: Text(context.l10n.navPos),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: Text('Pesanan'),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      selectedIcon: const Icon(Icons.receipt_long_rounded),
+                      label: Text(context.l10n.navOrders),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.store_outlined),
-                      selectedIcon: Icon(Icons.store_rounded),
-                      label: Text('Kelola Toko'),
+                      icon: const Icon(Icons.store_outlined),
+                      selectedIcon: const Icon(Icons.store_rounded),
+                      label: Text(context.l10n.navStore),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.person_outline_rounded),
-                      selectedIcon: Icon(Icons.person_rounded),
-                      label: Text('Akun'),
+                      icon: const Icon(Icons.person_outline_rounded),
+                      selectedIcon: const Icon(Icons.person_rounded),
+                      label: Text(context.l10n.navAccount),
                     ),
                   ],
                 ),
@@ -215,12 +215,13 @@ class _KasirMainNavState extends State<KasirMainNav> {
   }
 
   Widget _buildFloatingBottomBar() {
+    final l10n = context.l10n;
     final items = [
-      (Icons.home_outlined, Icons.home_rounded, 'Beranda'),
-      (Icons.add_shopping_cart_outlined, Icons.add_shopping_cart_rounded, 'Catat'),
-      (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
-      (Icons.store_outlined, Icons.store_rounded, 'Toko'),
-      (Icons.person_outline_rounded, Icons.person_rounded, 'Akun'),
+      (Icons.home_outlined, Icons.home_rounded, l10n.navHome),
+      (Icons.add_shopping_cart_outlined, Icons.add_shopping_cart_rounded, l10n.navPosShort),
+      (Icons.receipt_long_outlined, Icons.receipt_long_rounded, l10n.navOrders),
+      (Icons.store_outlined, Icons.store_rounded, l10n.navStoreShort),
+      (Icons.person_outline_rounded, Icons.person_rounded, l10n.navAccount),
     ];
 
     return RepaintBoundary(
@@ -289,130 +290,4 @@ class _KasirMainNavState extends State<KasirMainNav> {
     );
   }
 
-  Widget _buildProfileView() {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Akun Kasir'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout_rounded),
-            tooltip: 'Keluar',
-            onPressed: _handleLogout,
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.border),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x04000000),
-                    blurRadius: 10,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: AppTheme.surfaceSubtle,
-                        child: const Icon(
-                          Icons.store_mall_directory_rounded,
-                          color: AppTheme.primary,
-                          size: 30,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _user?.name ?? 'Kasir Cleano',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.textPrimary,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.surfaceSubtle,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'ROLE: KASIR',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 28),
-                  _InfoRow(label: 'Email', value: _user?.email ?? '-'),
-                  const SizedBox(height: 8),
-                  _InfoRow(label: 'Nomor HP', value: _user?.phone ?? '-'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: _handleLogout,
-              icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-              label: const Text(
-                'Keluar (Logout)',
-                style: TextStyle(
-                  color: AppTheme.danger,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: Color(0xFFFCA5A5)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-      ],
-    );
-  }
 }

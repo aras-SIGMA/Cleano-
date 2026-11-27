@@ -30,9 +30,7 @@ const password = z
 
 const registerBody = z.object({ name, email, password, phone });
 
-// Login hanya membedakan "kosong" vs "ada": aturan panjang password milik
-// registrasi. Password salah tetap 401, bukan 400, supaya tidak membocorkan
-// kebijakan password lewat endpoint login.
+// Login hanya memeriksa keberadaan password agar tidak membocorkan aturan panjang.
 const loginBody = z.object({
   email: z
     .string({ error: 'Email dan password wajib diisi.' })
@@ -44,4 +42,11 @@ const loginBody = z.object({
     .min(1, 'Email dan password wajib diisi.'),
 });
 
-module.exports = { registerBody, loginBody };
+const changePasswordBody = z.object({
+  old_password: z
+    .string({ error: 'Kata sandi saat ini wajib diisi.' })
+    .min(1, 'Kata sandi saat ini wajib diisi.'),
+  new_password: password,
+});
+
+module.exports = { registerBody, loginBody, changePasswordBody };

@@ -7,18 +7,13 @@ const { createLogger } = require('../utils/logger');
 
 const log = createLogger('db');
 
-// Aiven wajib SSL. CA bisa dikirim sebagai path file atau isi PEM langsung.
-//
-// Tanpa CA, koneksi tetap terenkripsi tetapi sertifikat server tidak
-// diverifikasi — artinya penyadap dengan sertifikat karangan bisa menyamar
-// sebagai database. Itu cukup untuk pengembangan, tidak untuk produksi.
-// Karena itu DB_SSL_VERIFY=true menolak jalan tanpa CA yang benar-benar ada,
-// supaya mode longgar tidak ikut terbawa ke produksi tanpa disadari.
+// Koneksi Aiven wajib SSL; tolak mode longgar saat DB_SSL_VERIFY=true.
 function buildSsl() {
   if (process.env.DB_SSL !== 'true') return undefined;
 
   const caSetting = process.env.DB_SSL_CA || '';
-  const wajibVerifikasi = process.env.DB_SSL_VERIFY === 'true';
+  const wajibVerifikasi = process.env.DB_SSL_VERIFY === 'true'
+    || (process.env.NODE_ENV === 'production' && process.env.DB_SSL_VERIFY !== 'false');
 
   let caContent = '';
   if (caSetting.trim().startsWith('-----BEGIN')) {
@@ -67,13 +62,11 @@ const pool = mysql.createPool({
   ssl: buildSsl(),
 });
 
-// Aiven berjalan UTC. Opsi `timezone` mysql2 di atas TIDAK mengubah
-// @@session.time_zone di server, sehingga now()/curdate()/DATE(paid_at) tetap UTC
-// dan transaksi setelah 17:00 WIB tercatat di tanggal berikutnya.
-// Solusinya men-set timezone sesi pada setiap koneksi baru.
-const TZ_OFFSET = process.env.DB_TIMEZONE || '+07:00';
+// Setel timezone sesi +07:00 tiap koneksi baru agar curdate() sesuai WIB.
+const RAW_TZ = (process.env.DB_TIMEZONE || '+07:00').trim();
+const TZ_OFFSET = /^[+-](?:0\d|1[0-4]):[0-5]\d$/.test(RAW_TZ) ? RAW_TZ : '+07:00';
 pool.on('connection', (conn) => {
-  conn.query(`set time_zone = '${TZ_OFFSET}'`, (err) => {
+  conn.query('set time_zone = ?', [TZ_OFFSET], (err) => {
     if (err) log.error('gagal set time_zone', { offset: TZ_OFFSET, code: err.code, message: err.message });
   });
 });

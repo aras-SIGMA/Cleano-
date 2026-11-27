@@ -3,8 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import 'api_service.dart';
 
-/// Penyimpanan sesi lokal (Token, Profil Pengguna, dan Status Ingat Saya)
-/// dengan in-memory cache untuk performa akses instan.
+/// Penyimpanan sesi lokal (token, profil, ingat saya) dengan cache memori.
 class SessionService {
   SessionService._();
   static final SessionService instance = SessionService._();

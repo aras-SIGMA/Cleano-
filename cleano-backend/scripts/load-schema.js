@@ -1,6 +1,4 @@
-// muat database_schema.sql ke Aiven lewat koneksi TLS yang sama dengan aplikasi.
-// file schema memakai direktif CLI "delimiter $$" yang tidak dipahami driver,
-// jadi statement dipecah manual di sini.
+// Muat database_schema.sql ke Aiven TLS dengan pemecahan delimiter manual.
 require('dotenv').config({ quiet: true });
 const fs = require('fs');
 const path = require('path');

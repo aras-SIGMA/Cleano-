@@ -9,6 +9,7 @@ import 'package:cleano_app/models/user_model.dart';
 import 'package:cleano_app/screens/pelanggan/pelanggan_tracking_screen.dart';
 import 'package:cleano_app/services/api_service.dart';
 import 'package:cleano_app/services/order_service.dart';
+import 'package:cleano_app/widgets/frosted_glass_card.dart';
 import 'package:cleano_app/widgets/tracking_order_card.dart';
 
 class FakeOrderService implements OrderService {
@@ -362,7 +363,8 @@ void main() {
     expect(find.text('Profil belum termuat.'), findsOneWidget);
     expect(find.textContaining('Halo,'), findsNothing);
     expect(find.textContaining('Tier '), findsNothing);
-    expect(find.textContaining('Poin'), findsNothing);
+    // Kartu aktivitas memakai kata "Poin", jadi yang diperiksa saldo profil.
+    expect(find.text('Saldo Poin'), findsNothing);
   });
 
   testWidgets('M7: Keadaan kosong (Empty State) ditampilkan bila tidak ada cucian aktif', (tester) async {
@@ -395,5 +397,83 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('CLN-2026-0001'), findsOneWidget);
+  });
+
+  testWidgets('M7: Kartu aktivitas 7 hari menghitung cucian, berat, dan poin dari riwayat', (tester) async {
+    await tester.pumpWidget(buildWidget());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Aktivitas 7 Hari Terakhir'), findsOneWidget);
+    expect(find.text('dari riwayat terakhir'), findsOneWidget);
+    expect(find.text('Cucian'), findsOneWidget);
+    expect(find.text('5,00 kg'), findsOneWidget);
+    expect(find.text('Total Berat'), findsOneWidget);
+    expect(find.text('15'), findsOneWidget);
+    expect(find.text('Poin Didapat'), findsOneWidget);
+  });
+
+  testWidgets('M7: Pesanan lebih dari 7 hari tidak ikut dihitung', (tester) async {
+    final lama = OrderModel(
+      id: 99,
+      orderCode: 'CLN-2026-LAMA',
+      userId: 10,
+      customerName: 'Budi Santoso',
+      customerPhone: '081299887766',
+      memberCode: 'MBR-0010',
+      customerTier: 'Gold',
+      customerCurrentTier: 'Gold',
+      serviceId: 1,
+      serviceName: 'Cuci Komplit Reguler',
+      pricePerKg: 8000,
+      requiresMachine: true,
+      weight: 99.0,
+      subtotalPrice: 792000,
+      discountAmount: 0,
+      totalPrice: 792000,
+      paymentMethod: 'tunai',
+      paymentStatus: 'lunas',
+      status: 'selesai',
+      queueWaitMinutes: 0,
+      pointsAwarded: 999,
+      createdAt: DateTime.now().subtract(const Duration(days: 10)),
+    );
+
+    await tester.pumpWidget(buildWidget(
+      orderService: FakeOrderService(
+        activeOrders: dummyActiveOrders,
+        historyOrders: [...dummyHistoryOrders, lama],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('5,00 kg'), findsOneWidget);
+    expect(find.text('15'), findsOneWidget);
+    expect(find.text('99,00 kg'), findsNothing);
+    expect(find.text('999'), findsNothing);
+  });
+
+  testWidgets('M7: Kartu aktivitas 7 hari tidak tampil saat riwayat kosong', (tester) async {
+    await tester.pumpWidget(buildWidget(
+      orderService: FakeOrderService(activeOrders: dummyActiveOrders),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Aktivitas 7 Hari Terakhir'), findsNothing);
+  });
+
+  testWidgets('M7: Di layar lebar konten dibatasi 720 px dan di tengah', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(buildWidget());
+    await tester.pumpAndSettle();
+
+    final content = find.byType(CustomScrollView);
+    expect(tester.getSize(content).width, 720);
+    expect(tester.getCenter(content).dx, closeTo(800, 0.5));
+
+    // Kartu ringkasan ikut lebar konten, tidak melebar ke tepi layar.
+    expect(tester.getSize(find.byType(FrostedGlassCard).first).width, lessThanOrEqualTo(720));
   });
 }

@@ -1,8 +1,4 @@
-// Uji B9: POST /api/rewards/redeem dan GET /api/rewards/my-vouchers.
-// Klaim dijalankan lewat attemptRedeem di dalam transaksi lalu ROLLBACK — poin
-// yang sudah terpotong tidak bisa dikembalikan sendiri, dan trigger L-02
-// melarang voucher dihapus atau diaktifkan ulang.
-// Jalankan: npm run test:rewards
+// Uji B9 redeem reward & my-vouchers dalam transaksi lalu ROLLBACK.
 require('dotenv').config({ quiet: true });
 
 const { pool } = require('../src/config/database');
@@ -15,10 +11,7 @@ const ok = (name, pass, detail = '') => rows.push({ name, pass, detail });
 let server;
 let base;
 
-// Reward buatan uji yang harus ter-commit supaya terlihat oleh koneksi lain.
-// Dihapus di finally luar, dan disapu lagi di awal run berikutnya kalau proses
-// sebelumnya mati di tengah — rewards tidak punya penjaga hapus, jadi baris yang
-// tertinggal akan ikut terhitung oleh uji dan laporan.
+// Buat reward uji ter-commit lalu bersihkan di finally serta awal run.
 const UJI_PARALEL = 'UJI-PARALEL-B9';
 const ujiRewardIds = [];
 
@@ -68,8 +61,7 @@ async function tryTx(fn) {
   }
 }
 
-// Reward karangan di dalam transaksi, supaya tes tidak bergantung pada katalog
-// seeder yang bisa berubah.
+// Buat reward uji di dalam transaksi agar bebas dari perubahan seeder.
 async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
   const [ins] = await conn.query(
     'insert into rewards (title, description, points_required, discount_amount, is_active) values (?, ?, ?, ?, ?)',
@@ -177,19 +169,14 @@ async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
         return { status: e.status ?? null, message: e.message, code: e.code, sqlState: e.sqlState };
       }
     });
-    // attemptRedeem melempar error mentah MySQL di sini; yang mengubahnya jadi 400
-    // adalah error handler server.js. Jadi yang diperiksa: error itu memang
-    // SIGNAL 45000, bukan error lain yang kebetulan juga 400.
+    // Pastikan kegagalan klaim berasal dari SQLSTATE 45000 trigger, bukan error lain.
     ok('poin kurang ditolak trigger',
       kurang.ok && (kurang.value.sqlState === '45000' || kurang.value.code === 'ER_SIGNAL_EXCEPTION'),
       kurang.ok ? `${kurang.value.sqlState} ${kurang.value.message}` : kurang.error);
     ok('pesan trigger menyebut poin',
       kurang.ok && /poin/i.test(kurang.value.message), kurang.ok ? kurang.value.message : kurang.error);
 
-    // ---- SQLSTATE 45000 lewat HTTP harus 400, bukan 500 ----
-    // Reward seeder id 3 butuh 200 poin, rina punya 150. INSERT ditolak trigger
-    // sebelum apa pun tersimpan, jadi permintaan ini tidak meninggalkan baris
-    // maupun memotong poin — aman dijalankan lewat jalur commit.
+    // Uji HTTP 400 saat poin kurang (SQLSTATE 45000) tanpa mengubah data.
     const [[r3]] = await pool.query(
       'select id, points_required, is_active from rewards where id = 3',
     );
@@ -297,8 +284,7 @@ async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
     ok('total cocok dengan jumlah baris DB',
       mv.json?.data?.total === jml.n, `${mv.json?.data?.total} vs ${jml.n}`);
 
-    // query user_id harus diabaikan; kalau dihormati, pelanggan cukup mengubah
-    // angkanya untuk membaca voucher orang lain.
+    // Pastikan query user_id pada my-vouchers diabaikan demi privasi pelanggan.
     const mvSpoof = await call(`/api/rewards/my-vouchers?user_id=${uBudi.id}`, { token: rina });
     const kodeSpoof = [...(mvSpoof.json?.data?.active ?? []), ...(mvSpoof.json?.data?.history ?? [])]
       .map((v) => v.voucher_code);
@@ -306,19 +292,15 @@ async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
       mvSpoof.json?.data?.total === mv.json?.data?.total,
       `${mvSpoof.json?.data?.total} vs ${mv.json?.data?.total}`);
 
-    // ---- active vs history, diuji dengan voucher terpakai buatan ----
-    // Seeder tidak punya voucher terpakai, dan is_used tidak bisa dikembalikan
-    // ke 0 (trigger L-02), jadi voucher terpakai dibuat di dalam transaksi.
+    // Uji pemisahan voucher aktif dan riwayat memakai voucher terpakai buatan.
     const pisah = await tryTx(async (conn) => {
-      // Reward dibuat sendiri: id 1 bisa dinonaktifkan dari panel kasir, dan
-      // trigger menolak voucher untuk reward nonaktif.
+      // Buat reward sendiri agar tes kebal perubahan status reward seeder.
       const rid = await makeReward(conn, { code: '903', points: 10 });
       const [ins] = await conn.query(
         'insert into user_vouchers (voucher_code, user_id, reward_id, is_used) values (?, ?, ?, 0)',
         ['CLN-VCR-UJI1', uRina.id, rid],
       );
-      // Pemakaian lewat jalur resmi: UPDATE 1 baris is_used=1 + used_at terisi,
-      // satu-satunya bentuk yang lolos trigger.
+      // Simulasikan pemakaian voucher resmi (is_used=1 dan used_at terisi).
       await conn.query(
         'update user_vouchers set is_used = 1, used_at = now() where id = ?', [ins.insertId],
       );
@@ -341,11 +323,7 @@ async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
     ok('history hanya is_used = 1', pisah.ok && pisah.value.riwayatBersih,
       pisah.ok ? `${pisah.value.riwayatBersih}` : pisah.error);
 
-    // ---- user_id dari token: body tidak bisa mengarahkan klaim ke akun lain ----
-    // Payload menyertakan user_id milik budi; rina harus tetap menukar poinnya
-    // sendiri. INSERT ditolak trigger (poin kurang) sehingga tidak ada yang
-    // tersimpan, dan yang diperiksa adalah pesan trigger yang menyebut saldo
-    // rina — bukan saldo budi.
+    // Pastikan klaim memakai user_id dari token, mengabaikan user_id di body.
     const [[budiNow]] = await pool.query('select points from users where id = ?', [uBudi.id]);
     const spoofUser = await call('/api/rewards/redeem', {
       method: 'POST', body: { reward_id: 3, user_id: uBudi.id }, token: rina,
@@ -359,19 +337,7 @@ async function makeReward(conn, { code, points, discount = 5000, active = 1 }) {
     ok('poin rina juga tidak tersentuh', Number(rinaAfter.points) === Number(uRina.points),
       `${rinaAfter.points} vs ${uRina.points}`);
 
-    // ---- dua klaim paralel tidak boleh memotong poin dua kali ----
-    // Kuncinya datang dari trigger: INSERT memicu `update users set points =
-    // points - ...`, dan UPDATE itu menahan baris user sampai transaksi selesai.
-    // Klaim kedua menunggu, lalu melihat saldo yang sudah terpotong.
-    //
-    // Dua transaksi sungguhan dijalankan bersamaan. Saldo rina hanya cukup untuk
-    // satu klaim (reward 100 poin, saldo 150), jadi tepat satu harus berhasil.
-    //
-    // Reward uji harus ter-commit dulu supaya terlihat oleh kedua koneksi, jadi
-    // ia tidak bisa ikut ROLLBACK. Penghapusannya karena itu ada di finally luar
-    // (lihat UJI_PARALEL di bawah) dan dijalankan lagi di awal setiap run, supaya
-    // proses yang mati di tengah tidak meninggalkan baris permanen.
-    // ---------------------------------------------------------------------
+    // Uji dua klaim paralel: kunci baris trigger mencegah pemotongan poin ganda.
     const paralelId = (await pool.query(
       `insert into rewards (title, description, points_required, discount_amount, is_active)
        values (?, 'x', 100, 5000, 1)`, [UJI_PARALEL],
