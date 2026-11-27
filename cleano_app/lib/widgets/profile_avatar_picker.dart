@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../core/constants/api_constants.dart';
 import '../core/theme/app_theme.dart';
+import '../models/user_model.dart';
+import '../services/auth_service.dart';
 import 'language_picker_sheet.dart';
 
 /// Avatar profil bulat dengan foto jaringan, inisial fallback, dan tombol kamera.
@@ -25,7 +28,8 @@ class ProfileAvatarPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasUrl = avatarUrl != null && avatarUrl!.trim().isNotEmpty;
+    final resolvedUrl = ApiConstants.resolveMediaUrl(avatarUrl);
+    final hasUrl = resolvedUrl != null;
 
     return Semantics(
       button: true,
@@ -56,7 +60,7 @@ class ProfileAvatarPicker extends StatelessWidget {
               child: ClipOval(
                 child: hasUrl
                     ? Image.network(
-                        avatarUrl!,
+                        resolvedUrl,
                         width: size,
                         height: size,
                         fit: BoxFit.cover,
@@ -214,4 +218,43 @@ Future<XFile?> showAvatarSourceSheet(
     maxWidth: 800,
     maxHeight: 800,
   );
+}
+
+/// Pilih foto, unggah ke API avatar, dan tampilkan notifikasi hasil.
+Future<UserModel?> pickAndUploadAvatar({
+  required BuildContext context,
+  required ValueChanged<bool> onUploadingChanged,
+  AuthService? authService,
+  ImagePicker? picker,
+}) async {
+  final file = await showAvatarSourceSheet(context, picker: picker);
+  if (file == null || !context.mounted) return null;
+  onUploadingChanged(true);
+  try {
+    final bytes = await file.readAsBytes();
+    final updated = await (authService ?? AuthService.instance).updateAvatar(
+      bytes: bytes,
+      filename: file.name,
+    );
+    if (!context.mounted) return updated;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(context.l10n.avatarUpdated),
+        backgroundColor: AppTheme.success,
+      ),
+    );
+    return updated;
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.avatarUpdateFailed('$e')),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    }
+    return null;
+  } finally {
+    onUploadingChanged(false);
+  }
 }
