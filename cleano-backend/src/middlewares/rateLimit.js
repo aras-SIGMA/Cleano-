@@ -45,6 +45,13 @@ const lookupLimiter = limiter(
   () => 'Terlalu banyak pencarian pelanggan. Coba lagi dalam 1 menit.',
 );
 
+// Pembatas terpisah untuk ubah kata sandi agar tidak memakai kuota login.
+const changePasswordLimiter = limiter(
+  15,
+  num(process.env.AUTH_LOGIN_LIMIT, 10),
+  (m) => `Terlalu banyak percobaan ubah kata sandi. Coba lagi dalam ${m} menit.`,
+);
+
 // Batas umum API per IP untuk mencegah penyalahgunaan/DoS ringan.
 const apiLimiter = limiter(
   15,
@@ -52,4 +59,4 @@ const apiLimiter = limiter(
   (m) => `Terlalu banyak permintaan ke server. Coba lagi dalam ${m} menit.`,
 );
 
-module.exports = { loginLimiter, registerLimiter, lookupLimiter, apiLimiter };
+module.exports = { loginLimiter, registerLimiter, changePasswordLimiter, lookupLimiter, apiLimiter };

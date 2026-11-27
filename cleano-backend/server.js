@@ -2,7 +2,6 @@
 
 require('dotenv').config({ quiet: true });
 
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -10,6 +9,7 @@ const helmet = require('helmet');
 const { createLogger, describe } = require('./src/utils/logger');
 const { pool, ping } = require('./src/config/database');
 const { apiLimiter } = require('./src/middlewares/rateLimit');
+const { uploadDir } = require('./src/middlewares/uploadMiddleware');
 
 const log = createLogger('server');
 const authRoutes = require('./src/routes/authRoutes');
@@ -52,7 +52,7 @@ app.use(cors(
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
 // foto bukti drop-off disajikan statis (PRD-02 §5 non-goals)
-app.use('/uploads', express.static(path.resolve(__dirname, process.env.UPLOAD_DIR || 'uploads'), {
+app.use('/uploads', express.static(uploadDir, {
   setHeaders: (res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
   },
@@ -80,25 +80,30 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: `Rute ${req.method} ${req.originalUrl} tidak ditemukan.` });
 });
 
+const MULTER_MESSAGES = {
+  LIMIT_FIELD_VALUE: 'Isi kolom teks terlalu panjang.',
+  LIMIT_UNEXPECTED_FILE: 'Field berkas unggahan tidak sesuai (gunakan "image").',
+  LIMIT_FILE_COUNT: 'Maksimal 1 berkas foto per unggahan.',
+  LIMIT_PART_COUNT: 'Jumlah bagian formulir melebihi batas.',
+};
+
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   // SQLSTATE '45000' dari trigger dipetakan ke HTTP 400 dengan pesan bisnis.
   const fromTrigger = err.sqlState === '45000' || err.errno === 1644
     || err.code === 'ER_SIGNAL_EXCEPTION';
-
-  const status = err.status
-    || (fromTrigger ? 400 : null)
-    || (err.code === 'LIMIT_FILE_SIZE' ? 400 : null)
-    || (err.code === 'LIMIT_FIELD_VALUE' ? 400 : 500);
+  const isMulter = err.name === 'MulterError';
   const tooLarge = err.type === 'entity.too.large';
 
-  const message = err.code === 'LIMIT_FILE_SIZE'
+  const status = err.status || (fromTrigger || isMulter ? 400 : 500);
+  const multerMessage = err.code === 'LIMIT_FILE_SIZE'
     ? `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`
-    : err.code === 'LIMIT_FIELD_VALUE'
-      ? 'Isi kolom teks terlalu panjang.'
-      : tooLarge
-      ? `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.`
-      : (fromTrigger ? err.sqlMessage || err.message : err.message) || 'Terjadi kesalahan pada server.';
+    : MULTER_MESSAGES[err.code] || (isMulter ? 'Unggahan berkas tidak valid.' : null);
+
+  const message = multerMessage
+    || (tooLarge ? `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.` : null)
+    || (fromTrigger ? err.sqlMessage || err.message : err.message)
+    || 'Terjadi kesalahan pada server.';
 
   if (status >= 500) {
     log.error('permintaan gagal', { ...describe(err), method: req.method, path: req.originalUrl });

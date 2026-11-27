@@ -12,13 +12,14 @@ function emit(level, message, meta) {
 // Ringkas objek error MySQL/HTTP agar aman dilog tanpa stack panjang.
 function describe(err) {
   if (!err || typeof err !== 'object') return { message: String(err) };
+  const nested = err.error && typeof err.error === 'object' ? err.error : null;
   return {
-    name: err.name,
-    message: err.message,
-    code: err.code,
+    name: err.name || nested?.name,
+    message: err.message || nested?.message,
+    code: err.code || nested?.code,
     sqlState: err.sqlState,
     errno: err.errno,
-    status: err.status,
+    status: err.status || err.http_code || nested?.http_code,
     stack: err.stack,
   };
 }

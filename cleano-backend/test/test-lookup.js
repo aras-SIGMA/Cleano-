@@ -209,9 +209,11 @@ async function login(email, password) {
     ok('R-5c: user uji voucher dibersihkan', leftTmp.n === 0, `sisa ${leftTmp.n}`);
 
     // ---- PATCH /api/users/me/avatar (kasir & pelanggan) ----
-    async function patchAvatar(token, { image = PNG_1X1, filename = 'avatar.png', type = 'image/png' } = {}) {
+    async function patchAvatar(token, {
+      image = PNG_1X1, filename = 'avatar.png', type = 'image/png', field = 'image',
+    } = {}) {
       const form = new FormData();
-      if (image !== null) form.append('image', new Blob([image], { type }), filename);
+      if (image !== null) form.append(field, new Blob([image], { type }), filename);
       const headers = {};
       if (token) headers.Authorization = `Bearer ${token}`;
       const res = await fetch(`${base}/api/users/me/avatar`, { method: 'PATCH', headers, body: form });
@@ -224,6 +226,9 @@ async function login(email, password) {
 
     const avtNoFile = await patchAvatar(pelangganToken, { image: null });
     ok('avatar tanpa foto 400', avtNoFile.status === 400, `status ${avtNoFile.status}`);
+
+    const avtWrongField = await patchAvatar(pelangganToken, { field: 'avatar' });
+    ok('avatar field salah ditolak 400', avtWrongField.status === 400, `status ${avtWrongField.status}`);
 
     const avtFakeMime = await patchAvatar(pelangganToken, {
       image: Buffer.from('<html><script>alert(1)</script></html>'),
@@ -258,7 +263,8 @@ async function login(email, password) {
       const pelUp = await patchAvatar(tmpPelToken);
       const pelUrl = pelUp.json?.data?.avatar_url ?? '';
       if (pelUrl.startsWith('/uploads/')) localFilesToDelete.push(path.join(uploadDir, path.basename(pelUrl)));
-      ok('avatar pelanggan sukses 200', pelUp.status === 200 && pelUrl.length > 0, pelUrl);
+      ok('avatar pelanggan sukses 200', pelUp.status === 200 && pelUrl.length > 0,
+        pelUrl || `${pelUp.status} ${pelUp.json?.message ?? ''}`);
 
       const pelMe = await call('/api/users/me', { token: tmpPelToken });
       ok('me mengembalikan avatar_url terbaru', pelMe.json?.data?.avatar_url === pelUrl, pelMe.json?.data?.avatar_url);
@@ -266,11 +272,12 @@ async function login(email, password) {
       const ksrUp = await patchAvatar(tmpKsrToken);
       const ksrUrl = ksrUp.json?.data?.avatar_url ?? '';
       if (ksrUrl.startsWith('/uploads/')) localFilesToDelete.push(path.join(uploadDir, path.basename(ksrUrl)));
-      ok('avatar kasir sukses 200', ksrUp.status === 200 && ksrUrl.length > 0, ksrUrl);
+      ok('avatar kasir sukses 200', ksrUp.status === 200 && ksrUrl.length > 0,
+        ksrUrl || `${ksrUp.status} ${ksrUp.json?.message ?? ''}`);
     } finally {
       await pool.query('delete from users where email like ?', [`${avtPrefix}%`]).catch(() => {});
       for (const f of localFilesToDelete) {
-        fs.unlink(f, () => {});
+        try { fs.unlinkSync(f); } catch { /* abaikan bila sudah terhapus */ }
       }
     }
     const [[leftAvt]] = await pool.query('select count(*) as n from users where email like ?', [`${avtPrefix}%`]);

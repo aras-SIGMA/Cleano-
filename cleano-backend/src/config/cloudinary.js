@@ -1,6 +1,7 @@
 'use strict';
 
 const { v2: cloudinary } = require('cloudinary');
+const { HttpError } = require('../utils/response');
 
 // Simpan foto ke Cloudinary; kosongkan variabel CLOUDINARY_* untuk mode disk lokal.
 const enabled = Boolean(
@@ -23,13 +24,19 @@ const FOLDER = process.env.CLOUDINARY_FOLDER || 'cleano/orders';
 
 /** Unggah berkas sementara multer ke Cloudinary lalu kembalikan url dan publicId. */
 async function uploadImage(filePath, { folder = FOLDER, maxDim = 1600 } = {}) {
-  const res = await cloudinary.uploader.upload(filePath, {
-    folder,
-    resource_type: 'image',
-    // Batasi dimensi foto di sisi Cloudinary untuk menjaga kuota akun.
-    transformation: [{ width: maxDim, height: maxDim, crop: 'limit' }],
-  });
-  return { url: res.secure_url, publicId: res.public_id };
+  try {
+    const res = await cloudinary.uploader.upload(filePath, {
+      folder,
+      resource_type: 'image',
+      timeout: 30000,
+      // Batasi dimensi foto di sisi Cloudinary untuk menjaga kuota akun.
+      transformation: [{ width: maxDim, height: maxDim, crop: 'limit' }],
+    });
+    return { url: res.secure_url, publicId: res.public_id };
+  } catch (err) {
+    const detail = err?.error?.message || err?.message || 'layanan tidak tersedia';
+    throw new HttpError(502, `Gagal mengunggah foto: ${detail}.`);
+  }
 }
 
 /** Hapus foto Cloudinary jika pembuatan order gagal agar tidak yatim. */
