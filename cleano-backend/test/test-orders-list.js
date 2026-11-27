@@ -1,8 +1,4 @@
-// Uji GET /api/orders terhadap Aiven. Seluruhnya baca saja, jadi tidak ada
-// baris yang perlu dibersihkan: order tidak bisa dihapus (trigger L-07).
-// Data acuan adalah 3 order seeder — rina 2 order (selesai, siap_diambil),
-// budi 1 order (selesai, midtrans).
-// Jalankan: npm run test:orders-list
+// Uji GET /api/orders (hanya baca) terhadap 3 order seeder.
 require('dotenv').config({ quiet: true });
 
 const { pool } = require('../src/config/database');
@@ -38,8 +34,7 @@ async function get(path, { token } = {}) {
   base = `http://127.0.0.1:${server.address().port}`;
 
   try {
-    // id pelanggan diambil dari DB, bukan ditebak: nomor urut bisa berubah
-    // kalau skema dimuat ulang.
+    // Ambil ID pelanggan langsung dari DB agar tidak bergantung nomor urut.
     const [[rina]] = await pool.query("select id from users where email = 'rina@gmail.com'");
     const [[budi]] = await pool.query("select id from users where email = 'budi@gmail.com'");
     const [[jmlRina]] = await pool.query('select count(*) as n from orders where user_id = ?', [rina.id]);
@@ -84,8 +79,7 @@ async function get(path, { token } = {}) {
       JSON.stringify((rinaAll.json?.data?.items ?? []).map((o) => o.id))
       !== JSON.stringify((budiAll.json?.data?.items ?? []).map((o) => o.id)));
 
-    // user_id dari query string harus diabaikan; kalau dihormati, pelanggan
-    // cukup mengubah angkanya untuk membaca order orang lain.
+    // Pastikan parameter query user_id diabaikan demi keamanan data pelanggan.
     const spoof = await get(`/api/orders?user_id=${budi.id}`, { token: tokRina });
     ok('query user_id diabaikan untuk pelanggan', spoof.json?.data?.total === jmlRina.n,
       `${spoof.json?.data?.total} vs ${jmlRina.n}`);
@@ -128,11 +122,7 @@ async function get(path, { token } = {}) {
     const badStatus = await get('/api/orders?status=hilang', { token: kasir });
     ok('status tidak dikenal 400', badStatus.status === 400, `status ${badStatus.status}`);
 
-    // ---- grup status `aktif` (PRD-03 §4) ----
-    // Dashboard kasir meminta GET /api/orders?status=aktif dalam satu permintaan.
-    // 'aktif' bukan nilai enum di tabel: itu grup antre+proses_cuci+sedang_diproses+
-    // siap_diambil. Tanpa pemetaan ini permintaannya dijawab 400 dan daftar ringkas
-    // order aktif tidak bisa ditampilkan.
+    // Uji grup status 'aktif' mencakup antre, proses_cuci, sedang_diproses, dan siap_diambil.
     const AKTIF = ['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil'];
     const aktif = await get('/api/orders?status=aktif', { token: kasir });
     ok('filter status=aktif 200', aktif.status === 200, `status ${aktif.status}`);
@@ -148,8 +138,7 @@ async function get(path, { token } = {}) {
     ok('status=aktif tidak memuat order selesai/batal',
       (aktif.json?.data?.items ?? []).every((o) => o.status !== 'selesai' && o.status !== 'batal'));
 
-    // Grup tetap dibatasi kepemilikan: pelanggan tidak boleh melihat order aktif
-    // milik pelanggan lain lewat satu filter.
+    // Pastikan filter status 'aktif' tetap dibatasi milik pelanggan yang login.
     const aktifRina = await get('/api/orders?status=aktif', { token: tokRina });
     const [[jmlAktifRina]] = await pool.query(
       `select count(*) as n from orders where user_id = ? and status in (${AKTIF.map(() => '?').join(',')})`,
@@ -187,8 +176,7 @@ async function get(path, { token } = {}) {
       ok('jumlah seluruh halaman = total', true, 'dilewati: order <= 2');
     }
 
-    // Urutan harus stabil antar halaman, kalau tidak ada baris yang terlewat
-    // atau muncul dua kali saat data bertambah.
+    // Pastikan urutan paginasi stabil antar halaman tanpa baris terlewat.
     const desc = await get('/api/orders?pageSize=100', { token: kasir });
     const times = (desc.json?.data?.items ?? []).map((o) => `${o.created_at}|${o.id}`);
     const sorted = [...times].sort().reverse();
@@ -204,9 +192,7 @@ async function get(path, { token } = {}) {
     const notNumber = await get('/api/orders?page=abc', { token: kasir });
     ok('page bukan angka ditolak 400', notNumber.status === 400, `status ${notNumber.status}`);
 
-    // ---- pencarian ----
-    // Dicocokkan terhadap DB, bukan terhadap tebakan: yang diuji adalah SQL
-    // yang sama, jadi hitungannya harus identik dengan query acuan.
+    // Bandingkan jumlah hasil pencarian langsung dengan query acuan di database.
     const cariNama = await get('/api/orders?search=Rina', { token: kasir });
     const [[jmlCariNama]] = await pool.query(
       "select count(*) as n from orders o join users u on u.id = o.user_id where u.name like '%Rina%'",
@@ -228,8 +214,7 @@ async function get(path, { token } = {}) {
       (cariHp.json?.data?.items ?? []).some((o) => o.customer_name === 'Rina Marlina'),
       `${(cariHp.json?.data?.items ?? []).map((o) => o.customer_name).join(' ')}`);
 
-    // '%' dan '_' dari pengguna harus jadi karakter biasa, bukan wildcard.
-    // Tanpa escape, search=% akan mengembalikan seluruh order.
+    // Pastikan karakter % dan _ pada pencarian di-escape sebagai teks biasa.
     const cariWildcard = await get('/api/orders?search=%25', { token: kasir });
     ok('wildcard % di-escape (bukan cocok semua)', cariWildcard.json?.data?.total === 0,
       `${cariWildcard.json?.data?.total} vs 0`);

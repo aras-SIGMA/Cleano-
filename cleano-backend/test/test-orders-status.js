@@ -1,8 +1,4 @@
-// Uji B6: PATCH /api/orders/:id/status dan PATCH /api/orders/:id/confirm-relay.
-// Semua perubahan dijalankan lewat service di dalam transaksi lalu ROLLBACK —
-// order tidak bisa dihapus (trigger L-07), jadi rollback satu-satunya cara
-// membersihkan. Jalur otorisasi dan validasi diuji lewat HTTP.
-// Jalankan: npm run test:orders-status
+// Uji B6 status order & confirm-relay dalam transaksi lalu ROLLBACK.
 require('dotenv').config({ quiet: true });
 
 const { pool } = require('../src/config/database');
@@ -50,8 +46,7 @@ async function inTx(fn) {
   }
 }
 
-// Kegagalan jadi asersi merah, bukan menghentikan skrip dengan ringkasan
-// "N/N lulus" yang menyesatkan.
+// Ubah exception tak terduga menjadi asersi gagal agar ringkasan tes akurat.
 async function tryTx(fn) {
   try {
     return { ok: true, value: await inTx(fn) };
@@ -110,8 +105,7 @@ async function tryTx(fn) {
     });
     ok('confirm-relay tanpa machine_id 400', noMachine.status === 400, `status ${noMachine.status}`);
 
-    // ---- tabel transisi: yang sah diterima, sisanya ditolak ----
-    // Order uji dibuat di dalam transaksi, jadi tidak ada yang tersisa.
+    // Uji tabel transisi status: transisi sah diterima, sisanya ditolak.
     const ALL_STATUS = ['antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil', 'selesai', 'batal'];
     const gagal = [];
     for (const from of ALL_STATUS) {
@@ -154,8 +148,7 @@ async function tryTx(fn) {
       release.ok ? `${release.value.mesin.estimated_finish_at}` : release.error);
     ok('freed_machine_id dilaporkan', release.ok && release.value.res.freedMachineId === 1,
       release.ok ? `${release.value.res.freedMachineId}` : release.error);
-    // machine_id di order tidak dikosongkan: riwayat mesin mana yang dipakai
-    // tetap perlu terbaca di detail order pelanggan.
+    // Pertahankan machine_id pada order agar riwayat mesin tetap terbaca pelanggan.
     ok('machine_id order dipertahankan', release.ok && release.value.order.machine_id === 1,
       release.ok ? `${release.value.order.machine_id}` : release.error);
 
@@ -174,8 +167,7 @@ async function tryTx(fn) {
     });
     ok('siap_diambil -> selesai berhasil', noSteal.ok && noSteal.value.order.status === 'selesai',
       noSteal.ok ? noSteal.value.order.status : noSteal.error);
-    // Order ini tidak sedang proses_cuci, jadi mesin yang kebetulan 'digunakan'
-    // bukan miliknya dan tidak boleh dibebaskan.
+    // Pastikan order non-proses_cuci tidak membebaskan mesin milik order lain.
     ok('mesin milik order lain tidak dilepas', noSteal.ok && noSteal.value.mesin.status === 'digunakan',
       noSteal.ok ? noSteal.value.mesin.status : noSteal.error);
     ok('freed_machine_id null tanpa pelepasan', noSteal.ok && noSteal.value.res.freedMachineId === null,
@@ -212,8 +204,7 @@ async function tryTx(fn) {
       && typeof withQueue.value.res.nextQueueOrder?.customer_name === 'string',
       withQueue.ok ? `${withQueue.value.res.nextQueueOrder?.customer_name}` : withQueue.error);
 
-    // Dua order dengan created_at identik: pemenangnya harus yang id-nya lebih
-    // kecil, kalau tidak antrean bisa melompati satu order saat detik seri.
+    // Pastikan antrean seri pada detik sama dipilih berdasarkan id terkecil.
     const tie = await tryTx(async (conn) => {
       const [a] = await conn.query(
         `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
@@ -342,10 +333,7 @@ async function tryTx(fn) {
     ok('confirm-relay mesin tidak ada 404', relayMissingMachine.ok && relayMissingMachine.value.status === 404,
       relayMissingMachine.ok ? `${relayMissingMachine.value.status}` : relayMissingMachine.error);
 
-    // ---- queue_wait_minutes dihitung ulang saat mesin dilepas ----
-    // Angka ini dibekukan saat order dibuat (B4). Begitu satu mesin bebas, order
-    // yang masih antre menunjuk mesin yang sudah selesai — portal pelanggan
-    // (PRD-04 §3.1) menampilkan "± N menit" yang salah permanen.
+    // Pastikan queue_wait_minutes seluruh order antre dihitung ulang saat mesin dilepas.
     const recalc = await tryTx(async (conn) => {
       const [a] = await conn.query(
         `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
@@ -388,14 +376,7 @@ async function tryTx(fn) {
       recalcRelay.ok && recalcRelay.value > 0,
       recalcRelay.ok ? `${recalcRelay.value} menit` : recalcRelay.error);
 
-    // ---- confirm-relay menolak layanan tanpa mesin ----
-    // Layanan id 4 (Setrika & Pengeringan) punya requires_machine = 0. Order
-    // seperti ini tidak pernah memakai drum; mengizinkannya lewat confirm-relay
-    // akan mengunci mesin yang dibutuhkan order lain.
-    //
-    // Status awalnya sengaja 'antre' supaya pemeriksaan status lolos dan yang
-    // diuji benar-benar cabang requires_machine. Kalau statusnya 'sedang_diproses',
-    // penolakan datang dari cek status dan tes ini lolos tanpa membuktikan apa pun.
+    // Pastikan confirm-relay menolak layanan tanpa mesin (requires_machine = 0).
     const relayNoMachine = await tryTx(async (conn) => {
       const [[svc]] = await conn.query('select requires_machine from services where id = 4');
       const [a] = await conn.query(
@@ -453,8 +434,7 @@ async function tryTx(fn) {
     ok('order batal tidak bisa dihidupkan', finalLocked.ok && finalLocked.value.status === 400,
       finalLocked.ok ? `${finalLocked.value.status} ${finalLocked.value.message}` : finalLocked.error);
 
-    // TRANSITIONS harus menutup keenam nilai enum, kalau tidak ada status yang
-    // lolos tanpa aturan dan backend membiarkan apa pun ke trigger.
+    // Pastikan peta TRANSITIONS mencakup seluruh nilai enum status order.
     ok('tabel transisi menutup semua status enum',
       ALL_STATUS.every((s) => s in TRANSITIONS), ALL_STATUS.filter((s) => !(s in TRANSITIONS)).join(','));
   } finally {

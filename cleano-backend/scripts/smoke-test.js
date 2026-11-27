@@ -1,7 +1,4 @@
-// smoke test: buktikan trigger v1.4 aktif di Aiven (bukan cuma terdaftar).
-// seluruh uji berjalan dalam satu transaksi dan di-ROLLBACK, jadi data asli
-// tidak tersentuh (hard delete dilarang trigger, jadi rollback satu-satunya
-// cara membersihkan sisa uji).
+// Smoke test trigger v1.4 di Aiven dalam transaksi lalu ROLLBACK.
 require('dotenv').config({ quiet: true });
 const { pool } = require('../src/config/database');
 

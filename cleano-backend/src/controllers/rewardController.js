@@ -9,8 +9,7 @@ const { runTx } = require('../services/orderStatus');
 
 const COLS = 'id, title, description, points_required, discount_amount, is_active, created_at';
 
-// GET /api/rewards — semua login
-// Pelanggan hanya melihat reward aktif; kasir melihat semuanya untuk kelola.
+// GET /api/rewards: pelanggan lihat promo aktif, kasir lihat semua.
 async function list(req, res) {
   const onlyActive = req.user.role === 'pelanggan';
   const [rows] = await pool.query(
@@ -30,10 +29,7 @@ async function create(req, res) {
   return created(res, rows[0], 'Reward dibuat.');
 }
 
-// PUT /api/rewards/:id — kasir
-// is_active sengaja tidak ditulis di sini; status aktif diatur lewat toggle.
-// Kalau PUT menulis is_active, reward yang sudah dinonaktifkan akan aktif lagi
-// hanya karena judulnya diubah.
+// PUT /api/rewards/:id: status is_active hanya diubah lewat endpoint toggle.
 async function update(req, res) {
   const id = parseId(req.params.id);
   const b = parse(rewardPutBody, req.body);
@@ -62,8 +58,7 @@ async function toggle(req, res) {
 // POST /api/rewards/redeem — pelanggan
 async function redeem(req, res) {
   const b = parse(rewardRedeemBody, req.body);
-  // user_id dari token, tidak pernah dari body: kalau dari body, pelanggan bisa
-  // menukar poin milik akun lain.
+  // Ambil user_id dari token agar pelanggan tidak memakai poin akun lain.
   const result = await runTx((conn) => attemptRedeem(conn, { userId: req.user.id, rewardId: b.reward_id }));
 
   return created(res, {
@@ -73,8 +68,7 @@ async function redeem(req, res) {
   }, `Voucher ${result.voucher.voucher_code} berhasil diklaim.`);
 }
 
-// GET /api/rewards/my-vouchers — pelanggan
-// user_id dari token, jadi pelanggan tidak bisa membaca voucher orang lain.
+// GET /api/rewards/my-vouchers: user_id dari token demi privasi voucher pelanggan.
 async function myVouchers(req, res) {
   const data = await fetchMyVouchers(pool, req.user.id);
   return ok(res, data, 'Voucher saya.');

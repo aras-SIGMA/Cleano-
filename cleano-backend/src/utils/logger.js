@@ -1,12 +1,6 @@
 'use strict';
 
-// Log satu baris JSON per kejadian, supaya bisa dibaca mesin (grep, Loki,
-// CloudWatch) tanpa parser khusus. console.* biasa bercampur dengan output
-// framework dan tidak membawa konteks.
-//
-// Ditulis tangan, bukan pino/winston: kebutuhan proyek ini hanya "satu baris
-// JSON dengan level dan waktu". Menambah dependensi logging penuh untuk itu
-// tidak sepadan.
+// Logger JSON satu baris per kejadian tanpa dependensi eksternal tambahan.
 
 function emit(level, message, meta) {
   const line = { time: new Date().toISOString(), level, message };
@@ -15,8 +9,7 @@ function emit(level, message, meta) {
   out.write(`${JSON.stringify(line)}\n`);
 }
 
-// Error MySQL / HTTP diterjemahkan ke bentuk yang aman dilog: tanpa stack
-// panjang, tapi tetap menyimpan kode dan pesan aslinya.
+// Ringkas objek error MySQL/HTTP agar aman dilog tanpa stack panjang.
 function describe(err) {
   if (!err || typeof err !== 'object') return { message: String(err) };
   return {
@@ -30,8 +23,7 @@ function describe(err) {
   };
 }
 
-// Pengganti console.error di seluruh src/. Dipakai database.js dan error
-// handler server.js supaya semua baris log punya bentuk yang sama.
+// Helper log error terstruktur sebagai pengganti console.error di seluruh src/.
 function createLogger(scope) {
   const withScope = (level) => (message, meta) => emit(level, message, { scope, ...meta });
   return {

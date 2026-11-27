@@ -1,24 +1,4 @@
--- ============================================================================
--- file: database_schema.sql (final v1.4 - hardened + guard lengkap)
--- proyek: cleano (smart laundry pos & order tracking system)
--- dbms: mysql 8.0.16+ / 8.4+ (aiven cloud / localhost)
---
--- riwayat perbaikan:
---   v1.1  guard NOT FOUND, points_awarded, paid_at, exclude batal, hash seeder
---   v1.2  paid_at untuk omzet (bukan created_at)
---   v1.3  immutability guard harga/berat/paid_at, snapshot customer tier
---   v1.4  L-01 points_awarded tidak bisa direset (poin farming)
---         L-02 user_vouchers.is_used tidak bisa direset (voucher 1x pakai)
---         L-04 paid_at hanya boleh diisi sistem, bukan manual (termasuk NULL)
---              + order belum_bayar dipaksa paid_at = null saat INSERT
---                (klien tidak bisa menyuntik waktu pelunasan palsu)
---         L-05 payment_status tidak bisa mundur lunas -> belum_bayar
---         L-06 status order tidak bisa keluar dari selesai / batal
---         L-07 order tidak boleh dihapus (hard delete dilarang)
---         L-08 order_code, created_at, customer_tier_snapshot dikunci
---         L-09 voucher_code, user_id, reward_id voucher dikunci
---              (sebelumnya reward_id bisa ditukar -> arbitrase diskon)
--- ============================================================================
+-- Skema Cleano v1.5 (MySQL 8): guard trigger lengkap dan kolom avatar_url.
 
 create database if not exists cleano_db
   character set utf8mb4
@@ -59,6 +39,7 @@ create table users (
     password varchar(255) not null,
     role enum('kasir', 'pelanggan') not null default 'pelanggan',
     phone varchar(20) not null unique,
+    avatar_url varchar(500) null,
     created_at timestamp not null default current_timestamp,
     member_code varchar(20) not null unique,
     points int not null default 0,
@@ -206,10 +187,7 @@ begin
 end$$
 
 
--- ----------------------------------------------------------------------------
--- trigger 2: buat order. validasi voucher, hitung harga, snapshot tier,
---            stempel paid_at untuk tunai, dan kendalikan flag poin (L-01c).
--- ----------------------------------------------------------------------------
+-- Trigger 2: validasi voucher, hitung harga, snapshot tier, dan stempel paid_at.
 create trigger trg_before_insert_order
 before insert on orders
 for each row
@@ -267,10 +245,7 @@ begin
 
     set new.total_price = greatest(0, new.subtotal_price - new.discount_amount);
 
-    -- L-04: paid_at hanya boleh diisi sistem.
-    -- tunai / sudah lunas -> distempel sekarang; selain itu (mis. midtrans
-    -- belum_bayar) WAJIB null, supaya klien tidak bisa menyuntik waktu
-    -- pelunasan palsu saat INSERT dan mengacak omzet harian.
+    -- L-04: paid_at hanya diisi sistem agar klien tidak memalsukan pelunasan.
     if new.payment_method = 'tunai' or new.payment_status = 'lunas' then
         set new.payment_status = 'lunas';
         if new.paid_at is null then
@@ -280,8 +255,7 @@ begin
         set new.paid_at = null;
     end if;
 
-    -- L-01c: flag poin dikendalikan sistem, bukan pemanggil.
-    -- klien tidak boleh menyuntik points_awarded=1 untuk menahan poin pelanggan.
+    -- L-01c: flag poin dikendalikan sistem, klien dilarang menyuntik points_awarded=1.
     set new.points_awarded = 0;
 
     if new.status = 'selesai' and new.payment_status = 'lunas' then
@@ -319,17 +293,7 @@ begin
 end$$
 
 
--- ----------------------------------------------------------------------------
--- trigger 4: guard utama orders (BEFORE UPDATE).
---   L-08  kunci order_code, created_at, customer_tier_snapshot
---   N-01  kunci harga, berat, layanan, pemilik, voucher
---   L-04  paid_at hanya boleh diisi sistem (termasuk larangan dikosongkan)
---   L-01  points_awarded tidak boleh dibatalkan (1 -> 0)
---   L-01b points_awarded tidak boleh dinaikkan manual (0 -> 1)
---   L-05  payment_status tidak boleh mundur dari lunas
---   L-06  status tidak boleh keluar dari selesai / batal
---   lalu: stempel paid_at otomatis & pemberian poin idempoten sekali jalan
--- ----------------------------------------------------------------------------
+-- Trigger 4: guard BEFORE UPDATE orders, kunci harga, status, dan poin.
 create trigger trg_before_update_order
 before update on orders
 for each row
@@ -366,10 +330,7 @@ begin
             set message_text = 'Harga, berat, layanan, dan voucher order tidak boleh diubah setelah dibuat.';
     end if;
 
-    -- L-04: paid_at hanya boleh ditulis oleh sistem.
-    -- guard ini berjalan SEBELUM stempel otomatis di bawah, jadi satu-satunya
-    -- penulis yang lolos adalah trigger ini sendiri. semua perubahan eksplisit
-    -- (mengisi saat belum bayar, menggeser, atau mengosongkan) ditolak.
+    -- L-04: tolak ubah paid_at manual sebelum stempel otomatis trigger berjalan.
     if not (new.paid_at <=> old.paid_at) then
         signal sqlstate '45000'
             set message_text = 'Waktu pelunasan hanya boleh diisi otomatis oleh sistem.';
@@ -381,8 +342,7 @@ begin
             set message_text = 'Status pemberian poin tidak boleh dibatalkan.';
     end if;
 
-    -- L-01b: flag poin hanya boleh naik ke 1 bersamaan dengan transisi ke selesai+lunas
-    --        (mencegah kasir menahan poin pelanggan dengan memaksa flag = 1 lebih dulu)
+    -- L-01b: flag poin hanya naik saat order berstatus selesai dan lunas.
     if old.points_awarded = 0 and new.points_awarded = 1
        and not (new.status = 'selesai' and new.payment_status = 'lunas') then
         signal sqlstate '45000'
@@ -430,17 +390,12 @@ begin
 end$$
 
 
--- ----------------------------------------------------------------------------
--- trigger 5 (L-02): voucher sekali pakai tidak boleh diaktifkan kembali,
---            dan identitas voucher tidak boleh ditukar (arbitrase diskon).
--- ----------------------------------------------------------------------------
+-- Trigger 5 (L-02): voucher sekali pakai tidak boleh diaktifkan atau ditukar.
 create trigger trg_before_update_user_voucher
 before update on user_vouchers
 for each row
 begin
-    -- L-02c: kode, pemilik, dan reward voucher dikunci.
-    -- tanpa ini, klaim reward murah (50 poin) bisa ditukar jadi reward mahal
-    -- (25.000 diskon) hanya dengan mengubah reward_id setelah voucher dibuat.
+    -- L-02c: kunci kode, pemilik, dan reward_id agar voucher tidak bisa ditukar.
     if new.voucher_code != old.voucher_code then
         signal sqlstate '45000'
             set message_text = 'Kode voucher tidak boleh diubah.';
@@ -456,13 +411,7 @@ begin
             set message_text = 'Jenis reward voucher tidak boleh diubah.';
     end if;
 
-    -- is_used & used_at hanya boleh berubah bersamaan, dan hanya lewat transisi
-    -- pemakaian voucher: 0/NULL -> 1/waktu (ditulis trg_after_insert_order).
-    -- seluruh bentuk lain ditolak: reset 1->0, is_used naik tanpa used_at,
-    -- used_at diisi pada voucher yang belum dipakai, used_at digeser/dikosongkan.
-    -- ponytail: pemakaian manual (1 baris, is_used=1 + used_at terisi) masih
-    --           mungkin; mysql tidak bisa membedakan dml pemanggil dari trigger.
-    --           tutup di lapisan otorisasi kasir bila perlu.
+    -- is_used dan used_at hanya berubah bersamaan saat pemakaian voucher resmi.
     if not (new.is_used <=> old.is_used) or not (new.used_at <=> old.used_at) then
         if not (old.is_used = 0 and new.is_used = 1 and new.used_at is not null) then
             signal sqlstate '45000'
@@ -552,8 +501,7 @@ select
     (select count(*) from machines where status != 'maintenance') as total_operational_machines;
 
 
--- view 3: tren omzet 7 hari terakhir
--- catatan: backend wajib mengisi sendiri 7 tanggal (hari tanpa transaksi tidak muncul di sini)
+-- View 3: tren omzet 7 hari; tanggal kosong diisi di backend.
 create view vw_daily_revenue_7days as
 select
     date_format(paid_at, '%Y-%m-%d') as order_date,
@@ -567,13 +515,7 @@ where payment_status = 'lunas'
 group by date_format(paid_at, '%Y-%m-%d');
 
 
--- ============================================================================
--- bagian 4: data seeder awal
--- password seluruh akun dummy: 'password123'
--- catatan: order seed di bawah berstatus 'selesai' + 'lunas', jadi trigger 2
--- memberi poin saat insert (rina +2 dari 28.000; budi +12 dari 66.000 x2 bonus).
--- saldo awal sudah dikurangi nilai itu supaya hasil akhir tetap 150 / 45.
--- ============================================================================
+-- Seeder awal (password: 'password123'); poin awal sudah disesuaikan bonus trigger.
 
 insert into users (name, email, password, role, phone, member_code, points) values
 ('Kasir Utama Cleano', 'kasir@cleano.id', '$2b$10$dJtvMjnmVcXCSOIKdco5feBtozeOiKSn1VvdkRk9b.ToTI6hhHnaW', 'kasir', '081200000001', 'STF-0001', 0),

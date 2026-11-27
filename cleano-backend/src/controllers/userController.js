@@ -1,18 +1,19 @@
 'use strict';
 
+const fs = require('fs');
 const { pool } = require('../config/database');
 const { ok, badRequest, notFound } = require('../utils/response');
 const { normalizePhone } = require('../utils/phone');
 const { tierOf, publicUser } = require('./authController');
+const { verifyImageMagicBytes } = require('../middlewares/uploadMiddleware');
+const cloudinary = require('../config/cloudinary');
 
-// GET /api/users/me — semua login
-// Token hanya membawa id, member_code, role (PRD-02 §3.1). Poin dan tier tidak
-// ikut di dalamnya karena keduanya berubah tanpa login ulang — pelanggan yang
-// baru menyelesaikan order akan melihat saldo lama sampai token kedaluwarsa.
-// Portal pelanggan (PRD-04 §3.1, §3.3) butuh angka terbaru, jadi dibaca di sini.
+const AVATAR_FOLDER = process.env.CLOUDINARY_AVATAR_FOLDER || 'cleano/avatars';
+
+// GET /api/users/me: ambil poin dan tier terbaru langsung dari database.
 async function me(req, res) {
   const [rows] = await pool.query(
-    'select id, name, email, phone, role, member_code, points from users where id = ? limit 1',
+    'select id, name, email, phone, role, member_code, points, avatar_url from users where id = ? limit 1',
     [req.user.id],
   );
   if (!rows.length) throw notFound('Pengguna tidak ditemukan.');
@@ -20,17 +21,51 @@ async function me(req, res) {
   return ok(res, publicUser(rows[0]), 'Profil pengguna.');
 }
 
-// GET /api/users/lookup?query=MBR-0001 | 081234567890 — kasir saja
-// Dipakai layar POS untuk mencari pelanggan lewat QR member atau nomor HP (TC-11).
+// PATCH /api/users/me/avatar — semua login (kasir & pelanggan)
+async function updateAvatar(req, res) {
+  let uploaded = null;
+  let validFile = false;
+  try {
+    if (!req.file) {
+      throw badRequest('Foto profil wajib diunggah pada field "image".');
+    }
+    if (!verifyImageMagicBytes(req.file.path)) {
+      throw badRequest('Format foto harus JPG, PNG, atau WEBP yang valid.');
+    }
+    validFile = true;
+
+    uploaded = cloudinary.enabled
+      ? await cloudinary.uploadImage(req.file.path, { folder: AVATAR_FOLDER, maxDim: 512 })
+      : { url: `/uploads/${req.file.filename}`, publicId: null };
+
+    const [result] = await pool.query(
+      'update users set avatar_url = ? where id = ?',
+      [uploaded.url, req.user.id],
+    );
+    if (!result.affectedRows) throw notFound('Pengguna tidak ditemukan.');
+
+    const [rows] = await pool.query(
+      'select id, name, email, phone, role, member_code, points, avatar_url from users where id = ? limit 1',
+      [req.user.id],
+    );
+    return ok(res, publicUser(rows[0]), 'Foto profil diperbarui.');
+  } catch (err) {
+    if (uploaded?.publicId) await cloudinary.destroyImage(uploaded.publicId);
+    if (req.file && (!cloudinary.enabled || !validFile)) fs.unlink(req.file.path, () => {});
+    throw err;
+  } finally {
+    if (cloudinary.enabled && req.file) fs.unlink(req.file.path, () => {});
+  }
+}
+
+// GET /api/users/lookup: cari pelanggan via kode member atau nomor HP.
 async function lookup(req, res) {
   const query = typeof req.query.query === 'string' ? req.query.query.trim() : '';
   if (!query) throw badRequest('Parameter query wajib diisi.');
-  // Kode member 8 karakter, nomor HP maksimal 20 digit. Batas ini mencegah
-  // query string sepanjang megabyte ikut dinormalisasi dan dikirim ke MySQL.
+  // Batasi panjang query lookup untuk mencegah normalisasi string raksasa.
   if (query.length > 30) throw badRequest('Kata kunci pencarian maksimal 30 karakter.');
 
-  // Kasir mengetik nomor dari WhatsApp (+62...) atau dari kartu (0812...).
-  // Keduanya harus menemukan orang yang sama; tanpa normalisasi, +62812… → 404.
+  // Normalisasi nomor HP (+62/62/08) agar pencarian kasir selalu cocok.
   const phone = normalizePhone(query);
 
   const [rows] = await pool.query(
@@ -64,4 +99,4 @@ async function lookup(req, res) {
   }, 'Pelanggan ditemukan.');
 }
 
-module.exports = { me, lookup };
+module.exports = { me, updateAvatar, lookup };

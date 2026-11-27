@@ -1,9 +1,4 @@
-// Uji B7: POST /api/orders/:id/sync-payment.
-// Semua perubahan dijalankan lewat attemptSyncPayment di dalam transaksi lalu
-// ROLLBACK. payment_status tidak bisa dikembalikan ke belum_bayar (L-05), jadi
-// rollback satu-satunya cara membersihkan. Gateway tidak pernah dipanggil:
-// fetchStatus disuntik.
-// Jalankan: npm run test:sync-payment
+// Uji B7 sync-payment dengan stub fetchStatus dalam transaksi lalu ROLLBACK.
 require('dotenv').config({ quiet: true });
 
 const { pool } = require('../src/config/database');
@@ -57,8 +52,7 @@ async function tryTx(fn) {
   }
 }
 
-// Order midtrans belum_bayar dibuat di dalam transaksi. Layanan 4 tidak butuh
-// mesin, jadi tidak ada mesin yang tersentuh.
+// Buat order midtrans belum_bayar memakai layanan tanpa mesin di dalam transaksi.
 const fake = (transactionStatus, fraudStatus = null) => async () => ({
   transaction_status: transactionStatus,
   fraud_status: fraudStatus,
@@ -102,8 +96,7 @@ async function makeOrder(conn, code) {
     const tunai = await call('/api/orders/3/sync-payment', { method: 'POST', token: kasir });
     ok('order tunai ditolak 400', tunai.status === 400, `status ${tunai.status}`);
 
-    // Order midtrans seeder (id 2) sudah lunas. Endpoint harus melaporkan itu
-    // tanpa memanggil gateway — kalau memanggil, tes ini akan menembak jaringan.
+    // Pastikan order yang sudah lunas tidak memanggil gateway Midtrans lagi.
     const sudahLunas = await call('/api/orders/2/sync-payment', { method: 'POST', token: kasir });
     ok('order lunas 200 tanpa panggilan gateway', sudahLunas.status === 200, `status ${sudahLunas.status}`);
     ok('order lunas melaporkan changed=false', sudahLunas.json?.data?.changed === false,
@@ -230,9 +223,7 @@ async function makeOrder(conn, code) {
       gatewayDown.ok && gatewayDown.value.payment === 'belum_bayar',
       gatewayDown.ok ? gatewayDown.value.payment : gatewayDown.error);
 
-    // ---- order batal tidak boleh dilunasi ----
-    // Status batal dicapai lewat update langsung: attemptStatusChange menolak
-    // transisi yang tidak sah, dan order uji ini memang dibuat sudah batal.
+    // Pastikan order berstatus batal ditolak saat disinkronkan sebagai lunas.
     const batal = await tryTx(async (conn) => {
       const [ins] = await conn.query(
         `insert into orders (order_code, user_id, service_id, machine_id, weight, payment_method,
@@ -250,8 +241,7 @@ async function makeOrder(conn, code) {
     ok('order batal tidak bisa dilunasi', batal.ok && batal.value.status === 400,
       batal.ok ? `${batal.value.status} ${batal.value.message}` : batal.error);
 
-    // ---- mode stub: server key kosong -> 503, bukan sukses palsu ----
-    // enabled dibaca saat modul dimuat, jadi harus proses terpisah.
+    // Uji mode stub sync-payment saat server key kosong membalas HTTP 503.
     const { execFileSync } = require('child_process');
     let stubOut = '';
     try {

@@ -2,17 +2,14 @@
 
 const { z } = require('zod');
 
-// multipart/form-data: semua field datang sebagai string, jadi angka dan null
-// harus di-koersi sendiri. Klien Flutter mengirim null sebagai string kosong.
+// Koersi angka dan nilai kosong dari field multipart form-data.
 const nullableInt = (label) =>
   z.preprocess(
     (v) => (v === undefined || v === null || v === '' ? null : Number(v)),
     z.number({ error: `${label} harus angka.` }).int(`${label} harus bilangan bulat.`).positive(`${label} harus lebih dari 0.`).nullable(),
   );
 
-// Hanya field yang boleh ditentukan klien. Harga, diskon, total, paid_at,
-// customer_tier_snapshot, dan points_awarded dihitung trigger BEFORE INSERT —
-// mengirimnya ditolak atau ditimpa, jadi lebih jujur tidak diterima di sini.
+// Terima hanya field klien; harga, diskon, total, dan poin dihitung trigger.
 const orderCreateBody = z.object({
   user_id: nullableInt('ID pelanggan').refine((v) => v !== null, 'ID pelanggan wajib diisi.'),
   service_id: nullableInt('ID layanan').refine((v) => v !== null, 'ID layanan wajib diisi.'),
@@ -23,8 +20,7 @@ const orderCreateBody = z.object({
       .max(99.99, 'Berat maksimal 99.99 kg.'),
   ),
   payment_method: z.enum(['tunai', 'midtrans'], { error: 'Metode pembayaran hanya tunai atau midtrans.' }),
-  // PRD-02 §4.3 menyebut voucher_code; tabel menyimpan voucher_id, jadi yang
-  // diterima adalah kodenya lalu dicari di dalam transaksi.
+  // Terima voucher_code string lalu petakan ke voucher_id di dalam transaksi.
   voucher_code: z.preprocess(
     (v) => (v === undefined || v === null || v === '' ? null : String(v).trim().toUpperCase()),
     z.string().max(30, 'Kode voucher maksimal 30 karakter.').nullable(),
@@ -35,19 +31,12 @@ const orderCreateBody = z.object({
   ),
 });
 
-// Query string selalu teks, jadi angka di-koersi. Batas pageSize 100 agar satu
-// permintaan tidak bisa memaksa MySQL mengirim seluruh riwayat order.
-//
-// `aktif` bukan status di tabel: itu nama grup untuk semua order yang belum
-// final. PRD-03 §4 meminta `GET /api/orders?status=aktif` untuk daftar ringkas
-// dashboard, dan tanpa ini permintaannya dijawab 400. Pemetaan grup ke kolom
-// ada di controller supaya validator tetap hanya berisi daftar nilai yang sah.
+// Validasi filter daftar order, paginasi (maks 100), dan grup status 'aktif'.
 const orderListQuery = z.object({
   status: z.enum(['aktif', 'antre', 'proses_cuci', 'sedang_diproses', 'siap_diambil', 'selesai', 'batal'], {
     error: 'Status order tidak dikenal.',
   }).optional(),
-  // Pencarian dijalankan di SQL, bukan di klien: klien hanya memegang satu
-  // halaman, jadi menyaring di sana akan melewatkan order di halaman lain.
+  // Kirim parameter pencarian ke SQL agar hasil mencakup seluruh halaman.
   search: z.preprocess(
     (v) => (v === undefined || v === null || String(v).trim() === '' ? undefined : String(v).trim()),
     z.string().max(100, 'Kata kunci pencarian maksimal 100 karakter.').optional(),
@@ -65,8 +54,7 @@ const orderListQuery = z.object({
   ),
 });
 
-// Tujuan status dari endpoint PATCH /:id/status. 'proses_cuci' tidak ada di sini
-// karena hanya confirm-relay yang boleh menetapkannya (butuh machine_id).
+// Daftar status tujuan PATCH /:id/status; 'proses_cuci' khusus via confirm-relay.
 const orderStatusBody = z.object({
   status: z.enum(['siap_diambil', 'selesai', 'batal'], {
     error: 'Status tujuan hanya boleh siap_diambil, selesai, atau batal.',

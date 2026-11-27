@@ -25,9 +25,7 @@ async function create(req, res) {
   return created(res, rows[0], 'Layanan dibuat.');
 }
 
-// PUT /api/services/:id — kasir
-// Semua field wajib: PUT menggantikan utuh, jadi field yang tidak dikirim tidak
-// boleh diam-diam kembali ke default.
+// PUT /api/services/:id: semua field wajib agar nilai lama tidak tertimpa.
 async function update(req, res) {
   const id = parseId(req.params.id);
   const b = parse(servicePutBody, req.body);
@@ -42,8 +40,7 @@ async function update(req, res) {
   return ok(res, rows[0], 'Layanan diperbarui.');
 }
 
-// DELETE /api/services/:id — kasir
-// Layanan yang sudah dipakai order tidak boleh hilang: FK on delete restrict.
+// DELETE /api/services/:id: tolak hapus layanan yang dipakai order (FK restrict).
 async function remove(req, res) {
   const id = parseId(req.params.id);
   try {

@@ -1,6 +1,4 @@
-// Uji CRUD master data terhadap Aiven. Tiap kasus menulis di dalam transaksi
-// lalu ROLLBACK, jadi database tidak berubah.
-// Jalankan: npm run test:master
+// Uji CRUD master data di Aiven dalam transaksi lalu ROLLBACK.
 require('dotenv').config({ quiet: true });
 
 const { pool } = require('../src/config/database');
@@ -89,10 +87,7 @@ async function login(email, password) {
     const rwKasir = await call('/api/rewards', { token: kasirToken });
     ok('kasir GET rewards 200', rwKasir.status === 200, `status ${rwKasir.status}`);
 
-    // Filter is_active hanya bermakna bila ada reward nonaktif. Seedernya semua
-// aktif, jadi buat satu nonaktif lebih dulu. Di-commit karena request HTTP
-// memakai koneksi lain dan tidak bisa melihat data transaksi yang belum commit;
-// barisnya dihapus lagi di finally.
+    // Buat reward nonaktif sementara untuk uji filter is_active lalu hapus di finally.
     let rwTestId = null;
     try {
       const [ins] = await pool.query(
@@ -154,14 +149,11 @@ async function login(email, password) {
       ok(`id tidak valid ${method} ${path} 400`, r.status === 400 && !JSON.stringify(r.json).includes('Unknown column'), `status ${r.status}`);
     }
 
-    // ---- PUT tidak boleh mengembalikan field ke default diam-diam ----
-    // Layanan 4 'Setrika & Pengeringan Saja' punya durasi 0 dan requires_machine 0.
-    // Mengubah harganya saja tidak boleh membuatnya butuh mesin.
+    // Pastikan PUT layanan tidak mereset field lain ke nilai default.
     const beforeSvc = (await call('/api/services', { token: kasirToken })).json.data.find((s) => s.id === 4);
     ok('prasyarat: layanan 4 tanpa mesin', beforeSvc.requires_machine === 0 && beforeSvc.wash_duration_minutes === 0, `req=${beforeSvc.requires_machine} durasi=${beforeSvc.wash_duration_minutes}`);
 
-    // Hanya requires_machine yang dihilangkan: kalau PUT memakai default, field
-    // ini diam-diam jadi 1 dan layanan tanpa mesin berubah jadi butuh mesin.
+    // Pastikan requires_machine tidak ikut berubah saat PUT layanan tanpa field tersebut.
     const priceOnly = await call('/api/services/4', {
       method: 'PUT',
       token: kasirToken,
@@ -215,8 +207,7 @@ async function login(email, password) {
     const manualUse = await call('/api/machines/2', { method: 'PATCH', body: { status: 'digunakan' }, token: kasirToken });
     ok('PATCH status=digunakan ditolak 400', manualUse.status === 400, `status ${manualUse.status}`);
 
-    // POST juga tidak boleh membuat mesin yang langsung berstatus terpakai.
-    // Dihapus di finally: kalau regresi membuatnya 201, barisnya tidak boleh tertinggal.
+    // Pastikan POST mesin menolak pembuatan unit berstatus 'digunakan' secara langsung.
     let postUsedId = null;
     try {
       const postUsed = await call('/api/machines', {
@@ -284,8 +275,7 @@ async function login(email, password) {
       const [[rwRow2]] = await conn.query('select is_active from rewards where id = ?', [insRw.insertId]);
       ok('toggle reward 0 -> 1', rwRow2.is_active === 1, `is_active ${rwRow2.is_active}`);
 
-      // FK restrict: layanan yang dipakai order tidak bisa dihapus
-      // (order seeder memakai service 1)
+      // Pastikan layanan yang dipakai order tidak bisa dihapus (FK restrict).
       let fkBlocked = false;
       try {
         await conn.query('delete from services where id = 1');

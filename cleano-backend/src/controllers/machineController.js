@@ -29,8 +29,7 @@ async function create(req, res) {
   }
 }
 
-// PATCH /api/machines/:id — kasir
-// Tidak ada DELETE: mesin dinonaktifkan lewat status = 'maintenance' (PRD).
+// PATCH /api/machines/:id — kasir; nonaktifkan mesin lewat status maintenance.
 async function update(req, res) {
   const id = parseId(req.params.id);
   const b = parse(machinePatchBody, req.body);

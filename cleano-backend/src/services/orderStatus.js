@@ -3,13 +3,7 @@
 const { pool } = require('../config/database');
 const { badRequest, notFound } = require('../utils/response');
 
-// Transisi yang sah. 'proses_cuci' sengaja tidak bisa jadi tujuan di sini:
-// endpoint status tidak tahu mesin mana yang dipakai, jadi order masuk ke drum
-// hanya lewat confirm-relay yang membawa machine_id.
-//
-// 'selesai' dan 'batal' final. Trigger L-06 sudah menolak perubahan keluar dari
-// keduanya, tapi backend tetap harus menolak lebih dulu supaya pesannya jelas
-// dan bukan error SQL.
+// Peta transisi status sah; 'proses_cuci' hanya lewat confirm-relay, final ditolak.
 const TRANSITIONS = {
   antre: ['batal'],
   proses_cuci: ['siap_diambil', 'batal'],
@@ -19,8 +13,7 @@ const TRANSITIONS = {
   batal: [],
 };
 
-// Kunci baris order lebih dulu, lalu mesin. Urutan ini dipakai kedua endpoint
-// supaya dua request paralel tidak saling menunggu melingkar.
+// Kunci order lalu mesin secara konsisten untuk mencegah deadlock paralel.
 async function lockOrder(conn, orderId) {
   const [[order]] = await conn.query(
     `select id, order_code, service_id, machine_id, status
@@ -38,8 +31,7 @@ async function releaseMachine(conn, machineId) {
   );
 }
 
-// Antrean FIFO. created_at saja tidak cukup: dua order bisa punya detik yang
-// sama, dan tanpa id sebagai pemutus antrean bisa melompati satu order.
+// Urutkan antrean FIFO berdasarkan created_at lalu id sebagai pemutus seri.
 async function nextQueuedOrder(conn) {
   const [[row]] = await conn.query(
     `select o.id, o.order_code, o.weight, u.name as customer_name, s.name as service_name
@@ -53,14 +45,7 @@ async function nextQueuedOrder(conn) {
   return row ?? null;
 }
 
-// Estimasi tunggu dihitung saat order dibuat (B4) dan tidak pernah diperbarui.
-// Begitu satu mesin bebas, angka yang tersimpan di order lain menunjuk mesin yang
-// sudah selesai — portal pelanggan (PRD-04 §3.1) menampilkan "± N menit" yang
-// salah permanen. Karena itu setiap kali mesin dilepas, seluruh order 'antre'
-// dihitung ulang dari mesin yang paling cepat selesai saat ini.
-//
-// Satu UPDATE untuk semua baris, bukan satu per order: nilainya sama untuk
-// semuanya, dan antrean satu outlet cukup pendek untuk dikunci sekaligus.
+// Hitung ulang queue_wait_minutes seluruh order 'antre' setiap kali mesin dilepas.
 async function refreshQueueWaits(conn) {
   await conn.query(
     `update orders
@@ -87,15 +72,11 @@ async function attemptStatusChange(conn, { orderId, status }) {
 
   await conn.query('update orders set status = ? where id = ?', [status, orderId]);
 
-  // Mesin hanya dilepas bila order ini memang masih memegangnya. Kalau dilepas
-  // tanpa syarat, transisi siap_diambil -> selesai akan membebaskan mesin yang
-  // sudah dipakai order lain, dan order itu kehilangan drumnya.
+  // Lepas mesin hanya jika order ini masih memegangnya.
   const holdsMachine = order.status === 'proses_cuci' && Boolean(order.machine_id);
   if (holdsMachine) {
     await releaseMachine(conn, order.machine_id);
-    // Antrean bergerak: estimasi tunggu seluruh order 'antre' harus ikut turun,
-    // kalau tidak badge "± N menit" di portal pelanggan menunjuk mesin yang
-    // sudah selesai.
+    // Perbarui estimasi tunggu seluruh order 'antre' saat mesin baru saja kosong.
     await refreshQueueWaits(conn);
   }
 
@@ -125,9 +106,7 @@ async function attemptConfirmRelay(conn, { orderId, machineId }) {
   const [[service]] = await conn.query(
     'select wash_duration_minutes, requires_machine from services where id = ?', [order.service_id],
   );
-  // Layanan cuci-kering tidak pernah memakai drum. Tanpa pemeriksaan ini, order
-  // 'sedang_diproses' layanan tanpa mesin bisa dikirim ke confirm-relay dan
-  // mengunci mesin yang masih dibutuhkan order lain.
+  // Tolak confirm-relay untuk layanan tanpa mesin agar tidak mengunci drum.
   if (!service?.requires_machine) {
     throw badRequest('Layanan order ini tidak memakai mesin, jadi tidak bisa dikonfirmasi ke mesin.');
   }
@@ -137,8 +116,7 @@ async function attemptConfirmRelay(conn, { orderId, machineId }) {
     "update machines set status = 'digunakan', estimated_finish_at = date_add(now(), interval ? minute) where id = ?",
     [minutes, machineId],
   );
-  // machine_id boleh berubah (trigger hanya mengunci nilai uang dan komposisi
-  // order), karena estafet memang memindahkan order antar mesin.
+  // Perbarui machine_id karena estafet memindahkan order antar unit mesin.
   await conn.query("update orders set status = 'proses_cuci', machine_id = ? where id = ?", [machineId, orderId]);
   // Mesin ini sekarang terpakai, jadi estimasi antrean yang tersisa ikut berubah.
   await refreshQueueWaits(conn);

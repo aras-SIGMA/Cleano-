@@ -1,12 +1,8 @@
 'use strict';
 
-// Satu-satunya tempat aturan alokasi mesin ditulis. Dipakai POST /api/orders
-// sekarang dan confirm-relay nanti; menyalin blok ini ke dua controller akan
-// membuat dua versi aturan yang cepat atau lambat berbeda.
+// Pusatkan aturan alokasi mesin agar create-order dan confirm-relay selalu konsisten.
 
-// Kunci satu mesin 'tersedia' lalu tandai terpakai. `conn` wajib sudah di dalam
-// transaksi. FOR UPDATE pada predikat status mencegah dua request paralel
-// mendapat mesin yang sama.
+// Kunci satu mesin 'tersedia' dalam transaksi memakai FOR UPDATE.
 async function allocateMachine(conn, durationMinutes) {
   const [rows] = await conn.query(
     "select id from machines where status = 'tersedia' order by id asc limit 1 for update",
@@ -22,9 +18,7 @@ async function allocateMachine(conn, durationMinutes) {
   return machine.id;
 }
 
-// Tidak ada mesin bebas: hitung perkiraan tunggu dari mesin yang paling cepat
-// selesai. min() atas kolom null menghasilkan null, jadi baris tanpa
-// estimated_finish_at menular ke seluruh hasil — coalesce ke 0 lebih dulu.
+// Hitung estimasi tunggu dari mesin tercepat selesai dengan coalesce 0.
 async function estimateQueueWait(conn) {
   const [[row]] = await conn.query(
     "select min(coalesce(estimated_finish_at, now())) as earliest from machines where status = 'digunakan'",

@@ -5,9 +5,7 @@ const { notFound } = require('../utils/response');
 
 const MAX_ATTEMPTS = 3;
 
-// 4 karakter alfanumerik, sesuai format PRD-02 §4.4 (CLN-VCR-XXXX).
-// Tanpa karakter mirip (0/O, 1/I/L) karena kode ini dibaca dan diketik manual
-// dari kartu voucher pelanggan.
+// Buat 4 karakter acak tanpa huruf mirip untuk kode voucher.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
 function newVoucherCode() {
@@ -18,32 +16,17 @@ function newVoucherCode() {
   return `CLN-VCR-${out}`;
 }
 
-// Klaim voucher, di atas koneksi yang sudah membuka transaksi (pola B4/B6/B7)
-// supaya skrip uji bisa ROLLBACK — poin yang sudah terpotong tidak bisa
-// dikembalikan sendiri, dan trigger L-02 melarang voucher diaktifkan ulang.
-//
-// Poin TIDAK diperiksa dan TIDAK dipotong di sini. trg_before_insert_user_voucher
-// yang memutuskan: ia membaca is_active dan saldo poin, menolak dengan SQLSTATE
-// 45000, lalu memotong poinnya. Memeriksa ulang di backend berarti dua tempat
-// memutuskan hal yang sama, dan yang kedua bisa berbeda pendapat dengan trigger.
+// Klaim voucher dalam transaksi; validasi aktif dan potong poin oleh trigger.
 async function attemptRedeem(conn, { userId, rewardId, generateCode = newVoucherCode }) {
-  // Saldo dibaca hanya untuk melaporkan points_before. Tidak perlu FOR UPDATE:
-  // INSERT di bawah menjalankan trg_before_insert_user_voucher, yang melakukan
-  // `update users set points = points - ...` — UPDATE itu sendiri mengambil kunci
-  // baris user, jadi klaim kedua menunggu sampai transaksi pertama selesai.
-  // Kunci eksplisit di sini hanya menambah satu pernyataan tanpa menambah jaminan.
+  // Baca saldo awal untuk laporan; kunci baris diambil otomatis oleh trigger.
   const [[user]] = await conn.query('select points from users where id = ?', [userId]);
   if (!user) throw notFound('Pelanggan tidak ditemukan.');
 
-  // Hanya memastikan reward-nya ada, supaya reward_id asing dijawab 404 dan bukan
-  // 400 dari SIGNAL. Status aktif dan kecukupan poin tetap diputuskan trigger.
+  // Pastikan reward ada agar ID asing membalas 404 sebelum trigger berjalan.
   const [[reward]] = await conn.query('select title from rewards where id = ?', [rewardId]);
   if (!reward) throw notFound('Katalog reward tidak ditemukan.');
 
-  // Kode bentrok diulang. ER_DUP_ENTRY di sini hanya mungkin berasal dari
-  // voucher_code: satu-satunya unique key lain di tabel ini adalah primary key
-  // yang dibuat otomatis. INSERT yang gagal tidak membatalkan transaksi MySQL,
-  // jadi percobaan berikutnya tetap berjalan di transaksi yang sama.
+  // Ulangi klaim bila voucher_code acak bentrok; transaksi MySQL tetap aman.
   for (let attempt = 1; ; attempt += 1) {
     const voucherCode = generateCode();
     try {
@@ -59,8 +42,7 @@ async function attemptRedeem(conn, { userId, rewardId, generateCode = newVoucher
           where uv.id = ?`,
         [ins.insertId],
       );
-      // Saldo setelah trigger memotong — dibaca, bukan dihitung sendiri, supaya
-      // angka yang dilaporkan selalu sama dengan isi tabel.
+      // Baca ulang saldo poin setelah trigger memotongnya agar selalu akurat.
       const [[after]] = await conn.query('select points from users where id = ?', [userId]);
       return {
         voucher: row,
@@ -74,13 +56,7 @@ async function attemptRedeem(conn, { userId, rewardId, generateCode = newVoucher
   }
 }
 
-// Daftar voucher milik satu pelanggan. Diterima `db` (pool atau conn) supaya
-// skrip uji bisa menjalankannya di dalam transaksi yang punya voucher terpakai
-// buatan — seeder tidak punya satu pun, dan voucher terpakai tidak bisa
-// dikembalikan ke is_used = 0 (trigger L-02).
-//
-// Aktif dan riwayat dipisah di sini, sesuai PRD-04 §3.3 yang menampilkan dua
-// sub-bagian berbeda, supaya klien tidak perlu memfilter sendiri.
+// Ambil daftar voucher aktif dan riwayat terpakai milik satu pelanggan.
 async function fetchMyVouchers(db, userId) {
   const [rows] = await db.query(
     `select uv.id, uv.voucher_code, uv.reward_id, uv.is_used, uv.used_at, uv.created_at,
