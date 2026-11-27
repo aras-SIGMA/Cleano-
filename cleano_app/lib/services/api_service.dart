@@ -3,8 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/api_constants.dart';
 
-/// Klien HTTP tunggal. Otomatis menyisipkan `Authorization: Bearer <token>`
-/// dari SharedPreferences dan menormalkan error backend menjadi [ApiException].
+/// Klien HTTP tunggal dengan injeksi token otomatis dan normalisasi [ApiException].
 class ApiService {
   ApiService._();
 
@@ -69,6 +68,9 @@ class ApiService {
   Future<Response<T>> postMultipart<T>(String path, FormData data) =>
       _guard(() => _dio.post<T>(path, data: data));
 
+  Future<Response<T>> patchMultipart<T>(String path, FormData data) =>
+      _guard(() => _dio.patch<T>(path, data: data));
+
   /// Membungkus error Dio menjadi pesan yang siap ditampilkan ke UI.
   Future<Response<T>> _guard<T>(Future<Response<T>> Function() request) async {
     try {
@@ -79,8 +81,7 @@ class ApiService {
   }
 }
 
-/// Error seragam untuk seluruh aplikasi, mengikuti format backend:
-/// `{ "success": false, "message": "..." }`
+/// Representasi error seragam mengikuti format respons backend.
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
 

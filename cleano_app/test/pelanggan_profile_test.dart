@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:cleano_app/models/user_model.dart';
 import 'package:cleano_app/screens/pelanggan/pelanggan_profile_screen.dart';
+import 'package:cleano_app/widgets/profile_avatar_picker.dart';
 
 void main() {
   const dummyCustomer = UserModel(
@@ -96,8 +97,7 @@ void main() {
       // Verifikasi privasi: nomor WA tersensor (0812-****-7891)
       expect(find.text('No. WA: 0812-****-7891'), findsOneWidget);
 
-      // Verifikasi privasi ketat: email rina TIDAK boleh muncul di kartu digital QR
-      // (pada sheet ini hanya ada teks nama dan no WA, tanpa email)
+      // Pastikan email pelanggan tidak muncul pada modal kartu member QR.
       final sheetFinder = find.byType(BottomSheet);
       expect(
         find.descendant(of: sheetFinder, matching: find.text('rina.marlina@cleano.id')),
@@ -144,7 +144,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Kata Sandi Saat Ini'), findsOneWidget);
-      expect(find.text('Kata Sandi Baru (Min. 6 Karakter)'), findsOneWidget);
+      expect(find.text('Kata Sandi Baru (Min. 8 Karakter)'), findsOneWidget);
       expect(find.text('Konfirmasi Kata Sandi Baru'), findsOneWidget);
       expect(find.text('Simpan Kata Sandi'), findsOneWidget);
     });
@@ -167,6 +167,25 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(logoutCalled, isTrue);
+    });
+
+    testWidgets('Menampilkan ProfileAvatarPicker dan membuka sheet Ubah Foto Profil saat diketuk', (tester) async {
+      tester.view.physicalSize = const Size(1080, 1920);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createWidget());
+      await tester.pumpAndSettle();
+
+      final avatarFinder = find.byType(ProfileAvatarPicker);
+      expect(avatarFinder, findsOneWidget);
+
+      await tester.tap(avatarFinder);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ubah Foto Profil'), findsOneWidget);
+      expect(find.text('Ambil dari Kamera'), findsOneWidget);
+      expect(find.text('Pilih dari Galeri'), findsOneWidget);
     });
   });
 }

@@ -65,5 +65,26 @@ void main() {
       expect(user.id, 99);
       expect(user.points, 350);
     });
+
+    test('membaca dan menyerialisasi avatar_url dengan benar', () {
+      final json = {
+        'id': 5,
+        'name': 'Dina',
+        'email': 'dina@cleano.id',
+        'phone': '081234567895',
+        'role': 'pelanggan',
+        'member_code': 'MBR-0005',
+        'points': 10,
+        'tier': 'Silver',
+        'avatar_url': 'https://res.cloudinary.com/demo/image/upload/v1/avatar.jpg',
+      };
+
+      final user = UserModel.fromJson(json);
+      expect(user.avatarUrl, 'https://res.cloudinary.com/demo/image/upload/v1/avatar.jpg');
+      expect(user.toJson()['avatar_url'], 'https://res.cloudinary.com/demo/image/upload/v1/avatar.jpg');
+
+      final noAvatar = UserModel.fromJson({...json, 'avatar_url': null});
+      expect(noAvatar.avatarUrl, isNull);
+    });
   });
 }

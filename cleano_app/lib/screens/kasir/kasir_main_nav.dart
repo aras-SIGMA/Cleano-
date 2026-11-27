@@ -11,14 +11,9 @@ import 'kasir_orders_screen.dart';
 import 'kasir_profile_screen.dart';
 import 'pos_create_order_screen.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 
-/// Navigasi Utama Portal Kasir Cleano:
-/// - Responsif: NavigationRail di layar lebar (tablet/desktop) dan NavigationBar di ponsel
-/// - Tab 0: Dashboard Operasional
-/// - Tab 1: POS Transaksi Baru
-/// - Tab 2: Daftar Pesanan & Estafet Mesin
-/// - Tab 3: Master Data Outlet
-/// - Tab 4: Profil Kasir & Logout
+/// Navigasi utama Portal Kasir responsif dengan 5 tab operasional.
 class KasirMainNav extends StatefulWidget {
   const KasirMainNav({super.key});
 
@@ -72,12 +67,12 @@ class _KasirMainNavState extends State<KasirMainNav> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Konfirmasi Keluar'),
-        content: const Text('Apakah Anda yakin ingin keluar dari akun kasir?'),
+        title: Text(ctx.l10n.logoutConfirmTitle),
+        content: Text(ctx.l10n.logoutConfirmKasir),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
+            child: Text(ctx.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -85,7 +80,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
               backgroundColor: AppTheme.danger,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Keluar'),
+            child: Text(ctx.l10n.logout),
           ),
         ],
       ),
@@ -117,6 +112,7 @@ class _KasirMainNavState extends State<KasirMainNav> {
       4 => KasirProfileScreen(
           user: _user,
           onLogout: _handleLogout,
+          onUserUpdated: (updated) => setState(() => _user = updated),
         ),
       _ => const SizedBox.shrink(),
     };
@@ -166,31 +162,31 @@ class _KasirMainNavState extends State<KasirMainNav> {
                       ),
                     ),
                   ),
-                  destinations: const [
+                  destinations: [
                     NavigationRailDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home_rounded),
-                      label: Text('Beranda'),
+                      icon: const Icon(Icons.home_outlined),
+                      selectedIcon: const Icon(Icons.home_rounded),
+                      label: Text(context.l10n.navHome),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.add_shopping_cart_outlined),
-                      selectedIcon: Icon(Icons.add_shopping_cart_rounded),
-                      label: Text('Catat Cucian'),
+                      icon: const Icon(Icons.add_shopping_cart_outlined),
+                      selectedIcon: const Icon(Icons.add_shopping_cart_rounded),
+                      label: Text(context.l10n.navPos),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: Text('Pesanan'),
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      selectedIcon: const Icon(Icons.receipt_long_rounded),
+                      label: Text(context.l10n.navOrders),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.store_outlined),
-                      selectedIcon: Icon(Icons.store_rounded),
-                      label: Text('Kelola Toko'),
+                      icon: const Icon(Icons.store_outlined),
+                      selectedIcon: const Icon(Icons.store_rounded),
+                      label: Text(context.l10n.navStore),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.person_outline_rounded),
-                      selectedIcon: Icon(Icons.person_rounded),
-                      label: Text('Akun'),
+                      icon: const Icon(Icons.person_outline_rounded),
+                      selectedIcon: const Icon(Icons.person_rounded),
+                      label: Text(context.l10n.navAccount),
                     ),
                   ],
                 ),
@@ -219,12 +215,13 @@ class _KasirMainNavState extends State<KasirMainNav> {
   }
 
   Widget _buildFloatingBottomBar() {
+    final l10n = context.l10n;
     final items = [
-      (Icons.home_outlined, Icons.home_rounded, 'Beranda'),
-      (Icons.add_shopping_cart_outlined, Icons.add_shopping_cart_rounded, 'Catat'),
-      (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Pesanan'),
-      (Icons.store_outlined, Icons.store_rounded, 'Toko'),
-      (Icons.person_outline_rounded, Icons.person_rounded, 'Akun'),
+      (Icons.home_outlined, Icons.home_rounded, l10n.navHome),
+      (Icons.add_shopping_cart_outlined, Icons.add_shopping_cart_rounded, l10n.navPosShort),
+      (Icons.receipt_long_outlined, Icons.receipt_long_rounded, l10n.navOrders),
+      (Icons.store_outlined, Icons.store_rounded, l10n.navStoreShort),
+      (Icons.person_outline_rounded, Icons.person_rounded, l10n.navAccount),
     ];
 
     return RepaintBoundary(

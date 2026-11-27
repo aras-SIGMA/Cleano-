@@ -6,24 +6,22 @@ import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/ambient_background.dart';
+import '../../widgets/change_password_sheet.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
+import '../../widgets/profile_avatar_picker.dart';
 
-/// Layar Profil & Pengaturan Pelanggan Cleano (iOS Frosted Glass):
-/// - Identitas Pelanggan, Badge Tier, dan Poin Loyalti
-/// - Kartu Akses Member Digital (Pratinjau elegan tanpa memenuhi layar)
-/// - Opsi "Tampilkan Kartu QR" beresolusi tinggi (Privasi: tanpa email, WA tersensor)
-/// - Opsi "Kirim / Bagikan Member Card" ke sosial media (WhatsApp, Telegram, Salin Format Titip Cucian)
-///   untuk memudahkan pemesanan jika diwakilkan oleh keluarga atau kurir ojek online
-/// - Pengaturan Data Pribadi, Kata Sandi, dan Preferensi Cucian
-/// - Bantuan, Ketentuan Layanan, dan Tombol Keluar Akun
+/// Layar Profil & Pengaturan Pelanggan dengan kartu member dan preferensi.
 class PelangganProfileScreen extends StatefulWidget {
   const PelangganProfileScreen({
     super.key,
     this.user,
     this.onLogout,
     this.onNavigateToRewards,
+    this.onUserUpdated,
     this.authService,
     this.sessionService,
   });
@@ -31,6 +29,7 @@ class PelangganProfileScreen extends StatefulWidget {
   final UserModel? user;
   final VoidCallback? onLogout;
   final VoidCallback? onNavigateToRewards;
+  final ValueChanged<UserModel>? onUserUpdated;
   final AuthService? authService;
   final SessionService? sessionService;
 
@@ -44,6 +43,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
 
   UserModel? _user;
   bool _isLoading = false;
+  bool _isUploadingAvatar = false;
   bool _waNotificationEnabled = true;
 
   @override
@@ -81,6 +81,38 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handlePickAvatar() async {
+    final file = await showAvatarSourceSheet(context);
+    if (file == null || !mounted) return;
+    setState(() => _isUploadingAvatar = true);
+    try {
+      final bytes = await file.readAsBytes();
+      final updated = await _authService.updateAvatar(
+        bytes: bytes,
+        filename: file.name,
+      );
+      if (!mounted) return;
+      setState(() => _user = updated);
+      widget.onUserUpdated?.call(updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.avatarUpdated),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.avatarUpdateFailed('$e')),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingAvatar = false);
     }
   }
 
@@ -134,9 +166,9 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Kartu Member Digital',
-                  style: TextStyle(
+                Text(
+                  ctx.l10n.digitalMemberCardTitle,
+                  style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: AppTheme.textPrimary,
@@ -233,7 +265,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
 
                   // Teks Member Code di Bawah QR
                   GestureDetector(
-                    onTap: () => _copyToClipboard(memberCode, 'Kode member disalin!'),
+                    onTap: () => _copyToClipboard(memberCode, context.l10n.memberCodeCopied(memberCode)),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
@@ -292,7 +324,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                       _showShareMemberCardSheet(user);
                     },
                     icon: const Icon(Icons.share_rounded, size: 18),
-                    label: const Text('Kirim'),
+                    label: Text(ctx.l10n.send),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppTheme.primary,
                       side: const BorderSide(color: AppTheme.primary, width: 1.5),
@@ -314,7 +346,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                     ),
-                    child: const Text('Tutup', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: Text(ctx.l10n.close, style: const TextStyle(fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -327,15 +359,23 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
 
   /// Menampilkan Modal Berbagi Kartu Member ke Kurir / Keluarga
   void _showShareMemberCardSheet(UserModel user) {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     final memberCode = user.memberCode.isNotEmpty ? user.memberCode : 'MBR-0001';
-    final shareMessage =
-        '🧺 *CLEANO LAUNDRY — TITIP CUCIAN*\n\n'
-        'Halo! Tolong titip cucian saya di Cleano ya:\n'
-        '• *Nama Member:* ${user.name}\n'
-        '• *Kode Member:* $memberCode\n'
-        '• *Tier:* ${user.tier} Member\n'
-        '• *No. Kontak:* ${Formatters.sensorTelepon(user.phone)}\n\n'
-        'Cukup tunjukkan kode member *$memberCode* ini kepada kasir Cleano saat drop-off pakaian agar poin dan pesanan tercatat langsung di akun saya. Terima kasih! 🙏';
+    final shareMessage = isEn
+        ? '🧺 *CLEANO LAUNDRY — LAUNDRY DROP-OFF*\n\n'
+            'Hi! Please help drop off my laundry at Cleano:\n'
+            '• *Member Name:* ${user.name}\n'
+            '• *Member Code:* $memberCode\n'
+            '• *Tier:* ${user.tier} Member\n'
+            '• *Contact No.:* ${Formatters.sensorTelepon(user.phone)}\n\n'
+            'Just show this member code *$memberCode* to the Cleano cashier during drop-off so points and orders are recorded directly to my account. Thank you! 🙏'
+        : '🧺 *CLEANO LAUNDRY — TITIP CUCIAN*\n\n'
+            'Halo! Tolong titip cucian saya di Cleano ya:\n'
+            '• *Nama Member:* ${user.name}\n'
+            '• *Kode Member:* $memberCode\n'
+            '• *Tier:* ${user.tier} Member\n'
+            '• *No. Kontak:* ${Formatters.sensorTelepon(user.phone)}\n\n'
+            'Cukup tunjukkan kode member *$memberCode* ini kepada kasir Cleano saat drop-off pakaian agar poin dan pesanan tercatat langsung di akun saya. Terima kasih! 🙏';
 
     showModalBottomSheet(
       context: context,
@@ -371,21 +411,21 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                   child: const Icon(Icons.share_rounded, color: AppTheme.primary),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Kirim Kartu ke Kurir / Keluarga',
-                        style: TextStyle(
+                        ctx.l10n.shareModalTitle,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppTheme.textPrimary,
                         ),
                       ),
                       Text(
-                        'Mudahkan orang lain memesankan cucian atas nama Anda',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        ctx.l10n.shareModalSubtitle,
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                       ),
                     ],
                   ),
@@ -402,15 +442,15 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFFBBF7D0)),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded, color: AppTheme.success, size: 20),
-                  SizedBox(width: 10),
+                  const Icon(Icons.info_outline_rounded, color: AppTheme.success, size: 20),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Kasir hanya butuh kode member Anda untuk menginput pesanan. Poin cucian dan notifikasi proses cuci tetap otomatis masuk ke akun Anda!',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF166534), height: 1.4),
+                      ctx.l10n.shareModalBenefit,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF166534), height: 1.4),
                     ),
                   ),
                 ],
@@ -422,11 +462,11 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
             _shareOptionTile(
               icon: Icons.chat_bubble_outline_rounded,
               iconColor: const Color(0xFF25D366),
-              title: 'Salin Format Pesan WhatsApp / Chat',
-              subtitle: 'Template teks lengkap dengan nama, kode member, dan panduan kasir',
+              title: ctx.l10n.shareWhatsappFormat,
+              subtitle: ctx.l10n.shareWhatsappSubtitle,
               onTap: () {
                 Navigator.pop(ctx);
-                _copyToClipboard(shareMessage, 'Format pesan titip cucian berhasil disalin!');
+                _copyToClipboard(shareMessage, context.l10n.shareMessageCopied);
               },
             ),
             const SizedBox(height: 10),
@@ -435,11 +475,11 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
             _shareOptionTile(
               icon: Icons.copy_rounded,
               iconColor: AppTheme.primary,
-              title: 'Salin Kode Member Saja ($memberCode)',
-              subtitle: 'Kirimkan kode unik singkat untuk dicatat kasir',
+              title: ctx.l10n.shareCodeOnly(memberCode),
+              subtitle: ctx.l10n.shareCodeOnlySubtitle,
               onTap: () {
                 Navigator.pop(ctx);
-                _copyToClipboard(memberCode, 'Kode member $memberCode disalin!');
+                _copyToClipboard(memberCode, context.l10n.memberCodeCopied(memberCode));
               },
             ),
             const SizedBox(height: 10),
@@ -448,8 +488,8 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
             _shareOptionTile(
               icon: Icons.qr_code_2_rounded,
               iconColor: AppTheme.deepAzure,
-              title: 'Tampilkan QR untuk Tangkapan Layar',
-              subtitle: 'Buka kartu QR untuk di-screenshot dan dikirim sebagai gambar',
+              title: ctx.l10n.shareQrScreenshot,
+              subtitle: ctx.l10n.shareQrScreenshotSubtitle,
               onTap: () {
                 Navigator.pop(ctx);
                 _showFullMemberCardSheet(user);
@@ -463,7 +503,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Tutup'),
+              child: Text(ctx.l10n.close),
             ),
           ],
         ),
@@ -539,133 +579,10 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
   }
 
   void _showChangePasswordSheet() {
-    final oldPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showModalBottomSheet(
+    showChangePasswordBottomSheet(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 20,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.lock_reset_rounded, color: AppTheme.primary),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Ubah Kata Sandi',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          'Perbarui kata sandi akun pelanggan Anda',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: oldPasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Kata Sandi Saat Ini',
-                  prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (val) => (val == null || val.isEmpty) ? 'Masukkan kata sandi lama' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: newPasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Kata Sandi Baru (Min. 6 Karakter)',
-                  prefixIcon: const Icon(Icons.key_rounded, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (val) {
-                  if (val == null || val.length < 6) return 'Minimal 6 karakter';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: confirmPasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Konfirmasi Kata Sandi Baru',
-                  prefixIcon: const Icon(Icons.check_circle_outline_rounded, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (val) {
-                  if (val != newPasswordController.text) return 'Konfirmasi kata sandi tidak cocok';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  if (formKey.currentState?.validate() ?? false) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Kata sandi berhasil diperbarui.'),
-                        backgroundColor: AppTheme.success,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Simpan Kata Sandi', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-        ),
-      ),
+      subtitle: context.l10n.changePasswordSubtitlePelanggan,
+      authService: widget.authService,
     );
   }
 
@@ -680,9 +597,9 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text(
-          'Profil & Akun Saya',
-          style: TextStyle(
+        title: Text(
+          context.l10n.pelangganProfileTitle,
+          style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 17,
@@ -697,14 +614,14 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                 borderRadius: 20,
                 blurSigma: 12,
                 onTap: widget.onLogout,
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.logout_rounded, size: 15, color: AppTheme.danger),
-                    SizedBox(width: 4),
+                    const Icon(Icons.logout_rounded, size: 15, color: AppTheme.danger),
+                    const SizedBox(width: 4),
                     Text(
-                      'Keluar',
-                      style: TextStyle(
+                      context.l10n.logout,
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.danger,
@@ -737,19 +654,19 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                   const SizedBox(height: 20),
 
                   // 3. Seksi Informasi Akun & Keamanan
-                  _buildSectionHeader('INFORMASI AKUN & KEAMANAN'),
+                  _buildSectionHeader(context.l10n.sectionAccountSecurity),
                   const SizedBox(height: 8),
                   _buildAccountSecurityCard(user),
                   const SizedBox(height: 20),
 
                   // 4. Seksi Preferensi Layanan & Notifikasi
-                  _buildSectionHeader('PREFERENSI LAYANAN'),
+                  _buildSectionHeader(context.l10n.sectionServicePrefs),
                   const SizedBox(height: 8),
                   _buildServicePreferencesCard(),
                   const SizedBox(height: 20),
 
                   // 5. Seksi Bantuan & Layanan Pelanggan
-                  _buildSectionHeader('BANTUAN & PANDUAN'),
+                  _buildSectionHeader(context.l10n.sectionHelpGuide),
                   const SizedBox(height: 8),
                   _buildHelpAndSupportCard(),
                   const SizedBox(height: 24),
@@ -765,21 +682,22 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
   }
 
   Widget _buildHeroCustomerCard(UserModel? user) {
-    final name = user?.name.isNotEmpty == true ? user!.name : 'Pelanggan Cleano';
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
+    final name = user?.name.isNotEmpty == true ? user!.name : (isEn ? 'Cleano Customer' : 'Pelanggan Cleano');
     final tier = user?.tier.isNotEmpty == true ? user!.tier : 'Silver';
     final points = user?.points ?? 0;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
 
     final (tierColor, nextTierText, progress) = switch (tier.toLowerCase()) {
-      'platinum' => (const Color(0xFF4F46E5), 'Tier Tertinggi (VIP)', 1.0),
+      'platinum' => (const Color(0xFF4F46E5), context.l10n.highestTierVip, 1.0),
       'gold' => (
           AppTheme.warning,
-          '${300 - points > 0 ? 300 - points : 0} poin menuju Platinum',
+          context.l10n.pointsToPlatinum(300 - points > 0 ? 300 - points : 0),
           (points / 300).clamp(0.0, 1.0)
         ),
       _ => (
           const Color(0xFF64748B),
-          '${100 - points > 0 ? 100 - points : 0} poin menuju Gold',
+          context.l10n.pointsToGold(100 - points > 0 ? 100 - points : 0),
           (points / 100).clamp(0.0, 1.0)
         ),
     };
@@ -791,34 +709,13 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 62,
-                height: 62,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppTheme.primary, AppTheme.deepAzure],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x33007FFF),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
+              ProfileAvatarPicker(
+                avatarUrl: user?.avatarUrl,
+                fallbackInitial: initial,
+                isUploading: _isUploadingAvatar,
+                showOnlineDot: false,
+                size: 62,
+                onTap: _handlePickAvatar,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -889,7 +786,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                         const Icon(Icons.stars_rounded, color: AppTheme.accent, size: 20),
                         const SizedBox(width: 6),
                         Text(
-                          '$points Poin Loyalti',
+                          isEn ? '$points Loyalty Points' : '$points Poin Loyalti',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -901,9 +798,9 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                     if (widget.onNavigateToRewards != null)
                       GestureDetector(
                         onTap: widget.onNavigateToRewards,
-                        child: const Text(
-                          'Tukar Hadiah →',
-                          style: TextStyle(
+                        child: Text(
+                          context.l10n.redeemRewardsLink,
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.primary,
@@ -938,7 +835,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
     );
   }
 
-  /// Bagian Kartu Akses Member Digital dengan opsi Tampilkan QR & Kirim ke Platform Sosial
+  /// Bagian Kartu Akses Member Digital dengan opsi QR dan bagikan.
   Widget _buildDigitalPassSection(UserModel? user) {
     final memberCode = user?.memberCode.isNotEmpty == true ? user!.memberCode : 'MBR-0001';
     final tier = user?.tier ?? 'Silver';
@@ -960,21 +857,21 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                 child: const Icon(Icons.qr_code_2_rounded, color: AppTheme.primary, size: 20),
               ),
               const SizedBox(width: 10),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Kartu Akses Member Digital',
-                      style: TextStyle(
+                      context.l10n.digitalPassTitle,
+                      style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
                       ),
                     ),
                     Text(
-                      'Gunakan saat drop-off cucian di gerai Cleano',
-                      style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                      context.l10n.digitalPassSubtitle,
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                     ),
                   ],
                 ),
@@ -1031,9 +928,9 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          'Ketuk untuk Tampilkan QR Code',
-                          style: TextStyle(
+                        Text(
+                          context.l10n.tapToShowQr,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -1058,7 +955,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                     if (user != null) _showFullMemberCardSheet(user);
                   },
                   icon: const Icon(Icons.qr_code_rounded, size: 17),
-                  label: const Text('Buka Kartu QR'),
+                  label: Text(context.l10n.openQrCard),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
@@ -1077,7 +974,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
                     if (user != null) _showShareMemberCardSheet(user);
                   },
                   icon: const Icon(Icons.share_rounded, size: 17),
-                  label: const Text('Kirim'),
+                  label: Text(context.l10n.send),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.primary,
                     side: const BorderSide(color: AppTheme.primary, width: 1.5),
@@ -1119,7 +1016,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.mail_outline_rounded,
             iconColor: AppTheme.primary,
-            title: 'Email Terdaftar',
+            title: context.l10n.registeredEmail,
             subtitle: user?.email.isNotEmpty == true ? user!.email : 'pelanggan@cleano.id',
             showChevron: false,
           ),
@@ -1127,7 +1024,7 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.phone_outlined,
             iconColor: AppTheme.primary,
-            title: 'Nomor WhatsApp Aktif',
+            title: context.l10n.activeWhatsappNumber,
             subtitle: user?.phone.isNotEmpty == true ? user!.phone : '0812-3456-7890',
             showChevron: false,
           ),
@@ -1135,8 +1032,8 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.lock_outline_rounded,
             iconColor: AppTheme.warning,
-            title: 'Ubah Kata Sandi',
-            subtitle: 'Perbarui kata sandi akun login aplikasi',
+            title: context.l10n.updatePassword,
+            subtitle: context.l10n.changePasswordSubtitlePelanggan,
             onTap: _showChangePasswordSheet,
           ),
         ],
@@ -1153,13 +1050,13 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.storefront_rounded,
             iconColor: AppTheme.primary,
-            title: 'Outlet Langganan Utama',
-            subtitle: 'Cleano Outlet 01 — Pusat Sukajadi (Bandung)',
+            title: context.l10n.favOutletTitle,
+            subtitle: context.l10n.favOutletSubtitle,
             showChevron: true,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Cleano Outlet 01 adalah cabang utama akun Anda.'),
+                SnackBar(
+                  content: Text(context.l10n.favOutletInfo),
                   behavior: SnackBarBehavior.floating,
                 ),
               );
@@ -1169,8 +1066,8 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.notifications_active_outlined,
             iconColor: const Color(0xFF25D366),
-            title: 'Notifikasi WhatsApp Cucian',
-            subtitle: 'Dapatkan pesan WA otomatis saat cucian siap diambil',
+            title: context.l10n.waNotifTitle,
+            subtitle: context.l10n.waNotifSubtitle,
             trailing: Switch.adaptive(
               value: _waNotificationEnabled,
               activeThumbColor: AppTheme.primary,
@@ -1180,12 +1077,23 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
               },
             ),
           ),
+          _tileDivider(),
+          _menuTile(
+            icon: Icons.language_rounded,
+            iconColor: AppTheme.primary,
+            title: context.l10n.languageSettingTitle,
+            subtitle: LocaleService.instance.locale.value.languageCode == 'en'
+                ? context.l10n.languageEnglish
+                : context.l10n.languageIndonesian,
+            onTap: () => showLanguagePickerSheet(context),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildHelpAndSupportCard() {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     return FrostedGlassCard(
       padding: EdgeInsets.zero,
       borderRadius: 20,
@@ -1194,33 +1102,38 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.headset_mic_rounded,
             iconColor: const Color(0xFF25D366),
-            title: 'Pusat Bantuan WhatsApp',
-            subtitle: 'Hubungi Customer Care Cleano (0812-9988-7766)',
+            title: context.l10n.csWhatsappTitle,
+            subtitle: context.l10n.csWhatsappSubtitle,
             onTap: () {
-              _copyToClipboard('081299887766', 'Nomor CS Cleano disalin!');
+              _copyToClipboard('081299887766', context.l10n.csPhoneCopied);
             },
           ),
           _tileDivider(),
           _menuTile(
             icon: Icons.info_outline_rounded,
             iconColor: AppTheme.primary,
-            title: 'Panduan Poin & Hadiah',
-            subtitle: 'Cara kumpulkan poin 2x lipat dan penukaran voucher',
+            title: context.l10n.pointsGuideTitle,
+            subtitle: context.l10n.pointsGuideSubtitle,
             onTap: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  title: const Text('Panduan Poin Cleano'),
-                  content: const Text(
-                    '1. Setiap transaksi kelipatan Rp 10.000 mendapat 1 poin.\n'
-                    '2. Cucian ≥ 5 kg atau layanan Express mendapat bonus 2x poin!\n'
-                    '3. Kumpulkan 100 poin untuk Gold, 300 poin untuk Platinum.\n'
-                    '4. Tukarkan poin dengan voucher diskon di menu Hadiah.',
-                    style: TextStyle(fontSize: 13, height: 1.5),
+                  title: Text(isEn ? 'Cleano Points Guide' : 'Panduan Poin Cleano'),
+                  content: Text(
+                    isEn
+                        ? '1. Every transaction in multiples of Rp 10,000 earns 1 point.\n'
+                            '2. Laundry ≥ 5 kg or Express service earns 2x bonus points!\n'
+                            '3. Collect 100 points for Gold, 300 points for Platinum.\n'
+                            '4. Redeem points for discount vouchers in the Rewards menu.'
+                        : '1. Setiap transaksi kelipatan Rp 10.000 mendapat 1 poin.\n'
+                            '2. Cucian ≥ 5 kg atau layanan Express mendapat bonus 2x poin!\n'
+                            '3. Kumpulkan 100 poin untuk Gold, 300 poin untuk Platinum.\n'
+                            '4. Tukarkan poin dengan voucher diskon di menu Hadiah.',
+                    style: const TextStyle(fontSize: 13, height: 1.5),
                   ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Mengerti')),
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ctx.l10n.understood)),
                   ],
                 ),
               );
@@ -1230,23 +1143,28 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
           _menuTile(
             icon: Icons.shield_outlined,
             iconColor: AppTheme.success,
-            title: 'Syarat & Kebijakan Privasi',
-            subtitle: 'Perlindungan data dan ketentuan pencucian',
+            title: context.l10n.privacyTitle,
+            subtitle: context.l10n.privacySubtitle,
             onTap: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  title: const Text('Privasi Pelanggan'),
-                  content: const Text(
-                    'Cleano berkomitmen penuh menjaga privasi data Anda:\n\n'
-                    '• Nomor telepon disensor pada kartu fisik dan kartu QR.\n'
-                    '• Email tidak pernah ditampilkan pada kartu member.\n'
-                    '• Foto pakaian hanya digunakan sebagai bukti drop-off demi integritas cucian.',
-                    style: TextStyle(fontSize: 13, height: 1.5),
+                  title: Text(isEn ? 'Customer Privacy' : 'Privasi Pelanggan'),
+                  content: Text(
+                    isEn
+                        ? 'Cleano is fully committed to protecting your data privacy:\n\n'
+                            '• Phone numbers are masked on physical and QR cards.\n'
+                            '• Email is never displayed on the member card.\n'
+                            '• Clothing photos are only used as drop-off proof for laundry integrity.'
+                        : 'Cleano berkomitmen penuh menjaga privasi data Anda:\n\n'
+                            '• Nomor telepon disensor pada kartu fisik dan kartu QR.\n'
+                            '• Email tidak pernah ditampilkan pada kartu member.\n'
+                            '• Foto pakaian hanya digunakan sebagai bukti drop-off demi integritas cucian.',
+                    style: const TextStyle(fontSize: 13, height: 1.5),
                   ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tutup')),
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: Text(ctx.l10n.close)),
                   ],
                 ),
               );
@@ -1264,14 +1182,14 @@ class _PelangganProfileScreenState extends State<PelangganProfileScreen> {
       backgroundColor: const Color(0xFFFEF2F2),
       border: Border.all(color: const Color(0xFFFCA5A5)),
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.logout_rounded, color: AppTheme.danger, size: 20),
-          SizedBox(width: 8),
+          const Icon(Icons.logout_rounded, color: AppTheme.danger, size: 20),
+          const SizedBox(width: 8),
           Text(
-            'Keluar dari Akun',
-            style: TextStyle(
+            context.l10n.pelangganLogoutBtn,
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppTheme.danger,

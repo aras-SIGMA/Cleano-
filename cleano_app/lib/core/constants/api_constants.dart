@@ -5,8 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ApiConstants {
   const ApiConstants._();
 
-  /// Base URL backend, tanpa trailing slash.
-  /// Otomatis menyesuaikan platform (Web/Desktop -> localhost, Android Emulator -> 10.0.2.2).
+  /// Base URL backend tanpa trailing slash, otomatis menyesuaikan platform aktif.
   static String get baseUrl {
     var raw = dotenv.env['API_BASE_URL']?.trim() ?? '';
     if (raw.isEmpty) {
@@ -37,8 +36,10 @@ class ApiConstants {
   static const health = '/api/health';
   static const register = '/api/auth/register';
   static const login = '/api/auth/login';
+  static const changePassword = '/api/auth/change-password';
   static const userLookup = '/api/users/lookup';
   static const userMe = '/api/users/me';
+  static const userAvatar = '/api/users/me/avatar';
 
   // --- master data ---
   static const services = '/api/services';

@@ -9,6 +9,7 @@ class UserModel {
     required this.memberCode,
     required this.points,
     required this.tier,
+    this.avatarUrl,
   });
 
   final int id;
@@ -19,6 +20,7 @@ class UserModel {
   final String memberCode;
   final int points;
   final String tier;
+  final String? avatarUrl;
 
   bool get isKasir => role == 'kasir';
   bool get isPelanggan => role == 'pelanggan';
@@ -37,7 +39,13 @@ class UserModel {
           ? json['points'] as int
           : int.tryParse(json['points']?.toString() ?? '0') ?? 0,
       tier: json['tier']?.toString() ?? 'Silver',
+      avatarUrl: _nonEmpty(json['avatar_url'] ?? json['avatarUrl']),
     );
+  }
+
+  static String? _nonEmpty(dynamic raw) {
+    final s = raw?.toString().trim() ?? '';
+    return s.isEmpty ? null : s;
   }
 
   Map<String, dynamic> toJson() => {
@@ -49,6 +57,7 @@ class UserModel {
         'member_code': memberCode,
         'points': points,
         'tier': tier,
+        'avatar_url': avatarUrl,
       };
 
   @override

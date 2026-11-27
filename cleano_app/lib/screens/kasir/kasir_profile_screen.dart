@@ -3,36 +3,88 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/user_model.dart';
+import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
 import '../../widgets/ambient_background.dart';
+import '../../widgets/change_password_sheet.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
+import '../../widgets/profile_avatar_picker.dart';
 
-/// Layar Profil & Pengaturan Kasir Cleano dengan desain iOS Frosted Glass:
-/// - Hero Card Identitas Staf & Status Shift Aktif
-/// - Ringkasan Operasional & Status Konter Kasir
-/// - Pengaturan Hardware POS (Printer Thermal Bluetooth & Notifikasi Suara)
-/// - Panduan SOP Kasir & Estafet Mesin Cuci
-/// - Informasi Akun, Keamanan, dan Bantuan Supervisor
-/// - Tombol Tutup Shift & Keluar Akun
+/// Layar Profil & Pengaturan Kasir bergaya iOS Frosted Glass.
 class KasirProfileScreen extends StatefulWidget {
   const KasirProfileScreen({
     super.key,
     this.user,
     this.onLogout,
+    this.onUserUpdated,
+    this.authService,
   });
 
   final UserModel? user;
   final VoidCallback? onLogout;
+  final ValueChanged<UserModel>? onUserUpdated;
+  final AuthService? authService;
 
   @override
   State<KasirProfileScreen> createState() => _KasirProfileScreenState();
 }
 
 class _KasirProfileScreenState extends State<KasirProfileScreen> {
+  UserModel? _user;
+  bool _isUploadingAvatar = false;
   bool _soundNotification = true;
   bool _thermalPrinterConnected = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _user = widget.user;
+  }
+
+  @override
+  void didUpdateWidget(KasirProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.user != null && !identical(widget.user, oldWidget.user)) {
+      _user = widget.user;
+    }
+  }
+
+  Future<void> _handlePickAvatar() async {
+    final file = await showAvatarSourceSheet(context);
+    if (file == null || !mounted) return;
+    setState(() => _isUploadingAvatar = true);
+    try {
+      final bytes = await file.readAsBytes();
+      final updated = await (widget.authService ?? AuthService.instance).updateAvatar(
+        bytes: bytes,
+        filename: file.name,
+      );
+      if (!mounted) return;
+      setState(() => _user = updated);
+      widget.onUserUpdated?.call(updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.avatarUpdated),
+          backgroundColor: AppTheme.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.avatarUpdateFailed('$e')),
+          backgroundColor: AppTheme.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isUploadingAvatar = false);
+    }
+  }
+
   void _showTestReceiptDialog() {
     final now = DateTime.now();
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -67,10 +119,10 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                     child: const Icon(Icons.print_rounded, color: AppTheme.primary, size: 20),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Simulasi Struk POS',
-                      style: TextStyle(
+                      ctx.l10n.simReceiptTitle,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary,
@@ -98,35 +150,37 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, letterSpacing: 0.8),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Outlet 01 — Cabang Utama',
-                      style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                    Text(
+                      isEn ? 'Outlet 01 — Main Branch' : 'Outlet 01 — Cabang Utama',
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                     ),
                     const Text(
                       'Jl. Sukajadi No. 42, Bandung',
                       style: TextStyle(fontSize: 10, color: AppTheme.textSecondary),
                     ),
                     const Divider(height: 20, thickness: 1),
-                    _receiptRow('Waktu Cetak', '${Formatters.tanggal(now)} ${Formatters.jam(now)}'),
-                    _receiptRow('Kasir', widget.user?.name ?? 'Staf Kasir'),
-                    _receiptRow('Kode Transaksi', 'CLN-TEST-0001'),
-                    _receiptRow('Status', 'UJI COBA THERMAL 58mm'),
+                    _receiptRow(isEn ? 'Print Time' : 'Waktu Cetak', '${Formatters.tanggal(now)} ${Formatters.jam(now)}'),
+                    _receiptRow(isEn ? 'Cashier' : 'Kasir', widget.user?.name ?? (isEn ? 'Cashier Staff' : 'Staf Kasir')),
+                    _receiptRow(isEn ? 'Transaction Code' : 'Kode Transaksi', 'CLN-TEST-0001'),
+                    _receiptRow('Status', isEn ? 'THERMAL 58mm TEST' : 'UJI COBA THERMAL 58mm'),
                     const Divider(height: 20, thickness: 1),
-                    _receiptRow('Cuci Komplit (3.5 kg)', 'Rp 24.500'),
-                    _receiptRow('Diskon Voucher', '-Rp 0'),
+                    _receiptRow(isEn ? 'Full Wash (3.5 kg)' : 'Cuci Komplit (3.5 kg)', 'Rp 24.500'),
+                    _receiptRow(isEn ? 'Voucher Discount' : 'Diskon Voucher', '-Rp 0'),
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Text('TOTAL LUNAS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                        Text('Rp 24.500', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.primary)),
+                      children: [
+                        Text(isEn ? 'TOTAL PAID' : 'TOTAL LUNAS', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                        const Text('Rp 24.500', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.primary)),
                       ],
                     ),
                     const Divider(height: 20, thickness: 1),
-                    const Text(
-                      '*** STRUK VALIDASI SISTEM ***\nTerima kasih atas kunjungan Anda',
+                    Text(
+                      isEn
+                          ? '*** SYSTEM VALIDATION RECEIPT ***\nThank you for your visit'
+                          : '*** STRUK VALIDASI SISTEM ***\nTerima kasih atas kunjungan Anda',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, height: 1.4),
+                      style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary, height: 1.4),
                     ),
                   ],
                 ),
@@ -136,15 +190,15 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                 onPressed: () {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Perintah cetak struk terkirim ke printer Bluetooth (58mm).'),
+                    SnackBar(
+                      content: Text(context.l10n.printSentMsg),
                       backgroundColor: AppTheme.success,
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
                 },
                 icon: const Icon(Icons.check_rounded),
-                label: const Text('Kirim ke Printer'),
+                label: Text(ctx.l10n.sendToPrinter),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   foregroundColor: Colors.white,
@@ -187,137 +241,15 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
   }
 
   void _showChangePasswordSheet() {
-    final oldPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showModalBottomSheet(
+    showChangePasswordBottomSheet(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 24,
-          right: 24,
-          top: 24,
-          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-        ),
-        child: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.lock_reset_rounded, color: AppTheme.primary),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Ubah Kata Sandi',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          'Perbarui kata sandi akun kasir untuk keamanan berkala',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: oldPasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Kata Sandi Saat Ini',
-                  prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (val) => (val == null || val.isEmpty) ? 'Masukkan kata sandi lama' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: newPasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Kata Sandi Baru (Min. 6 Karakter)',
-                  prefixIcon: const Icon(Icons.key_rounded, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (val) {
-                  if (val == null || val.length < 6) return 'Kata sandi minimal 6 karakter';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: confirmPasswordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Konfirmasi Kata Sandi Baru',
-                  prefixIcon: const Icon(Icons.check_circle_outline_rounded, size: 20),
-                  filled: true,
-                  fillColor: const Color(0xFFF8FAFC),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                validator: (val) {
-                  if (val != newPasswordController.text) return 'Konfirmasi kata sandi tidak cocok';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  if (formKey.currentState?.validate() ?? false) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Kata sandi berhasil diperbarui.'),
-                        backgroundColor: AppTheme.success,
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Simpan Kata Sandi', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ],
-          ),
-        ),
-      ),
+      subtitle: context.l10n.changePasswordSubtitleKasir,
+      authService: widget.authService,
     );
   }
 
   void _showSopGuideSheet() {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -356,21 +288,23 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                     child: const Icon(Icons.menu_book_rounded, color: AppTheme.primary),
                   ),
                   const SizedBox(width: 14),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Panduan SOP Kasir & Estafet',
-                          style: TextStyle(
+                          ctx.l10n.sopTitle,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.textPrimary,
                           ),
                         ),
                         Text(
-                          'Standar operasional kebersihan & pelayanan Cleano',
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                          isEn
+                              ? 'Cleano cleanliness & service standard operating procedures'
+                              : 'Standar operasional kebersihan & pelayanan Cleano',
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                         ),
                       ],
                     ),
@@ -381,33 +315,37 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
               Expanded(
                 child: ListView(
                   controller: scrollController,
-                  children: const [
+                  children: [
                     _SopItem(
                       number: '1',
-                      title: 'Identifikasi Pelanggan & Drop-Off',
-                      description:
-                          'Pindai QR Member atau cari nomor HP pelanggan. Pastikan mengambil foto pakaian fisik yang jelas sebagai bukti drop-off sebelum cucian masuk proses pencucian.',
+                      title: isEn ? 'Customer Identification & Drop-Off' : 'Identifikasi Pelanggan & Drop-Off',
+                      description: isEn
+                          ? 'Scan the Member QR or search the customer phone number. Always take a clear clothing photo as drop-off proof before washing begins.'
+                          : 'Pindai QR Member atau cari nomor HP pelanggan. Pastikan mengambil foto pakaian fisik yang jelas sebagai bukti drop-off sebelum cucian masuk proses pencucian.',
                       icon: Icons.qr_code_scanner_rounded,
                     ),
                     _SopItem(
                       number: '2',
-                      title: 'Penimbangan & Pengecekan Kantong',
-                      description:
-                          'Timbang cucian secara presisi (desimal 2 digit). Selalu cek saku pakaian dari benda keras, uang, atau barang berharga sebelum memulai cucian.',
+                      title: isEn ? 'Weighing & Pocket Check' : 'Penimbangan & Pengecekan Kantong',
+                      description: isEn
+                          ? 'Weigh laundry accurately (2 decimal digits). Always check pockets for hard objects, cash, or valuables before starting the wash.'
+                          : 'Timbang cucian secara presisi (desimal 2 digit). Selalu cek saku pakaian dari benda keras, uang, atau barang berharga sebelum memulai cucian.',
                       icon: Icons.scale_rounded,
                     ),
                     _SopItem(
                       number: '3',
-                      title: 'Estafet Mesin Cuci Otomatis (FIFO)',
-                      description:
-                          'Saat cucian ditandai "Siap Diambil", sistem memunculkan konfirmasi estafet untuk cucian antrean berikutnya. Konfirmasi segera agar mesin tidak menganggur.',
+                      title: isEn ? 'Automatic Machine Relay (FIFO)' : 'Estafet Mesin Cuci Otomatis (FIFO)',
+                      description: isEn
+                          ? 'When laundry is marked "Ready for Pickup", the system prompts a relay confirmation for the next queued order. Confirm promptly so machines stay utilized.'
+                          : 'Saat cucian ditandai "Siap Diambil", sistem memunculkan konfirmasi estafet untuk cucian antrean berikutnya. Konfirmasi segera agar mesin tidak menganggur.',
                       icon: Icons.sync_alt_rounded,
                     ),
                     _SopItem(
                       number: '4',
-                      title: 'Pengambilan & Verifikasi Pembayaran',
-                      description:
-                          'Pastikan pesanan berstatus "LUNAS" sebelum diserahkan. Jika pembayaran Tunai saat ambil, terima uang sebelum menyelesaikan pesanan di aplikasi.',
+                      title: isEn ? 'Pickup & Payment Verification' : 'Pengambilan & Verifikasi Pembayaran',
+                      description: isEn
+                          ? 'Ensure the order status is "PAID" before handover. For Cash on Pickup, collect payment before completing the order in the app.'
+                          : 'Pastikan pesanan berstatus "LUNAS" sebelum diserahkan. Jika pembayaran Tunai saat ambil, terima uang sebelum menyelesaikan pesanan di aplikasi.',
                       icon: Icons.verified_user_rounded,
                     ),
                   ],
@@ -421,6 +359,7 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
   }
 
   void _showSupervisorContactSheet() {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -443,21 +382,23 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                   child: const Icon(Icons.support_agent_rounded, color: AppTheme.primary),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Bantuan & Kontak Supervisor',
-                        style: TextStyle(
+                        isEn ? 'Help & Supervisor Contacts' : 'Bantuan & Kontak Supervisor',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppTheme.textPrimary,
                         ),
                       ),
                       Text(
-                        'Hubungi penanggung jawab outlet untuk kendala operasional',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        isEn
+                            ? 'Contact the outlet person-in-charge for operational issues'
+                            : 'Hubungi penanggung jawab outlet untuk kendala operasional',
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                       ),
                     ],
                   ),
@@ -466,15 +407,15 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
             ),
             const SizedBox(height: 20),
             _ContactCard(
-              title: 'Hendra Saputra (Supervisor Outlet)',
-              subtitle: 'Penanggung Jawab Shift & Operasional',
+              title: isEn ? 'Hendra Saputra (Outlet Supervisor)' : 'Hendra Saputra (Supervisor Outlet)',
+              subtitle: isEn ? 'Shift & Operations Person-in-Charge' : 'Penanggung Jawab Shift & Operasional',
               phone: '0812-8899-7711',
               icon: Icons.person_pin_rounded,
             ),
             const SizedBox(height: 10),
             _ContactCard(
-              title: 'Tim IT & Support Cleano',
-              subtitle: 'Kendala Sistem POS, Printer & Server',
+              title: isEn ? 'Cleano IT & Support Team' : 'Tim IT & Support Cleano',
+              subtitle: isEn ? 'POS System, Printer & Server Issues' : 'Kendala Sistem POS, Printer & Server',
               phone: '0811-2233-4455',
               icon: Icons.headset_mic_rounded,
             ),
@@ -485,7 +426,7 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Tutup'),
+              child: Text(ctx.l10n.close),
             ),
           ],
         ),
@@ -495,7 +436,7 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = widget.user;
+    final user = _user ?? widget.user;
 
     return Scaffold(
       backgroundColor: const Color(0xFFEBF4FF),
@@ -504,9 +445,9 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text(
-          'Akun & Pengaturan Kasir',
-          style: TextStyle(
+        title: Text(
+          context.l10n.kasirProfileTitle,
+          style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 17,
@@ -520,14 +461,14 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
               borderRadius: 20,
               blurSigma: 12,
               onTap: widget.onLogout,
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.logout_rounded, size: 15, color: AppTheme.danger),
-                  SizedBox(width: 4),
+                  const Icon(Icons.logout_rounded, size: 15, color: AppTheme.danger),
+                  const SizedBox(width: 4),
                   Text(
-                    'Keluar',
-                    style: TextStyle(
+                    context.l10n.logout,
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.danger,
@@ -557,25 +498,25 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                 const SizedBox(height: 20),
 
                 // 3. Seksi 1: Informasi Akun & Keamanan
-                _buildSectionHeader('INFORMASI AKUN & KEAMANAN'),
+                _buildSectionHeader(context.l10n.sectionAccountSecurity),
                 const SizedBox(height: 8),
                 _buildAccountSecurityCard(user),
                 const SizedBox(height: 20),
 
                 // 4. Seksi 2: Perangkat & Hardware POS
-                _buildSectionHeader('PERANGKAT & HARDWARE POS'),
+                _buildSectionHeader(context.l10n.sectionHardwarePos),
                 const SizedBox(height: 8),
                 _buildHardwareSettingsCard(),
                 const SizedBox(height: 20),
 
                 // 5. Seksi 3: Standar Operasional & Bantuan
-                _buildSectionHeader('STANDAR OPERASIONAL & BANTUAN'),
+                _buildSectionHeader(context.l10n.sectionSopSupport),
                 const SizedBox(height: 8),
                 _buildSopAndSupportCard(),
                 const SizedBox(height: 20),
 
                 // 6. Seksi 4: Informasi Sistem & Server
-                _buildSectionHeader('SISTEM & APLIKASI'),
+                _buildSectionHeader(context.l10n.sectionSystemApp),
                 const SizedBox(height: 8),
                 _buildSystemInfoCard(),
                 const SizedBox(height: 24),
@@ -591,7 +532,8 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
   }
 
   Widget _buildHeroProfileCard(UserModel? user) {
-    final staffName = user?.name.isNotEmpty == true ? user!.name : 'Kasir Cleano';
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
+    final staffName = user?.name.isNotEmpty == true ? user!.name : (isEn ? 'Cleano Cashier' : 'Kasir Cleano');
     final memberCode = user?.memberCode.isNotEmpty == true ? user!.memberCode : 'STF-KASIR';
     final initial = staffName.isNotEmpty ? staffName[0].toUpperCase() : 'K';
 
@@ -602,52 +544,14 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
         children: [
           Row(
             children: [
-              // Avatar dengan Badge Status Online
-              Stack(
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [AppTheme.primary, AppTheme.deepAzure],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x33007FFF),
-                          blurRadius: 14,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        initial,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: AppTheme.success,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2.5),
-                      ),
-                    ),
-                  ),
-                ],
+              // Avatar dengan Badge Status Online & Upload Foto Profil
+              ProfileAvatarPicker(
+                avatarUrl: user?.avatarUrl,
+                fallbackInitial: initial,
+                isUploading: _isUploadingAvatar,
+                showOnlineDot: true,
+                size: 64,
+                onTap: _handlePickAvatar,
               ),
               const SizedBox(width: 16),
               // Nama & Role
@@ -675,9 +579,9 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                             color: AppTheme.primary.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            'STAFF KASIR',
-                            style: TextStyle(
+                          child: Text(
+                            context.l10n.staffRoleBadge,
+                            style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
                               color: AppTheme.primary,
@@ -713,10 +617,10 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
               children: [
                 const Icon(Icons.storefront_rounded, size: 18, color: AppTheme.primary),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Cleano Outlet 01 — Pusat Sukajadi',
-                    style: TextStyle(
+                    context.l10n.outletCenterName,
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
@@ -729,9 +633,9 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                     color: AppTheme.success.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Text(
-                    'ONLINE',
-                    style: TextStyle(
+                  child: Text(
+                    context.l10n.onlineBadge,
+                    style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.success,
@@ -752,8 +656,8 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
         Expanded(
           child: _quickStatItem(
             icon: Icons.schedule_rounded,
-            title: 'Shift Kasir',
-            value: 'Pagi (08-16)',
+            title: context.l10n.shiftTitle,
+            value: context.l10n.shiftMorningValue,
             color: AppTheme.primary,
           ),
         ),
@@ -761,8 +665,8 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
         Expanded(
           child: _quickStatItem(
             icon: Icons.point_of_sale_rounded,
-            title: 'Konter POS',
-            value: 'Siap Melayani',
+            title: context.l10n.counterPosTitle,
+            value: context.l10n.counterReadyValue,
             color: AppTheme.success,
           ),
         ),
@@ -770,8 +674,8 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
         Expanded(
           child: _quickStatItem(
             icon: Icons.sync_rounded,
-            title: 'Sinkronisasi',
-            value: 'Realtime',
+            title: context.l10n.syncTitle,
+            value: context.l10n.syncRealtimeValue,
             color: AppTheme.deepAzure,
           ),
         ),
@@ -839,7 +743,7 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.mail_outline_rounded,
             iconColor: AppTheme.primary,
-            title: 'Email Terdaftar',
+            title: context.l10n.registeredEmail,
             subtitle: user?.email.isNotEmpty == true ? user!.email : 'kasir@cleano.id',
             showChevron: false,
           ),
@@ -847,7 +751,7 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.phone_outlined,
             iconColor: AppTheme.primary,
-            title: 'Nomor WhatsApp',
+            title: context.l10n.whatsappNumber,
             subtitle: user?.phone.isNotEmpty == true ? user!.phone : '0812-3456-7890',
             showChevron: false,
           ),
@@ -855,20 +759,20 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.lock_outline_rounded,
             iconColor: AppTheme.warning,
-            title: 'Ganti Kata Sandi',
-            subtitle: 'Ubah sandi login untuk keamanan akun',
+            title: context.l10n.changePassword,
+            subtitle: context.l10n.changePasswordSub,
             onTap: _showChangePasswordSheet,
           ),
           _tileDivider(),
           _menuTile(
             icon: Icons.pin_rounded,
             iconColor: AppTheme.deepAzure,
-            title: 'PIN Otorisasi Kasir',
-            subtitle: 'PIN supervisor untuk pembatalan pesanan',
+            title: context.l10n.authPinTitle,
+            subtitle: context.l10n.authPinSubtitle,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('PIN otorisasi disetel oleh manajer outlet.'),
+                SnackBar(
+                  content: Text(context.l10n.authPinInfo),
                   backgroundColor: AppTheme.primary,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -889,10 +793,10 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.print_rounded,
             iconColor: AppTheme.primary,
-            title: 'Printer Thermal Bluetooth',
+            title: context.l10n.thermalPrinterTitle,
             subtitle: _thermalPrinterConnected
-                ? 'Terhubung (ESC/POS 58mm)'
-                : 'Terputus (Ketuk untuk scan)',
+                ? context.l10n.printerConnected
+                : context.l10n.printerDisconnected,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -902,9 +806,9 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     visualDensity: VisualDensity.compact,
                   ),
-                  child: const Text(
-                    'Uji Cetak',
-                    style: TextStyle(
+                  child: Text(
+                    context.l10n.testPrint,
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.primary,
@@ -926,8 +830,8 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.volume_up_rounded,
             iconColor: AppTheme.success,
-            title: 'Suara Notifikasi Pesanan',
-            subtitle: 'Bunyikan bel saat ada cucian antrean baru',
+            title: context.l10n.soundNotifTitle,
+            subtitle: context.l10n.soundNotifSubtitle,
             trailing: Switch.adaptive(
               value: _soundNotification,
               activeThumbColor: AppTheme.primary,
@@ -941,17 +845,27 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.qr_code_scanner_rounded,
             iconColor: AppTheme.deepAzure,
-            title: 'Pemindai Kamera POS',
-            subtitle: 'Kamera belakang aktif (Fokus otomatis)',
+            title: context.l10n.posScannerTitle,
+            subtitle: context.l10n.posScannerSubtitle,
             onTap: () {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Pemindai barcode kamera siap digunakan di menu Catat Cucian.'),
+                SnackBar(
+                  content: Text(context.l10n.posScannerInfo),
                   backgroundColor: AppTheme.primary,
                   behavior: SnackBarBehavior.floating,
                 ),
               );
             },
+          ),
+          _tileDivider(),
+          _menuTile(
+            icon: Icons.language_rounded,
+            iconColor: AppTheme.primary,
+            title: context.l10n.languageSettingTitle,
+            subtitle: LocaleService.instance.locale.value.languageCode == 'en'
+                ? context.l10n.languageEnglish
+                : context.l10n.languageIndonesian,
+            onTap: () => showLanguagePickerSheet(context),
           ),
         ],
       ),
@@ -959,6 +873,7 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
   }
 
   Widget _buildSopAndSupportCard() {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     return FrostedGlassCard(
       padding: EdgeInsets.zero,
       borderRadius: 20,
@@ -967,42 +882,48 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
           _menuTile(
             icon: Icons.menu_book_rounded,
             iconColor: AppTheme.primary,
-            title: 'Panduan SOP Kasir & Estafet',
-            subtitle: '4 langkah standar pelayanan & alur mesin',
+            title: context.l10n.sopTitle,
+            subtitle: context.l10n.sopSubtitle,
             onTap: _showSopGuideSheet,
           ),
           _tileDivider(),
           _menuTile(
             icon: Icons.support_agent_rounded,
             iconColor: AppTheme.warning,
-            title: 'Kontak Supervisor & Bantuan',
-            subtitle: 'Nomor penanggung jawab outlet & tim teknis',
+            title: context.l10n.supervisorTitle,
+            subtitle: context.l10n.supervisorSubtitle,
             onTap: _showSupervisorContactSheet,
           ),
           _tileDivider(),
           _menuTile(
             icon: Icons.shield_outlined,
             iconColor: AppTheme.success,
-            title: 'Ketentuan Layanan & Privasi',
-            subtitle: 'Perlindungan data pelanggan & aturan laundry',
+            title: context.l10n.termsPrivacyTitle,
+            subtitle: context.l10n.termsPrivacySubtitle,
             onTap: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  title: const Text('Privasi & Ketentuan'),
-                  content: const Text(
-                    'Cleano menjaga privasi data pelanggan:\n\n'
-                    '1. Nomor telepon disensor untuk keamanan.\n'
-                    '2. Email pelanggan tidak dibagikan sembarangan.\n'
-                    '3. Foto drop-off hanya digunakan sebagai bukti kondisi fisik pakaian.\n'
-                    '4. Seluruh transaksi terekam aman dengan audit database.',
-                    style: TextStyle(fontSize: 13, height: 1.4),
+                  title: Text(ctx.l10n.privacyTermsDialogTitle),
+                  content: Text(
+                    isEn
+                        ? 'Cleano protects customer data privacy:\n\n'
+                            '1. Phone numbers are masked for security.\n'
+                            '2. Customer emails are never shared carelessly.\n'
+                            '3. Drop-off photos are only used as physical condition proof.\n'
+                            '4. All transactions are securely recorded with database audit.'
+                        : 'Cleano menjaga privasi data pelanggan:\n\n'
+                            '1. Nomor telepon disensor untuk keamanan.\n'
+                            '2. Email pelanggan tidak dibagikan sembarangan.\n'
+                            '3. Foto drop-off hanya digunakan sebagai bukti kondisi fisik pakaian.\n'
+                            '4. Seluruh transaksi terekam aman dengan audit database.',
+                    style: const TextStyle(fontSize: 13, height: 1.4),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Tutup'),
+                      child: Text(ctx.l10n.close),
                     ),
                   ],
                 ),
@@ -1015,18 +936,19 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
   }
 
   Widget _buildSystemInfoCard() {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       borderRadius: 20,
       child: Column(
         children: [
-          _systemRow('Versi Aplikasi', 'Cleano POS v1.0.0+1 (Build 2026.11)'),
+          _systemRow(isEn ? 'App Version' : 'Versi Aplikasi', 'Cleano POS v1.0.0+1 (Build 2026.11)'),
           const SizedBox(height: 8),
-          _systemRow('Koneksi Server', 'Aiven Cloud MySQL 8 (TLS 1.3)'),
+          _systemRow(isEn ? 'Server Connection' : 'Koneksi Server', 'Aiven Cloud MySQL 8 (TLS 1.3)'),
           const SizedBox(height: 8),
-          _systemRow('Gateway Pembayaran', 'Midtrans Snap Sandbox Aktif'),
+          _systemRow(isEn ? 'Payment Gateway' : 'Gateway Pembayaran', isEn ? 'Midtrans Snap Sandbox Active' : 'Midtrans Snap Sandbox Aktif'),
           const SizedBox(height: 8),
-          _systemRow('Penyimpanan Bukti', 'Cloudinary CDN Cloud Storage'),
+          _systemRow(isEn ? 'Proof Storage' : 'Penyimpanan Bukti', 'Cloudinary CDN Cloud Storage'),
         ],
       ),
     );
@@ -1059,14 +981,14 @@ class _KasirProfileScreenState extends State<KasirProfileScreen> {
       backgroundColor: const Color(0xFFFEF2F2),
       border: Border.all(color: const Color(0xFFFCA5A5)),
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.logout_rounded, color: AppTheme.danger, size: 20),
-          SizedBox(width: 8),
+          const Icon(Icons.logout_rounded, color: AppTheme.danger, size: 20),
+          const SizedBox(width: 8),
           Text(
-            'Tutup Shift & Keluar Akun',
-            style: TextStyle(
+            context.l10n.kasirCloseShiftLogout,
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppTheme.danger,
