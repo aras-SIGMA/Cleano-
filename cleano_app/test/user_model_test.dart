@@ -1,3 +1,4 @@
+import 'package:cleano_app/core/constants/api_constants.dart';
 import 'package:cleano_app/models/user_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -64,6 +65,42 @@ void main() {
       final user = UserModel.fromJson(json);
       expect(user.id, 99);
       expect(user.points, 350);
+    });
+
+    test('membaca dan menyerialisasi avatar_url dengan benar', () {
+      final json = {
+        'id': 5,
+        'name': 'Dina',
+        'email': 'dina@cleano.id',
+        'phone': '081234567895',
+        'role': 'pelanggan',
+        'member_code': 'MBR-0005',
+        'points': 10,
+        'tier': 'Silver',
+        'avatar_url': 'https://res.cloudinary.com/demo/image/upload/v1/avatar.jpg',
+      };
+
+      final user = UserModel.fromJson(json);
+      expect(user.avatarUrl, 'https://res.cloudinary.com/demo/image/upload/v1/avatar.jpg');
+      expect(user.toJson()['avatar_url'], 'https://res.cloudinary.com/demo/image/upload/v1/avatar.jpg');
+
+      final noAvatar = UserModel.fromJson({...json, 'avatar_url': null});
+      expect(noAvatar.avatarUrl, isNull);
+    });
+  });
+
+  group('ApiConstants', () {
+    test('resolveMediaUrl aman tanpa dotenv dan menggabungkan path relatif', () {
+      expect(ApiConstants.resolveMediaUrl(null), isNull);
+      expect(ApiConstants.resolveMediaUrl('   '), isNull);
+      expect(
+        ApiConstants.resolveMediaUrl('https://cdn.example.com/a.jpg'),
+        'https://cdn.example.com/a.jpg',
+      );
+      expect(
+        ApiConstants.resolveMediaUrl('/uploads/foto.png'),
+        '${ApiConstants.baseUrl}/uploads/foto.png',
+      );
     });
   });
 }

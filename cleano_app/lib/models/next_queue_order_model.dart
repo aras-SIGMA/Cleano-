@@ -1,4 +1,4 @@
-/// Model data ringkas pesanan antrean berikutnya yang berhak menempati mesin bebas (estafet cuci).
+/// Model data ringkas pesanan antrean berikutnya untuk estafet mesin.
 class NextQueueOrderModel {
   const NextQueueOrderModel({
     required this.id,

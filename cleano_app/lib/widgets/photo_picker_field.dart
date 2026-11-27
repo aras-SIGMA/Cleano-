@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../core/theme/app_theme.dart';
+import 'language_picker_sheet.dart';
 
-/// Komponen pemilih foto bukti kondisi cucian (kamera & galeri) dengan kompresi otomatis < 2MB.
+/// Komponen pemilih foto bukti cucian dengan kompresi otomatis di bawah 2MB.
 class PhotoPickerField extends StatefulWidget {
   const PhotoPickerField({
     super.key,
@@ -30,7 +31,7 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
   Future<void> _pickImage(ImageSource source) async {
     try {
       setState(() => _isPicking = true);
-      // Kompresi otomatis resolusi optimal & quality 70 untuk menjaga ukuran ringan (<500KB) dan decoding cepat
+      // Kompres foto resolusi optimal dan quality 70 agar ukuran tetap ringan.
       final XFile? picked = await _picker.pickImage(
         source: source,
         maxWidth: 1280,
@@ -44,9 +45,10 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengambil foto: $e'),
+            content: Text(isEn ? 'Failed to take photo: $e' : 'Gagal mengambil foto: $e'),
             backgroundColor: AppTheme.danger,
           ),
         );
@@ -57,6 +59,7 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
   }
 
   void _showSourcePicker() {
+    final isEn = context.l10n.localeName == 'en';
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -68,14 +71,14 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Ambil Bukti Kondisi Pakaian',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              Text(
+                isEn ? 'Capture Clothing Condition Proof' : 'Ambil Bukti Kondisi Pakaian',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
               ),
               const SizedBox(height: 12),
               ListTile(
                 leading: const Icon(Icons.camera_alt_rounded, color: AppTheme.primary),
-                title: const Text('Kamera Langsung'),
+                title: Text(isEn ? 'Direct Camera' : 'Kamera Langsung'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickImage(ImageSource.camera);
@@ -83,7 +86,7 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
               ),
               ListTile(
                 leading: const Icon(Icons.photo_library_rounded, color: AppTheme.secondary),
-                title: const Text('Pilih dari Galeri'),
+                title: Text(isEn ? 'Choose from Gallery' : 'Pilih dari Galeri'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickImage(ImageSource.gallery);
@@ -98,6 +101,8 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final hasPhoto = widget.selectedBytes != null;
 
     return Container(
@@ -116,20 +121,20 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
                   Text(
-                    'Foto Kondisi Pakaian',
-                    style: TextStyle(
+                    isEn ? 'Clothing Condition Photo' : 'Foto Kondisi Pakaian',
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                     ),
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 6),
                   Text(
-                    '*Wajib',
-                    style: TextStyle(
+                    isEn ? '*Required' : '*Wajib',
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.danger,
@@ -144,13 +149,13 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
                     color: const Color(0xFFDCFCE7),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
-                      Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 14),
-                      SizedBox(width: 4),
+                      const Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 14),
+                      const SizedBox(width: 4),
                       Text(
-                        'Foto Terlampir',
-                        style: TextStyle(
+                        isEn ? 'Photo Attached' : 'Foto Terlampir',
+                        style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: AppTheme.success,
@@ -190,7 +195,7 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
                       ),
                       child: IconButton(
                         icon: const Icon(Icons.close_rounded, color: Colors.white, size: 20),
-                        tooltip: 'Hapus Foto',
+                        tooltip: isEn ? 'Remove Photo' : 'Hapus Foto',
                         onPressed: widget.onPhotoRemoved,
                       ),
                     ),
@@ -201,7 +206,7 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
                     child: ElevatedButton.icon(
                       onPressed: _showSourcePicker,
                       icon: const Icon(Icons.photo_camera_rounded, size: 16),
-                      label: const Text('Ganti Foto', style: TextStyle(fontSize: 12)),
+                      label: Text(isEn ? 'Change Photo' : 'Ganti Foto', style: const TextStyle(fontSize: 12)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.9),
                         foregroundColor: AppTheme.textPrimary,
@@ -229,26 +234,28 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
                     style: BorderStyle.solid,
                   ),
                 ),
-                child: const Column(
+                child: Column(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.add_a_photo_outlined,
                       size: 36,
                       color: AppTheme.primary,
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
-                      'Ambil Foto Bukti Pakaian',
-                      style: TextStyle(
+                      l10n.takeClothingPhoto,
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppTheme.primary,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
-                      'Foto pakaian sebelum dicuci untuk bukti serah-terima kasir',
-                      style: TextStyle(
+                      isEn
+                          ? 'Photo of clothes before washing as cashier handover proof'
+                          : 'Foto pakaian sebelum dicuci untuk bukti serah-terima kasir',
+                      style: const TextStyle(
                         fontSize: 11,
                         color: AppTheme.textSecondary,
                       ),

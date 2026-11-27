@@ -13,13 +13,9 @@ import '../../services/reward_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 
-/// Layar Loyalti & Hadiah Pelanggan (M9).
-/// - Banner poin & progress bar ke tier berikutnya (100 Gold, 300 Platinum).
-/// - Info bonus 2x poin (berat >= 5 kg atau layanan Express).
-/// - Sub-tab Katalog: tombol "Tukar Poin" aktif jika poin cukup, dialog konfirmasi -> POST /api/rewards/redeem.
-/// - Sub-tab Voucher Saya: QR code CLN-VCR-XXXX + kode teks + nominal + badge 1x Pakai.
-/// - Riwayat voucher terpakai dengan tampilan redup (dimmed).
+/// Layar Loyalti & Hadiah Pelanggan (M9): poin, katalog, dan voucher.
 class PelangganRewardsScreen extends StatefulWidget {
   const PelangganRewardsScreen({
     super.key,
@@ -34,9 +30,7 @@ class PelangganRewardsScreen extends StatefulWidget {
   final SessionService? sessionService;
   final AuthService? authService;
 
-  /// Profil dari navigasi induk. Bila diisi, pemuatan pertama tidak mengambil
-  /// `/users/me` lagi — induk sudah memuatnya sekali untuk seluruh portal.
-  /// Refresh dan klaim voucher tetap membaca profil terbaru dari server.
+  /// Gunakan profil induk saat muat awal; segarkan ulang saat refresh/klaim.
   final UserModel? user;
 
   final VoidCallback? onLogout;
@@ -76,9 +70,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
   @override
   void didUpdateWidget(PelangganRewardsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Induk memuat ulang profil setelah tab ini terpasang. State dipertahankan
-    // IndexedStack, jadi initState tidak jalan lagi. Pakai identitas objek:
-    // `UserModel ==` hanya melihat id dan email, bukan poin/tier.
+    // Sinkronkan profil baru dari induk menggunakan perbandingan identitas objek.
     if (widget.user != null && !identical(widget.user, oldWidget.user)) {
       _user = widget.user;
     }
@@ -97,9 +89,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
     });
 
     try {
-      // 1. Profil: kiriman induk dipakai apa adanya saat pemuatan pertama.
-      //    Cache hanya dibaca bila belum ada profil sama sekali, supaya nilai
-      //    lama tidak menimpa data yang lebih baru.
+      // Pakai profil induk lebih dulu; baca cache hanya jika masih kosong.
       if (_user == null) {
         final cached = await _sessionService.getUser();
         if (mounted && cached != null) {
@@ -107,8 +97,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
         }
       }
 
-      // Saldo poin berubah tanpa lewat layar ini (klaim voucher, order selesai),
-      // jadi refresh dan aksi klaim wajib membaca ulang profil dari server.
+      // Muat ulang profil dari server saat refresh atau klaim voucher.
       final freshUserFuture = refreshProfile
           ? _authService.getMe().then((fresh) {
               if (mounted && fresh != null) {
@@ -141,8 +130,11 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
       }
     } catch (_) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() {
-          _errorMessage = 'Gagal memuat hadiah. Periksa koneksi Anda.';
+          _errorMessage = isEn
+              ? 'Failed to load rewards. Check your connection.'
+              : 'Gagal memuat hadiah. Periksa koneksi Anda.';
           _isLoading = false;
         });
       }
@@ -161,11 +153,17 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
   }
 
   Future<void> _handleRedeem(RewardModel reward) async {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final userPoints = _user?.points ?? 0;
     if (userPoints < reward.pointsRequired) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Poin tidak mencukupi untuk menukar ${reward.title}.'),
+          content: Text(
+            isEn
+                ? 'Insufficient points to redeem ${reward.title}.'
+                : 'Poin tidak mencukupi untuk menukar ${reward.title}.',
+          ),
           backgroundColor: AppTheme.danger,
           behavior: SnackBarBehavior.floating,
         ),
@@ -178,14 +176,16 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Konfirmasi Tukar Poin'),
+        title: Text(isEn ? 'Confirm Point Redemption' : 'Konfirmasi Tukar Poin'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tukarkan poin Anda dengan reward:',
-              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+              isEn
+                  ? 'Redeem your points for reward:'
+                  : 'Tukarkan poin Anda dengan reward:',
+              style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 8),
             Container(
@@ -204,7 +204,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Potongan: ${Formatters.rupiah(reward.discountAmount)}',
+                    isEn
+                        ? 'Discount: ${Formatters.rupiah(reward.discountAmount)}'
+                        : 'Potongan: ${Formatters.rupiah(reward.discountAmount)}',
                     style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.success, fontSize: 13),
                   ),
                 ],
@@ -214,9 +216,12 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Poin Dibutuhkan:', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                 Text(
-                  '-${reward.pointsRequired} Poin',
+                  isEn ? 'Points Required:' : 'Poin Dibutuhkan:',
+                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                ),
+                Text(
+                  '-${reward.pointsRequired} ${l10n.pointsUnit}',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.danger),
                 ),
               ],
@@ -225,9 +230,12 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Sisa Saldo Poin:', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                 Text(
-                  '${userPoints - reward.pointsRequired} Poin',
+                  isEn ? 'Remaining Points:' : 'Sisa Saldo Poin:',
+                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                ),
+                Text(
+                  '${userPoints - reward.pointsRequired} ${l10n.pointsUnit}',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppTheme.primary),
                 ),
               ],
@@ -237,7 +245,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
+            child: Text(l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -246,7 +254,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Tukar Sekarang'),
+            child: Text(isEn ? 'Redeem Now' : 'Tukar Sekarang'),
           ),
         ],
       ),
@@ -266,12 +274,16 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Selamat! Voucher ${newVoucher.voucherCode} berhasil diklaim.'),
+          content: Text(
+            isEn
+                ? 'Congrats! Voucher ${newVoucher.voucherCode} claimed successfully.'
+                : 'Selamat! Voucher ${newVoucher.voucherCode} berhasil diklaim.',
+          ),
           backgroundColor: AppTheme.success,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),
           action: SnackBarAction(
-            label: 'Lihat Voucher',
+            label: isEn ? 'View Voucher' : 'Lihat Voucher',
             textColor: Colors.white,
             onPressed: () {
               _tabController.animateTo(1);
@@ -293,7 +305,11 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Gagal menukarkan hadiah. Periksa koneksi Anda.'),
+            content: Text(
+              isEn
+                  ? 'Failed to redeem reward. Check your connection.'
+                  : 'Gagal menukarkan hadiah. Periksa koneksi Anda.',
+            ),
             backgroundColor: AppTheme.danger,
             behavior: SnackBarBehavior.floating,
           ),
@@ -305,6 +321,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
   }
 
   void _showVoucherQrModal(VoucherModel voucher) {
+    final isEn = context.l10n.localeName == 'en';
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -373,7 +390,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
             ),
             const SizedBox(height: 14),
             Text(
-              'Potongan: ${Formatters.rupiah(voucher.discountAmount)}',
+              isEn
+                  ? 'Discount: ${Formatters.rupiah(voucher.discountAmount)}'
+                  : 'Potongan: ${Formatters.rupiah(voucher.discountAmount)}',
               style: const TextStyle(
                 fontWeight: FontWeight.w800,
                 color: AppTheme.success,
@@ -381,10 +400,12 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Tunjukkan QR ini ke kasir saat memesan cucian.',
+            Text(
+              isEn
+                  ? 'Show this QR to the cashier when placing a laundry order.'
+                  : 'Tunjukkan QR ini ke kasir saat memesan cucian.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
             ),
           ],
         ),
@@ -396,6 +417,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       backgroundColor: const Color(0xFFEBF4FF),
       body: Stack(
@@ -415,28 +437,28 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Column(
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Loyalti & Hadiah',
-                                style: TextStyle(
+                                l10n.rewardsTitle,
+                                style: const TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
                                   color: AppTheme.textPrimary,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
-                                'Kumpulkan Poin & Dapatkan Promo Menarik',
-                                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                                l10n.rewardsSubtitle,
+                                style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                               ),
                             ],
                           ),
                           if (widget.onLogout != null)
                             IconButton(
                               icon: const Icon(Icons.logout_rounded, color: AppTheme.danger),
-                              tooltip: 'Logout',
+                              tooltip: l10n.logout,
                               onPressed: widget.onLogout,
                             ),
                         ],
@@ -505,15 +527,14 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
   /// Banner Poin dan Progress Bar ke Tier Berikutnya (100 Gold, 300 Platinum)
   Widget _buildPointsTierBanner() {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final points = _user?.points ?? 0;
     final currentTier = _user?.tier.toLowerCase() ?? 'silver';
 
-    // Logika tier progress:
-    // Silver (< 100): target 100 Gold
-    // Gold (100 - 299): target 300 Platinum
-    // Platinum (>= 300): tier tertinggi
+    // Hitung warna dan progress bar menuju tier Gold (100) atau Platinum (300).
     final (String nextTierName, int pointsNeeded, double progressFraction) = switch (currentTier) {
-      'platinum' => ('Maksimal', 0, 1.0),
+      'platinum' => (isEn ? 'Max' : 'Maksimal', 0, 1.0),
       'gold' => ('Platinum', (300 - points).clamp(0, 300), ((points - 100) / 200.0).clamp(0.0, 1.0)),
       _ => ('Gold', (100 - points).clamp(0, 100), (points / 100.0).clamp(0.0, 1.0)),
     };
@@ -561,9 +582,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'SALDO POIN SAYA',
-                            style: TextStyle(
+                          Text(
+                            l10n.myPointsBalance,
+                            style: const TextStyle(
                               color: Colors.white60,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -582,9 +603,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Text(
-                                'Poin',
-                                style: TextStyle(
+                              Text(
+                                l10n.pointsUnit,
+                                style: const TextStyle(
                                   color: Colors.white70,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -627,8 +648,10 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                     children: [
                       Text(
                         currentTier == 'platinum'
-                            ? 'Tingkat Keanggotaan Tertinggi'
-                            : '$pointsNeeded Poin lagi menuju $nextTierName',
+                            ? l10n.highestTierLabel
+                            : (isEn
+                                ? '$pointsNeeded more Points to $nextTierName'
+                                : '$pointsNeeded Poin lagi menuju $nextTierName'),
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 11,
@@ -666,6 +689,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
   /// Info Bonus 2x Poin (Berat >= 5 kg atau Express)
   Widget _buildBonusPointsInfoCard() {
+    final l10n = context.l10n;
     return FrostedGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       borderRadius: 18,
@@ -681,22 +705,22 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
             child: const Icon(Icons.bolt_rounded, color: Color(0xFFD97706), size: 20),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Bonus 2x Poin Loyalti ⚡',
-                  style: TextStyle(
+                  l10n.bonus2xTitle,
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.textPrimary,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  'Otomatis dapatkan 2x poin untuk cucian berat ≥ 5 kg atau layanan Express!',
-                  style: TextStyle(fontSize: 11, color: AppTheme.textSecondary, height: 1.3),
+                  l10n.bonus2xSubtitle,
+                  style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, height: 1.3),
                 ),
               ],
             ),
@@ -707,6 +731,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
   }
 
   Widget _buildTabBar() {
+    final l10n = context.l10n;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.75),
@@ -734,8 +759,8 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
         indicatorSize: TabBarIndicatorSize.tab,
         dividerColor: Colors.transparent,
         tabs: [
-          Tab(text: 'Katalog Hadiah (${_catalog.length})'),
-          Tab(text: 'Voucher Saya (${_activeVouchers.length})'),
+          Tab(text: l10n.catalogTab(_catalog.length)),
+          Tab(text: l10n.myVouchersTab(_activeVouchers.length)),
         ],
       ),
     );
@@ -753,15 +778,19 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
   /// Sub-tab 1: Katalog Hadiah
   Widget _buildCatalogTab() {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     if (_catalog.isEmpty) {
-      return const SliverFillRemaining(
+      return SliverFillRemaining(
         hasScrollBody: false,
         child: Center(
           child: Padding(
-            padding: EdgeInsets.all(32),
+            padding: const EdgeInsets.all(32),
             child: Text(
-              'Belum ada reward voucher yang tersedia saat ini.',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              isEn
+                  ? 'No reward vouchers available at the moment.'
+                  : 'Belum ada reward voucher yang tersedia saat ini.',
+              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ),
@@ -824,7 +853,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              'Diskon ${Formatters.rupiah(reward.discountAmount)}',
+                              isEn
+                                  ? 'Discount ${Formatters.rupiah(reward.discountAmount)}'
+                                  : 'Diskon ${Formatters.rupiah(reward.discountAmount)}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
@@ -848,7 +879,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                         const Icon(Icons.stars_rounded, color: Color(0xFFD97706), size: 18),
                         const SizedBox(width: 6),
                         Text(
-                          '${reward.pointsRequired} Poin',
+                          '${reward.pointsRequired} ${l10n.pointsUnit}',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
@@ -869,7 +900,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                         elevation: canRedeem ? 2 : 0,
                       ),
                       child: Text(
-                        canRedeem ? 'Tukar Poin' : 'Poin Kurang',
+                        canRedeem ? l10n.redeemPointsBtn : l10n.insufficientPointsBtn,
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -885,21 +916,24 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
   /// Sub-tab 2: Voucher Saya (Voucher Aktif vs Riwayat Terpakai)
   Widget _buildMyVouchersTab() {
+    final isEn = context.l10n.localeName == 'en';
     if (_activeVouchers.isEmpty && _historyVouchers.isEmpty) {
-      return const SliverFillRemaining(
+      return SliverFillRemaining(
         hasScrollBody: false,
         child: Center(
           child: Padding(
-            padding: EdgeInsets.all(32),
+            padding: const EdgeInsets.all(32),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.confirmation_number_outlined, size: 48, color: AppTheme.textSecondary),
-                SizedBox(height: 12),
+                const Icon(Icons.confirmation_number_outlined, size: 48, color: AppTheme.textSecondary),
+                const SizedBox(height: 12),
                 Text(
-                  'Anda belum memiliki voucher reward.\nTukarkan poin Anda di katalog hadiah!',
+                  isEn
+                      ? 'You do not have any reward vouchers yet.\nRedeem your points in the rewards catalog!'
+                      : 'Anda belum memiliki voucher reward.\nTukarkan poin Anda di katalog hadiah!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+                  style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                 ),
               ],
             ),
@@ -914,13 +948,13 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
         delegate: SliverChildListDelegate([
           // 1. Voucher Aktif
           if (_activeVouchers.isNotEmpty) ...[
-            const Row(
+            Row(
               children: [
-                Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 18),
-                SizedBox(width: 8),
+                const Icon(Icons.check_circle_rounded, color: AppTheme.success, size: 18),
+                const SizedBox(width: 8),
                 Text(
-                  'Voucher Aktif (Siap Pakai)',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
+                  isEn ? 'Active Vouchers (Ready to Use)' : 'Voucher Aktif (Siap Pakai)',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textPrimary),
                 ),
               ],
             ),
@@ -934,13 +968,13 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
           // 2. Riwayat Voucher Terpakai
           if (_historyVouchers.isNotEmpty) ...[
             const SizedBox(height: 10),
-            const Row(
+            Row(
               children: [
-                Icon(Icons.history_rounded, color: AppTheme.textSecondary, size: 18),
-                SizedBox(width: 8),
+                const Icon(Icons.history_rounded, color: AppTheme.textSecondary, size: 18),
+                const SizedBox(width: 8),
                 Text(
-                  'Riwayat Voucher',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textSecondary),
+                  isEn ? 'Voucher History' : 'Riwayat Voucher',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textSecondary),
                 ),
               ],
             ),
@@ -955,8 +989,10 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
     );
   }
 
-  /// Kartu Voucher Aktif dengan QR Code, kode teks, nominal, dan badge "1x Pakai"
+  /// Kartu Voucher Aktif dengan QR Code, kode teks, dan badge 1x Pakai.
   Widget _buildActiveVoucherCard(VoucherModel voucher) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.all(18),
       borderRadius: 22,
@@ -985,9 +1021,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                   color: const Color(0xFFDCFCE7),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Text(
-                  '1x Pakai',
-                  style: TextStyle(
+                child: Text(
+                  l10n.oneTimeUseBadge,
+                  style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF15803D),
@@ -998,7 +1034,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
           ),
           const SizedBox(height: 6),
           Text(
-            'Potongan Diskon: ${Formatters.rupiah(voucher.discountAmount)}',
+            isEn
+                ? 'Discount Value: ${Formatters.rupiah(voucher.discountAmount)}'
+                : 'Potongan Diskon: ${Formatters.rupiah(voucher.discountAmount)}',
             style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
@@ -1038,9 +1076,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'KODE VOUCHER',
-                        style: TextStyle(
+                      Text(
+                        isEn ? 'VOUCHER CODE' : 'KODE VOUCHER',
+                        style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                           color: AppTheme.textSecondary,
@@ -1061,8 +1099,10 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                       const SizedBox(height: 4),
                       Text(
                         voucher.createdAt != null
-                            ? 'Diklaim: ${Formatters.tanggal(voucher.createdAt!)}'
-                            : 'Voucher Siap Digunakan',
+                            ? (isEn
+                                ? 'Claimed: ${Formatters.tanggal(voucher.createdAt!)}'
+                                : 'Diklaim: ${Formatters.tanggal(voucher.createdAt!)}')
+                            : (isEn ? 'Voucher Ready to Use' : 'Voucher Siap Digunakan'),
                         style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
                       ),
                     ],
@@ -1070,10 +1110,12 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                 ),
                 IconButton(
                   icon: const Icon(Icons.copy_rounded, size: 20, color: AppTheme.primary),
-                  tooltip: 'Salin Kode',
+                  tooltip: l10n.copyCodeBtn,
                   onPressed: () => _copyToClipboard(
                     voucher.voucherCode,
-                    'Kode voucher ${voucher.voucherCode} disalin!',
+                    isEn
+                        ? 'Voucher code ${voucher.voucherCode} copied!'
+                        : 'Kode voucher ${voucher.voucherCode} disalin!',
                   ),
                 ),
               ],
@@ -1086,6 +1128,8 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
 
   /// Kartu Voucher Terpakai (Dimmed / Redup) dengan badge "Sudah Terpakai"
   Widget _buildHistoryVoucherCard(VoucherModel voucher) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return Opacity(
       opacity: 0.55,
       child: Container(
@@ -1119,9 +1163,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
                     color: const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    'Sudah Terpakai',
-                    style: TextStyle(
+                  child: Text(
+                    l10n.usedBadge,
+                    style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF64748B),
@@ -1156,7 +1200,9 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
             if (voucher.usedAt != null) ...[
               const SizedBox(height: 4),
               Text(
-                'Digunakan pada: ${Formatters.tanggal(voucher.usedAt!)}',
+                isEn
+                    ? 'Used on: ${Formatters.tanggal(voucher.usedAt!)}'
+                    : 'Digunakan pada: ${Formatters.tanggal(voucher.usedAt!)}',
                 style: const TextStyle(fontSize: 10, color: Color(0xFF94A3B8)),
               ),
             ],
@@ -1167,6 +1213,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
   }
 
   Widget _buildErrorState() {
+    final l10n = context.l10n;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1184,7 +1231,7 @@ class _PelangganRewardsScreenState extends State<PelangganRewardsScreen>
             ElevatedButton.icon(
               onPressed: _loadData,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Coba Lagi'),
+              label: Text(l10n.retry),
               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
             ),
           ],

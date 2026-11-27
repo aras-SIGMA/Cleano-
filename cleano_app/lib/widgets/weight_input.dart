@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
+import 'language_picker_sheet.dart';
 
 /// Komponen input berat cucian (kg) dengan dukungan desimal & tombol penyesuaian cepat.
 class WeightInput extends StatelessWidget {
@@ -44,9 +45,9 @@ class WeightInput extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Berat Cucian (kg)',
-                style: TextStyle(
+              Text(
+                context.l10n.laundryWeightKg,
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
@@ -71,11 +72,7 @@ class WeightInput extends StatelessWidget {
                   controller: controller,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   inputFormatters: [
-                    // \d{0,2} membatasi bagian bulat ke dua digit, jadi
-                    // masukan maksimal 5 karakter ("99,99") dan sejalan dengan
-                    // max(99.99) di orderValidator. Sebelumnya \d* tanpa batas:
-                    // menahan tombol angka menghasilkan string sepanjang apa
-                    // pun, dan tiap perubahan memicu parse + rebuild subtotal.
+                    // Batasi input bulat 2 digit agar sesuai maks 99.99 di validator.
                     FilteringTextInputFormatter.allow(
                       RegExp(r'^\d{0,2}([.,]\d{0,2})?'),
                     ),

@@ -1,9 +1,4 @@
-// Uji POST /api/orders terhadap Aiven.
-// Jalur sukses dijalankan lewat attemptOrder() di dalam transaksi lalu ROLLBACK:
-// order tidak boleh dihapus (trigger L-07), jadi rollback satu-satunya cara
-// membersihkan. Jalur gagal diuji lewat HTTP karena yang diperiksa justru
-// status code-nya.
-// Jalankan: npm run test:orders-create
+// Uji POST /api/orders di Aiven dalam transaksi lalu ROLLBACK.
 require('dotenv').config({ quiet: true });
 
 const fs = require('fs');
@@ -61,9 +56,7 @@ async function inTx(fn) {
   }
 }
 
-// Sama seperti inTx tetapi kegagalan dilempar berubah menjadi objek gagal, supaya
-// error tak terduga muncul sebagai satu asersi GAGAL, bukan menghentikan skrip
-// dengan ringkasan "N/N lulus" yang menyesatkan.
+// Ubah exception tak terduga menjadi asersi gagal agar laporan tes akurat.
 async function tryTx(fn) {
   try {
     return { ok: true, value: await inTx(fn) };
@@ -110,6 +103,11 @@ const orderBody = (over = {}) => ({
     });
     ok('format foto salah 400', wrongType.status === 400, `status ${wrongType.status}`);
 
+    const spoofedMime = await post(orderBody(), {
+      token: kasir, image: Buffer.from('<html><script>alert(1)</script></html>'), filename: 'fake.jpg', type: 'image/jpeg',
+    });
+    ok('magic bytes palsu ditolak 400', spoofedMime.status === 400, `status ${spoofedMime.status}`);
+
     const tooBig = await post(orderBody(), {
       token: kasir, image: Buffer.alloc(2.5 * 1024 * 1024, 1), filename: 'besar.png',
     });
@@ -121,8 +119,7 @@ const orderBody = (over = {}) => ({
     const weightMissing = await post(orderBody({ weight: undefined }), { token: kasir });
     ok('weight kosong ditolak 400', weightMissing.status === 400, `status ${weightMissing.status}`);
 
-    // Batas panjang masukan: tanpa ini satu permintaan bisa membawa teks
-    // sepanjang apa pun dan server menyangganya sebelum validator menolak.
+    // Uji penolakan catatan melebihi batas panjang karakter di validator.
     const weightHuge = await post(orderBody({ weight: '100' }), { token: kasir });
     ok('weight > 99.99 ditolak 400', weightHuge.status === 400, `status ${weightHuge.status}`);
 
@@ -132,9 +129,7 @@ const orderBody = (over = {}) => ({
     const notesLong = await post(orderBody({ notes: 'x'.repeat(2001) }), { token: kasir });
     ok('notes 2001 karakter 400', notesLong.status === 400, `status ${notesLong.status}`);
 
-    // Melewati fieldSize multer (8 KB): ditolak di lapisan multipart sebelum
-    // zod sempat membaca. Pesannya membedakan kedua lapisan; tanpa fieldSize
-    // yang ketat, pesan yang keluar justru milik zod.
+    // Uji penolakan field teks melebihi 8 KB di lapisan multer.
     const fieldHuge = await post(orderBody({ notes: 'x'.repeat(9000) }), { token: kasir });
     ok('field > 8 KB ditolak multer, bukan zod',
       fieldHuge.status === 400 && /terlalu panjang/.test(fieldHuge.json?.message ?? ''),
@@ -149,16 +144,12 @@ const orderBody = (over = {}) => ({
     const noUser = await post(orderBody({ user_id: 999999 }), { token: kasir });
     ok('user_id tidak ada 404', noUser.status === 404, `status ${noUser.status}`);
 
-    // Penjaga kebersihan: semua request di atas harus gagal, jadi jumlah order
-    // harus tetap sama dengan seeder. Kalau ada yang lolos 201, barisnya sudah
-    // commit dan tidak bisa dihapus (trigger L-07) — tertangkap di sini.
+    // Pastikan seluruh request gagal di atas tidak menambah baris order.
     const [[countAfterRejects]] = await pool.query('select count(*) as n from orders');
     ok('tidak ada order tertinggal dari request yang ditolak', countAfterRejects.n === ORDERS_AWAL,
       `${countAfterRejects.n} vs ${ORDERS_AWAL}`);
 
-    // ---- jalur sukses: mesin tersedia ----
-    // Mesin seeder bisa saja sudah dipegang order nyata dan order tidak boleh
-    // dihapus (L-07), jadi uji menyiapkan mesinnya sendiri.
+    // Siapkan mesin uji sendiri untuk jalur sukses karena mesin seeder bisa terpakai.
     await pool.query("delete from machines where machine_code like 'MC-UJI-%'");
     await pool.query(
       "insert into machines (machine_code, status, capacity_kg) values ('MC-UJI-SUKSES', 'tersedia', 7.00)",
@@ -231,11 +222,7 @@ const orderBody = (over = {}) => ({
       const [[reward]] = await conn.query(
         'select r.discount_amount from user_vouchers uv join rewards r on uv.reward_id = r.id where uv.id = ?', [v.id],
       );
-      // Pemakaian kedua kode yang sama: trigger setelah insert sudah menandai
-      // is_used = 1 di dalam transaksi ini, jadi penjaga backend harus menolak
-      // sebelum INSERT berikutnya. Yang diperiksa bukan hanya pesannya (trigger
-      // juga menolak dengan pesan serupa) melainkan statusnya: 400 dari
-      // penjaga backend, bukan ER_SIGNAL_EXCEPTION yang jadi 500.
+      // Pastikan pemakaian ganda voucher ditolak 400 oleh backend sebelum trigger.
       let second = { status: null, message: 'lolos' };
       try {
         await attemptOrder(conn, { body: orderBody({ voucher_code: v.voucher_code }), imageUrl: '/uploads/uji.png' });
@@ -270,8 +257,7 @@ const orderBody = (over = {}) => ({
         return { status: e.status ?? null, message: e.message };
       }
     });
-    // 400 dari penjaga backend. Trigger memakai pesan yang sama tapi keluar
-    // sebagai ER_SIGNAL_EXCEPTION tanpa status, jadi 500.
+    // Pastikan penolakan berstatus 400 dari backend, bukan 500 dari trigger.
     ok('voucher milik orang lain ditolak 400 oleh backend',
       vcrOrangLain.status === 400 && /tidak valid untuk akun/i.test(vcrOrangLain.message),
       `${vcrOrangLain.status} ${vcrOrangLain.message}`);
@@ -314,9 +300,7 @@ const orderBody = (over = {}) => ({
       const b = await attemptOrder(conn, { body: orderBody(), imageUrl: '/uploads/uji.png' });
       return [a.order_code, b.order_code];
     });
-    // Nomor diambil dari MAX per tanggal, jadi dua order pada transaksi sama
-    // harus naik satu. Kalau nomornya konstan, indeks unik order_code menolak
-    // INSERT kedua dan pesannya muncul di sini sebagai asersi merah.
+    // Pastikan dua order dalam transaksi yang sama mendapat order_code berurutan.
     ok('dua order berurutan beda order_code',
       codes.ok && codes.value[0] !== codes.value[1],
       codes.ok ? codes.value.join(' / ') : codes.error);
@@ -332,29 +316,11 @@ const orderBody = (over = {}) => ({
     ok('midtrans -> snap_redirect_url ada', midTx.ok && /^https?:\/\//.test(String(midTx.value.snap_redirect_url)),
       midTx.ok ? `${midTx.value.snap_redirect_url}` : midTx.error);
 
-    // Catatan: klausa `for update` pada SELECT voucher tidak diuji balapan di sini.
-    // Membuktikannya butuh satu transaksi yang COMMIT, dan order yang sudah commit
-    // tidak bisa dihapus (trigger L-07) — uji akan meninggalkan baris permanen dan
-    // membakar voucher seeder. Penjaga nyata untuk jalur ini adalah indeks unik
-    // uq_orders_voucher plus trigger AFTER INSERT, dan keduanya sudah terbukti di
-    // tes pemakaian-ganda di atas.
+    // Kunci paralel voucher dijaga indeks unik uq_orders_voucher dan trigger AFTER INSERT.
 
-    // ---- penguncian mesin: dua transaksi tidak boleh mendapat mesin yang sama ----
-    // Yang diuji bukan "terblokir" (UPDATE juga mengunci baris) melainkan hasil
-    // setelah blokir selesai: FOR UPDATE membuat transaksi kedua membaca ulang
-    // versi terbaru dan tidak menemukan mesin bebas. Tanpa FOR UPDATE, SELECT
-    // memakai snapshot lama ('tersedia'), lalu UPDATE-nya berhasil setelah
-    // transaksi pertama commit — dua order berbagi satu drum.
+    // Uji penguncian mesin FOR UPDATE mencegah dua transaksi memakai mesin sama.
     const lockTx = await tryTx(async () => {
-      // Sisakan tepat satu mesin 'tersedia'. Tanpa ini transaksi kedua wajar
-      // mendapat mesin lain dan uji tidak membedakan apa pun.
-      //
-      // Mesin seeder tidak bisa dipakai sebagai "yang satu itu": ia bisa sedang
-      // dipegang order nyata berstatus proses_cuci, dan order tidak boleh
-      // dihapus (trigger L-07), jadi tidak ada cara membebaskannya dari uji.
-      // Karena itu mesin seeder diparkir semua lalu ditambah satu mesin uji.
-      // Sisa dari jalannya uji sebelumnya dibersihkan lebih dulu berdasarkan
-      // awalan, bukan id, supaya jalan ulang tidak bertabrakan.
+      // Sisakan tepat satu mesin uji 'tersedia' lalu pulihkan di finally.
       await pool.query("delete from machines where machine_code like 'MC-UJI-%'");
       const [parked] = await pool.query(
         "select id from machines where status = 'tersedia' for update",

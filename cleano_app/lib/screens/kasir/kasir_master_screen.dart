@@ -8,16 +8,13 @@ import '../../services/api_service.dart';
 import '../../services/master_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 import 'master/machines_tab.dart';
 import 'master/master_form_dialogs.dart';
 import 'master/rewards_tab.dart';
 import 'master/services_tab.dart';
 
-/// Layar Kasir: Manajemen Master Data Outlet (M6)
-/// Memiliki 3 tab:
-/// 1. Layanan: Daftar layanan laundry, tambah baru, edit, dan hapus (dengan penanganan galat 409).
-/// 2. Mesin: Daftar unit mesin cuci/pengering, tambah baru (MC-XX), dan toggle status operasional (tersedia / maintenance).
-/// 3. Promo Rewards: Daftar katalog reward loyalti, tambah baru, edit, dan toggle aktif/nonaktif (is_active).
+/// Layar Master Data Outlet (M6) dengan tab Layanan, Mesin, dan Rewards.
 class KasirMasterScreen extends StatefulWidget {
   const KasirMasterScreen({
     super.key,
@@ -88,8 +85,9 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() {
-          _servicesError = 'Gagal memuat layanan: $e';
+          _servicesError = isEn ? 'Failed to load services: $e' : 'Gagal memuat layanan: $e';
           _isLoadingServices = false;
         });
       }
@@ -119,8 +117,9 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() {
-          _machinesError = 'Gagal memuat mesin: $e';
+          _machinesError = isEn ? 'Failed to load machines: $e' : 'Gagal memuat mesin: $e';
           _isLoadingMachines = false;
         });
       }
@@ -150,8 +149,9 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isEn = context.l10n.localeName == 'en';
         setState(() {
-          _rewardsError = 'Gagal memuat rewards: $e';
+          _rewardsError = isEn ? 'Failed to load rewards: $e' : 'Gagal memuat rewards: $e';
           _isLoadingRewards = false;
         });
       }
@@ -163,18 +163,24 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
   // ==========================================
 
   Future<void> _handleDeleteService(ServiceModel service) async {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Hapus Layanan?'),
-        content: Text('Apakah Anda yakin ingin menghapus layanan "${service.name}"?'),
+        title: Text(isEn ? 'Delete Service?' : 'Hapus Layanan?'),
+        content: Text(
+          isEn
+              ? 'Are you sure you want to delete service "${service.name}"?'
+              : 'Apakah Anda yakin ingin menghapus layanan "${service.name}"?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger, foregroundColor: Colors.white),
-            child: const Text('Hapus'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -186,14 +192,21 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
       await _masterService.deleteService(service.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Layanan "${service.name}" berhasil dihapus.'), backgroundColor: AppTheme.success),
+        SnackBar(
+          content: Text(
+            isEn ? 'Service "${service.name}" deleted successfully.' : 'Layanan "${service.name}" berhasil dihapus.',
+          ),
+          backgroundColor: AppTheme.success,
+        ),
       );
       _loadServices(forceRefresh: true);
     } on ApiException catch (e) {
       if (!mounted) return;
       // Penanganan 409 bila layanan sedang digunakan pada order
       final msg = e.statusCode == 409
-          ? 'Layanan tidak dapat dihapus karena masih tercatat pada transaksi pesanan pelanggan.'
+          ? (isEn
+              ? 'Service cannot be deleted because it is still recorded in customer order transactions.'
+              : 'Layanan tidak dapat dihapus karena masih tercatat pada transaksi pesanan pelanggan.')
           : e.message;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
@@ -201,7 +214,10 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menghapus layanan: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text(isEn ? 'Failed to delete service: $e' : 'Gagal menghapus layanan: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
@@ -211,31 +227,45 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
   // ==========================================
 
   Future<void> _handleToggleMachineStatus(MachineModel machine) async {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     if (machine.isDigunakan) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Mesin sedang digunakan untuk mencuci pesanan dan tidak dapat diubah statusnya manual.')),
+        SnackBar(
+          content: Text(
+            isEn
+                ? 'Machine is currently washing an order and its status cannot be changed manually.'
+                : 'Mesin sedang digunakan untuk mencuci pesanan dan tidak dapat diubah statusnya manual.',
+          ),
+        ),
       );
       return;
     }
 
     final newStatus = machine.isMaintenance ? 'tersedia' : 'maintenance';
-    final actionLabel = newStatus == 'maintenance' ? 'Set Pemeliharaan (Maintenance)' : 'Set Tersedia (Siap Pakai)';
+    final actionLabel = newStatus == 'maintenance'
+        ? (isEn ? 'Set Maintenance' : 'Set Pemeliharaan (Maintenance)')
+        : (isEn ? 'Set Available (Ready)' : 'Set Tersedia (Siap Pakai)');
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(actionLabel),
-        content: Text('Ubah status mesin ${machine.machineCode} menjadi "$newStatus"?'),
+        content: Text(
+          isEn
+              ? 'Change machine ${machine.machineCode} status to "$newStatus"?'
+              : 'Ubah status mesin ${machine.machineCode} menjadi "$newStatus"?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(l10n.cancel)),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: newStatus == 'maintenance' ? AppTheme.accent : AppTheme.success,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Ubah Status'),
+            child: Text(isEn ? 'Change Status' : 'Ubah Status'),
           ),
         ],
       ),
@@ -247,7 +277,14 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
       await _masterService.updateMachine(machine.id, status: newStatus);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Status mesin ${machine.machineCode} diubah ke $newStatus.'), backgroundColor: AppTheme.success),
+        SnackBar(
+          content: Text(
+            isEn
+                ? 'Machine ${machine.machineCode} status changed to $newStatus.'
+                : 'Status mesin ${machine.machineCode} diubah ke $newStatus.',
+          ),
+          backgroundColor: AppTheme.success,
+        ),
       );
       _loadMachines(forceRefresh: true);
     } on ApiException catch (e) {
@@ -263,12 +300,15 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
   // ==========================================
 
   Future<void> _handleToggleRewardActive(RewardModel reward) async {
+    final isEn = context.l10n.localeName == 'en';
     try {
       await _masterService.toggleRewardActive(reward.id);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Status kupon "${reward.title}" berhasil diubah.'),
+          content: Text(
+            isEn ? 'Coupon "${reward.title}" status updated.' : 'Status kupon "${reward.title}" berhasil diubah.',
+          ),
           backgroundColor: AppTheme.success,
         ),
       );
@@ -283,6 +323,7 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       backgroundColor: const Color(0xFFEBF4FF),
       appBar: AppBar(
@@ -290,9 +331,9 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text(
-          'Kelola Toko',
-          style: TextStyle(
+        title: Text(
+          l10n.manageStoreTitle,
+          style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 17,
@@ -301,7 +342,7 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppTheme.textPrimary),
-            tooltip: 'Segarkan Data',
+            tooltip: l10n.refreshData,
             onPressed: () => _loadAllData(forceRefresh: true),
           ),
         ],
@@ -393,10 +434,10 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
           icon: const Icon(Icons.add_rounded),
           label: Text(
             switch (_currentTab) {
-              0 => 'Layanan Baru',
-              1 => 'Unit Mesin Baru',
-              2 => 'Kupon Baru',
-              _ => 'Tambah',
+              0 => l10n.newServiceBtn,
+              1 => l10n.newMachineBtn,
+              2 => l10n.newRewardBtn,
+              _ => l10n.addBtn,
             },
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
@@ -406,9 +447,10 @@ class _KasirMasterScreenState extends State<KasirMasterScreen> {
   }
 
   Widget _buildTabPills() {
+    final isEn = context.l10n.localeName == 'en';
     final tabs = [
-      ('Layanan (${_services.length})', Icons.dry_cleaning_rounded),
-      ('Mesin (${_machines.length})', Icons.local_laundry_service_rounded),
+      ('${isEn ? 'Services' : 'Layanan'} (${_services.length})', Icons.dry_cleaning_rounded),
+      ('${isEn ? 'Machines' : 'Mesin'} (${_machines.length})', Icons.local_laundry_service_rounded),
       ('Rewards (${_rewards.length})', Icons.card_giftcard_rounded),
     ];
 

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Badge status pembayaran pesanan: `LUNAS` atau `BELUM BAYAR`.
-/// Dipakai kartu kasir dan kartu pelacakan pelanggan supaya tidak ada dua
-/// salinan aturan warna/teks yang bisa berbeda pendapat.
+import 'language_picker_sheet.dart';
+
+/// Badge status pembayaran LUNAS/BELUM BAYAR terpadu untuk kartu kasir dan pelanggan.
 class OrderPaymentBadge extends StatelessWidget {
   const OrderPaymentBadge({
     super.key,
@@ -15,6 +15,7 @@ class OrderPaymentBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Container(
       padding: padding,
       decoration: BoxDecoration(
@@ -22,7 +23,7 @@ class OrderPaymentBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        isLunas ? 'LUNAS' : 'BELUM BAYAR',
+        isLunas ? l10n.paidBadge : l10n.unpaidBadge,
         style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w800,

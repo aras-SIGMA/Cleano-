@@ -1,3 +1,7 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
 import '../core/constants/api_constants.dart';
 import '../core/utils/formatters.dart';
 import '../models/user_model.dart';
@@ -31,28 +35,12 @@ class AuthService {
       },
     );
 
-    final payload = res.data;
-    if (payload is! Map<String, dynamic> || payload['data'] is! Map) {
-      throw const ApiException('Format respons server tidak valid.');
-    }
-
-    final data = payload['data'] as Map<String, dynamic>;
-    final token = data['token']?.toString() ?? '';
-    final rawUser = data['user'];
-    if (token.isEmpty || rawUser is! Map<String, dynamic>) {
-      throw const ApiException('Data login tidak lengkap.');
-    }
-
-    final user = UserModel.fromJson(rawUser);
-
-    await _api.saveToken(token);
-    await _session.saveSession(
-      token: token,
-      user: user,
+    final auth = await _saveAuthResponse(
+      res,
       rememberMe: rememberMe,
+      incompleteMessage: 'Data login tidak lengkap.',
     );
-
-    return user;
+    return auth.user;
   }
 
   /// Registrasi akun pelanggan baru.
@@ -74,6 +62,18 @@ class AuthService {
       },
     );
 
+    return _saveAuthResponse(
+      res,
+      rememberMe: true,
+      incompleteMessage: 'Data registrasi tidak lengkap.',
+    );
+  }
+
+  Future<({UserModel user, String token})> _saveAuthResponse(
+    Response<dynamic> res, {
+    required bool rememberMe,
+    required String incompleteMessage,
+  }) async {
     final payload = res.data;
     if (payload is! Map<String, dynamic> || payload['data'] is! Map) {
       throw const ApiException('Format respons server tidak valid.');
@@ -83,18 +83,16 @@ class AuthService {
     final token = data['token']?.toString() ?? '';
     final rawUser = data['user'];
     if (token.isEmpty || rawUser is! Map<String, dynamic>) {
-      throw const ApiException('Data registrasi tidak lengkap.');
+      throw ApiException(incompleteMessage);
     }
 
     final user = UserModel.fromJson(rawUser);
-
     await _api.saveToken(token);
     await _session.saveSession(
       token: token,
       user: user,
-      rememberMe: true,
+      rememberMe: rememberMe,
     );
-
     return (user: user, token: token);
   }
 
@@ -116,6 +114,49 @@ class AuthService {
       rethrow;
     }
     return null;
+  }
+
+  /// Mengubah foto profil akun yang sedang login (PATCH /api/users/me/avatar).
+  Future<UserModel> updateAvatar({
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final lower = filename.toLowerCase();
+    final subtype = lower.endsWith('.png')
+        ? 'png'
+        : lower.endsWith('.webp')
+            ? 'webp'
+            : 'jpeg';
+    final formData = FormData.fromMap({
+      'image': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
+        contentType: DioMediaType('image', subtype),
+      ),
+    });
+
+    final res = await _api.patchMultipart(ApiConstants.userAvatar, formData);
+    final payload = res.data;
+    if (payload is Map<String, dynamic> && payload['data'] is Map<String, dynamic>) {
+      final user = UserModel.fromJson(payload['data'] as Map<String, dynamic>);
+      await _session.updateUser(user);
+      return user;
+    }
+    throw const ApiException('Format respons server tidak valid.');
+  }
+
+  /// Mengubah kata sandi akun yang sedang login (PATCH /api/auth/change-password).
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    await _api.patch(
+      ApiConstants.changePassword,
+      data: {
+        'old_password': oldPassword,
+        'new_password': newPassword,
+      },
+    );
   }
 
   /// Mengeluarkan sesi login.

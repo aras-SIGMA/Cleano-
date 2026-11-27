@@ -1,11 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
-/// Komponen Kartu Bergaya iOS Frosted Glass (Glassmorphism):
-/// - Bayangan difus lembut di luar kartu (`boxShadow`)
-/// - Lapisan transparan gradasi putih dengan specular border
-/// - Dukungan blur optis (`BackdropFilter`) dengan opsi performa tinggi (`enableBlur`)
-/// - Sudut membulat khas antarmuka iOS
+/// Komponen kartu bergaya iOS Frosted Glass dengan bayangan dan blur opsional.
 class FrostedGlassCard extends StatelessWidget {
   const FrostedGlassCard({
     super.key,
@@ -28,10 +24,7 @@ class FrostedGlassCard extends StatelessWidget {
   final double borderRadius;
   final double blurSigma;
 
-  /// Aktifkan BackdropFilter hanya untuk elemen mengambang diam (seperti bar navigasi).
-  /// Untuk kartu di dalam daftar scroll, `enableBlur = false` mempertahankan visual
-  /// transparan specular 100% identik namun meniadakan beban saveLayer GPU,
-  /// menghasilkan scroll mulus 60-120 FPS tanpa lag.
+  /// Gunakan enableBlur=false di daftar scroll untuk menjaga performa 60-120 FPS.
   final bool enableBlur;
 
   final VoidCallback? onTap;

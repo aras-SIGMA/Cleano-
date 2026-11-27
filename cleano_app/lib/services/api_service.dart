@@ -2,9 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/api_constants.dart';
+import 'locale_service.dart';
 
-/// Klien HTTP tunggal. Otomatis menyisipkan `Authorization: Bearer <token>`
-/// dari SharedPreferences dan menormalkan error backend menjadi [ApiException].
+/// Klien HTTP tunggal dengan injeksi token otomatis dan normalisasi [ApiException].
 class ApiService {
   ApiService._();
 
@@ -69,6 +69,9 @@ class ApiService {
   Future<Response<T>> postMultipart<T>(String path, FormData data) =>
       _guard(() => _dio.post<T>(path, data: data));
 
+  Future<Response<T>> patchMultipart<T>(String path, FormData data) =>
+      _guard(() => _dio.patch<T>(path, data: data));
+
   /// Membungkus error Dio menjadi pesan yang siap ditampilkan ke UI.
   Future<Response<T>> _guard<T>(Future<Response<T>> Function() request) async {
     try {
@@ -79,8 +82,7 @@ class ApiService {
   }
 }
 
-/// Error seragam untuk seluruh aplikasi, mengikuti format backend:
-/// `{ "success": false, "message": "..." }`
+/// Representasi error seragam mengikuti format respons backend.
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
 
@@ -95,15 +97,21 @@ class ApiException implements Exception {
       return ApiException(body['message'] as String, statusCode: res?.statusCode);
     }
 
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     final message = switch (e.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout =>
-        'Koneksi ke server habis waktu. Periksa jaringan Anda.',
+        isEn
+            ? 'Connection timed out. Please check your network.'
+            : 'Koneksi ke server habis waktu. Periksa jaringan Anda.',
       DioExceptionType.connectionError =>
-        'Tidak dapat menghubungi server. Periksa koneksi dan alamat API.',
-      DioExceptionType.badCertificate => 'Sertifikat server tidak valid.',
-      _ => 'Terjadi kesalahan tak terduga.',
+        isEn
+            ? 'Unable to reach server. Check network and API address.'
+            : 'Tidak dapat menghubungi server. Periksa koneksi dan alamat API.',
+      DioExceptionType.badCertificate =>
+        isEn ? 'Invalid server certificate.' : 'Sertifikat server tidak valid.',
+      _ => isEn ? 'An unexpected error occurred.' : 'Terjadi kesalahan tak terduga.',
     };
 
     return ApiException(message, statusCode: res?.statusCode);

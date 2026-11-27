@@ -1,4 +1,4 @@
-/// Model data voucher reward milik pelanggan (is_used: 0 belum terpakai, 1 sudah dipakai).
+/// Model data voucher reward milik pelanggan (aktif atau sudah terpakai).
 class VoucherModel {
   const VoucherModel({
     required this.id,

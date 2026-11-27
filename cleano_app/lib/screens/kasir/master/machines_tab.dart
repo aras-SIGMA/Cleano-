@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/machine_model.dart';
+import '../../../services/locale_service.dart';
 import '../../../widgets/frosted_glass_card.dart';
 import '../../../widgets/state_view.dart';
 
@@ -34,7 +35,10 @@ class MachinesTab extends StatelessWidget {
     }
 
     if (machines.isEmpty) {
-      return const StateEmptyView(message: 'Belum ada unit mesin cuci yang terdaftar.');
+      final isEn = LocaleService.instance.locale.value.languageCode == 'en';
+      return StateEmptyView(
+        message: isEn ? 'No washing machines registered yet.' : 'Belum ada unit mesin cuci yang terdaftar.',
+      );
     }
 
     return RefreshIndicator(
@@ -61,9 +65,10 @@ class _MachineCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isEn = LocaleService.instance.locale.value.languageCode == 'en';
     final (badgeBg, badgeFg, badgeText) = switch (machine.status) {
-      'tersedia' => (const Color(0xFFDCFCE7), const Color(0xFF15803D), 'Tersedia'),
-      'digunakan' => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), 'Sedang Digunakan'),
+      'tersedia' => (const Color(0xFFDCFCE7), const Color(0xFF15803D), isEn ? 'Available' : 'Tersedia'),
+      'digunakan' => (const Color(0xFFE0F2FE), const Color(0xFF0369A1), isEn ? 'In Use' : 'Sedang Digunakan'),
       'maintenance' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C), 'Maintenance'),
       _ => (const Color(0xFFF1F5F9), AppTheme.textSecondary, machine.status),
     };
@@ -111,8 +116,8 @@ class _MachineCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Kapasitas: ${machine.capacityKg.toStringAsFixed(1)} kg'
-                  '${machine.isDigunakan && machine.estimatedFinishAt != null ? ' • Selesai ~${Formatters.jam(machine.estimatedFinishAt!)}' : ''}',
+                  '${isEn ? 'Capacity' : 'Kapasitas'}: ${machine.capacityKg.toStringAsFixed(1)} kg'
+                  '${machine.isDigunakan && machine.estimatedFinishAt != null ? ' • ${isEn ? 'Done' : 'Selesai'} ~${Formatters.jam(machine.estimatedFinishAt!)}' : ''}',
                   style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                 ),
               ],
@@ -122,17 +127,14 @@ class _MachineCard extends StatelessWidget {
             OutlinedButton(
               onPressed: () => onToggleStatus(machine),
               style: OutlinedButton.styleFrom(
-                // Tema global memakai Size.fromHeight(52) = lebar tak terbatas.
-                // Di dalam Row, anak non-flex menerima lebar tak terbatas, jadi
-                // minimumSize itu membuat layout gagal ("infinite width").
-                // Tombol ini harus menyesuaikan isi teksnya.
+                // Atur ukuran minimum tombol agar tidak error lebar tak terbatas di Row.
                 minimumSize: const Size(0, 40),
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(
-                machine.isMaintenance ? 'Aktifkan' : 'Perawatan',
+                machine.isMaintenance ? (isEn ? 'Activate' : 'Aktifkan') : (isEn ? 'Maintenance' : 'Perawatan'),
                 style: TextStyle(
                   fontSize: 11,
                   color: machine.isMaintenance ? AppTheme.success : AppTheme.accent,

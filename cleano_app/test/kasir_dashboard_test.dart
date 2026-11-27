@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cleano_app/models/dashboard_summary_model.dart';
 import 'package:cleano_app/models/order_model.dart';
 import 'package:cleano_app/screens/kasir/kasir_dashboard_screen.dart';
 import 'package:cleano_app/services/dashboard_service.dart';
+import 'package:cleano_app/services/export_service.dart';
 import 'package:cleano_app/services/order_service.dart';
 
 class FakeDashboardService implements DashboardService {
@@ -73,6 +75,22 @@ class FakeOrderService implements OrderService {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class FakeExportService implements ExportService {
+  final List<String> exportedFormats = [];
+
+  @override
+  Future<void> exportReport({
+    required String format,
+    required DashboardSummaryModel summary,
+    List<OrderModel>? orders,
+  }) async {
+    exportedFormats.add(format);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   testWidgets('KasirDashboardScreen menampilkan 4 kartu metrik dan pesanan aktif', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -84,6 +102,7 @@ void main() {
         home: KasirDashboardScreen(
           dashboardService: FakeDashboardService(),
           orderService: FakeOrderService(),
+          exportService: FakeExportService(),
         ),
       ),
     );
@@ -105,5 +124,39 @@ void main() {
     expect(find.text('CLN-20261120-0001'), findsOneWidget);
     expect(find.textContaining('Ahmad Subagyo'), findsOneWidget);
     expect(find.text('Sedang Dicuci'), findsWidgets);
+
+    // Batasi lebar konten 1100 px dan pusatkan pada layar lebar.
+    final content = find.byType(CustomScrollView);
+    expect(tester.getSize(content).width, 1100);
+    expect(tester.getCenter(content).dx, closeTo(640, 0.5));
+  });
+
+  testWidgets('laporan harian diekspor sekali per hari, tidak berulang saat layar dipasang ulang', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    final exportService = FakeExportService();
+
+    Widget buildScreen(Key key) => MaterialApp(
+          home: KasirDashboardScreen(
+            key: key,
+            dashboardService: FakeDashboardService(),
+            orderService: FakeOrderService(),
+            exportService: exportService,
+          ),
+        );
+
+    // Hari pertama: laporan dibuat tepat sekali.
+    await tester.pumpWidget(buildScreen(const ValueKey('hari-1')));
+    await tester.pumpAndSettle();
+    expect(exportService.exportedFormats, ['PDF']);
+    expect(find.textContaining('Laporan harian siap dibagikan'), findsOneWidget);
+
+    // Hari yang sama: layar dipasang ulang — tidak boleh mengekspor lagi.
+    await tester.pumpWidget(buildScreen(const ValueKey('hari-1-ulang')));
+    await tester.pumpAndSettle();
+    expect(exportService.exportedFormats, ['PDF']);
   });
 }

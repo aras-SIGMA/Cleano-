@@ -1,10 +1,7 @@
-// Uji endpoint auth terhadap Aiven. Membuat user uji lalu menghapusnya lagi.
-// Jalankan: npm run test:auth
+// Uji endpoint auth di Aiven lalu bersihkan user uji.
 require('dotenv').config({ quiet: true });
 
-// Suite ini memanggil login/register puluhan kali dari IP yang sama, jadi batas
-// percobaan bawaan akan memblokirnya di tengah jalan. Dinaikkan hanya di sini;
-// test/test-hardening.js yang menguji limiter dengan angka kecil.
+// Naikkan batas rate limit khusus di suite ini; limiter diuji di test-hardening.
 process.env.AUTH_LOGIN_LIMIT = '1000';
 process.env.AUTH_REGISTER_LIMIT = '1000';
 
@@ -84,13 +81,10 @@ async function call(path, { method = 'GET', body, token } = {}) {
       body: { name: 'User Uji', email: `lain.${stamp}@cleano.test`, password: pass, phone },
     });
     ok('register phone duplikat 409', dupPhone.status === 409, `status ${dupPhone.status}`);
-    // Pesan harus menunjuk kolom yang benar. Sebelumnya cabangnya ditentukan
-    // dari teks err.message, yang berisi nama index driver — bukan nama kolom —
-    // jadi email dan phone bisa tertukar tanpa ada uji yang gagal.
+    // Pastikan pesan duplikat menunjuk kolom email atau phone yang benar.
     ok('register phone duplikat sebut nomor HP', /nomor hp sudah terdaftar/i.test(dupPhone.json?.message ?? ''), dupPhone.json?.message);
 
-    // Dua-duanya duplikat sekaligus: tetap 409 dengan salah satu pesan yang
-    // benar, tidak boleh jatuh ke jalur "gagal membuat kode member".
+    // Pastikan bentrok email dan phone bersamaan tetap membalas HTTP 409.
     const dupBoth = await call('/api/auth/register', {
       method: 'POST',
       body: { name: 'User Uji', email, password: pass, phone },
@@ -143,9 +137,7 @@ async function call(path, { method = 'GET', body, token } = {}) {
     const code2 = reg2.json?.data?.user?.member_code;
     ok('member_code naik 1', Number((code2 || '').slice(4)) === Number((code1 || '').slice(4)) + 1, `${code1} -> ${code2}`);
 
-    // ---- C-1: member_code bentrok harus diulang, bukan 409 ----
-    // Meniru balapan dua kasir: paksa hitung kode pertama menghasilkan kode yang
-    // sudah dipakai table (MBR-0001 punya rina). Tidak bergantung urutan parameter.
+    // Uji ulang C-1: member_code bentrok otomatis diulang, bukan membalas 409.
     const realGet = pool.getConnection.bind(pool);
     const taken = 'MBR-0001';
     let armed = true;
@@ -216,13 +208,7 @@ async function call(path, { method = 'GET', body, token } = {}) {
     ok('register HP bertanda hubung 201', norm.status === 201, `status ${norm.status}`);
     ok('HP tersimpan tanpa tanda hubung', norm.json?.data?.user?.phone === dashedPhone.replace(/-/g, ''), norm.json?.data?.user?.phone);
 
-    // ---- kolom bentrok tidak boleh ditebak dari pesan driver ----
-    // Pesan ER_DUP_ENTRY berbentuk "Duplicate entry '<nilai>' for key
-    // 'users.email'" — nilai yang didaftarkan ikut masuk ke pesan, bukan cuma
-    // nama kolom. Alamat yang memuat kata 'member_code' karena itu dulu membuat
-    // cabangnya salah: bentrok email dijawab "Gagal membuat kode member, coba
-    // lagi." setelah tiga percobaan. Ditaruh paling akhir supaya user tambahan
-    // di sini tidak menggeser nomor urut yang diperiksa uji sebelumnya.
+    // Pastikan email berisi kata 'member_code' tetap terdeteksi sebagai duplikat email.
     const aneh = `member_code.phone.${stamp}@cleano.test`;
     const a1 = await call('/api/auth/register', {
       method: 'POST',
@@ -239,8 +225,7 @@ async function call(path, { method = 'GET', body, token } = {}) {
   } catch (err) {
     ok('tes auth tidak melempar error', false, err.message);
   } finally {
-    // hapus berdasarkan pola email, bukan id dari respons: kalau tes gagal di
-    // tengah, id tidak pernah sampai dan user uji tertinggal di DB.
+    // Hapus user uji berdasarkan pola email di blok finally.
     const [sisa] = await pool
       .query('delete from users where email like ?', [`%.${stamp}@cleano.test`])
       .catch(() => [null]);

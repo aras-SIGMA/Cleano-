@@ -10,17 +10,11 @@ import '../../services/api_service.dart';
 import '../../services/order_service.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 import '../../widgets/order_list_item_card.dart';
 import '../../widgets/state_view.dart';
 
-/// Layar Kasir: Manajemen Pesanan & Estafet Mesin 1-Tap (M5).
-/// - Tab filter: Semua, Antre, Proses Cuci, Siap Diambil, Selesai
-/// - Pencarian cepat nomor order / nama pelanggan
-/// - Aksi transisi status:
-///   1. 'proses_cuci' -> 'siap_diambil' (membebaskan mesin cuci)
-///   2. Auto-recommend Modal Estafet 1-Tap jika respons memuat `next_queue_order`
-///   3. 'siap_diambil' -> 'selesai' (konfirmasi serah terima cucian & catat poin)
-/// - Paginasi / lazy infinite scroll & Pull-to-refresh
+/// Layar Manajemen Pesanan & Estafet Mesin 1-Tap (M5) untuk kasir.
 class KasirOrdersScreen extends StatefulWidget {
   const KasirOrdersScreen({
     super.key,
@@ -60,15 +54,6 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
   // Processing state for individual order action
   final Set<int> _actionLoadingOrderIds = {};
 
-  static const List<(String, String)> _filterTabs = [
-    ('semua', 'Semua'),
-    ('antre', 'Antre'),
-    ('proses_cuci', 'Proses Cuci'),
-    ('sedang_diproses', 'Sedang Diproses'),
-    ('siap_diambil', 'Siap Diambil'),
-    ('selesai', 'Selesai'),
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -95,9 +80,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
   }
 
   Future<void> _loadOrders({bool reset = false}) async {
-    // Setiap permintaan mengambil nomor urut. Respons yang nomornya bukan lagi
-    // yang terbaru dibuang: kalau kasir berpindah tab cepat, dua permintaan
-    // berjalan bersamaan dan yang selesai terakhir belum tentu yang benar.
+    // Buang respons permintaan lama menggunakan nomor urut agar tab tetap akurat.
     final seq = ++_requestSeq;
 
     if (reset) {
@@ -145,17 +128,16 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       });
     } catch (e) {
       if (!mounted || seq != _requestSeq) return;
+      final isEn = context.l10n.localeName == 'en';
       setState(() {
-        _errorMessage = 'Gagal memuat daftar pesanan: $e';
+        _errorMessage = isEn ? 'Failed to load orders: $e' : 'Gagal memuat daftar pesanan: $e';
         _isLoading = false;
         _isLoadingMore = false;
       });
     }
   }
 
-  /// Pencarian dikirim ke server setelah jeda ketik. Menyaring di klien hanya
-  /// benar untuk halaman yang sudah dimuat, jadi order di halaman berikutnya
-  /// tidak akan pernah ditemukan.
+  /// Kirim pencarian ke server setelah jeda ketik agar mencakup semua halaman.
   void _onSearchChanged(String value) {
     final q = value.trim();
     setState(() => _searchInput = q);
@@ -178,11 +160,11 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
     _loadOrders(reset: true);
   }
 
-  /// Transisi 1: Proses Cuci -> Siap Diambil.
-  /// Membebaskan unit mesin dan mendeteksi apakah ada antrean berikutnya (estafet).
+  /// Transisi Proses Cuci -> Siap Diambil sekaligus membebaskan mesin untuk estafet.
   Future<void> _handleMarkReady(OrderModel order) async {
+    final isEn = context.l10n.localeName == 'en';
     final freedMachineId = order.machineId;
-    final freedMachineCode = order.machineCode ?? 'Mesin';
+    final freedMachineCode = order.machineCode ?? (isEn ? 'Machine' : 'Mesin');
 
     setState(() => _actionLoadingOrderIds.add(order.id));
 
@@ -194,12 +176,16 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pesanan ${order.orderCode} ditandai Siap Diambil.'),
+          content: Text(
+            isEn
+                ? 'Order ${order.orderCode} marked Ready for Pickup.'
+                : 'Pesanan ${order.orderCode} ditandai Siap Diambil.',
+          ),
           backgroundColor: AppTheme.success,
         ),
       );
 
-      // Cek apakah ada antrean yang menunggu mesin cuci yang baru saja kosong (Estafet)
+      // Periksa apakah ada pesanan antre yang siap menempati mesin kosong.
       if (updated.nextQueueOrder != null && freedMachineId != null) {
         await _showEstafetConfirmationDialog(
           freedMachineId: freedMachineId,
@@ -220,18 +206,21 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       if (!mounted) return;
       setState(() => _actionLoadingOrderIds.remove(order.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memperbarui status: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text(isEn ? 'Failed to update status: $e' : 'Gagal memperbarui status: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
 
-  /// Dialog Konfirmasi Estafet Mesin 1-Tap:
-  /// Menawarkan kasir untuk langsung memasukkan antrean terdepan ke mesin yang baru saja kosong.
+  /// Dialog konfirmasi Estafet Mesin 1-Tap untuk memproses antrean terdepan.
   Future<void> _showEstafetConfirmationDialog({
     required int freedMachineId,
     required String freedMachineCode,
     required NextQueueOrderModel nextOrder,
   }) async {
+    final isEn = context.l10n.localeName == 'en';
     final shouldRelay = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -256,16 +245,16 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Mesin $freedMachineCode Kini Kosong!',
+                    isEn ? 'Machine $freedMachineCode Is Now Free!' : 'Mesin $freedMachineCode Kini Kosong!',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                       color: AppTheme.textPrimary,
                     ),
                   ),
-                  const Text(
-                    'Rekomendasi Estafet Otomatis',
-                    style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                  Text(
+                    isEn ? 'Auto Relay Recommendation' : 'Rekomendasi Estafet Otomatis',
+                    style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
                   ),
                 ],
               ),
@@ -304,9 +293,9 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
                           color: const Color(0xFFFEF3C7),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text(
-                          'Antrean Terdepan',
-                          style: TextStyle(
+                        child: Text(
+                          isEn ? 'Next in Queue' : 'Antrean Terdepan',
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFFB45309),
@@ -317,7 +306,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Pelanggan: ${nextOrder.customerName}',
+                    '${isEn ? 'Customer' : 'Pelanggan'}: ${nextOrder.customerName}',
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
@@ -333,9 +322,11 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Masukkan pakaian antrean ini ke dalam drum mesin cuci sekarang agar timer mesin langsung berjalan?',
-              style: TextStyle(fontSize: 13, color: AppTheme.textPrimary, height: 1.4),
+            Text(
+              isEn
+                  ? 'Load this queued laundry into the washing machine drum now so the machine timer starts immediately?'
+                  : 'Masukkan pakaian antrean ini ke dalam drum mesin cuci sekarang agar timer mesin langsung berjalan?',
+              style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary, height: 1.4),
             ),
           ],
         ),
@@ -346,12 +337,12 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            child: const Text('Nanti Saja', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(isEn ? 'Later' : 'Nanti Saja', style: const TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
             icon: const Icon(Icons.play_arrow_rounded, size: 20),
-            label: const Text('Ya, Mulai Cuci Sekarang'),
+            label: Text(isEn ? 'Yes, Start Washing Now' : 'Ya, Mulai Cuci Sekarang'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primary,
               foregroundColor: Colors.white,
@@ -370,7 +361,11 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Cucian ${nextOrder.orderCode} mulai dicuci di $freedMachineCode.'),
+            content: Text(
+              isEn
+                  ? 'Laundry ${nextOrder.orderCode} started washing in $freedMachineCode.'
+                  : 'Cucian ${nextOrder.orderCode} mulai dicuci di $freedMachineCode.',
+            ),
             backgroundColor: AppTheme.success,
           ),
         );
@@ -382,28 +377,35 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal konfirmasi estafet: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(
+            content: Text(isEn ? 'Failed to confirm relay: $e' : 'Gagal konfirmasi estafet: $e'),
+            backgroundColor: AppTheme.danger,
+          ),
         );
       }
     }
   }
 
-  /// Transisi 2: Siap Diambil -> Selesai.
-  /// Menandai penyerahan cucian kepada pelanggan dan memicu pemberian poin loyalti otomatis.
+  /// Transisi Siap Diambil -> Selesai sekaligus memicu pemberian poin otomatis.
   Future<void> _handleCompleteOrder(OrderModel order) async {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Selesaikan Pesanan?'),
+        title: Text(isEn ? 'Complete Order?' : 'Selesaikan Pesanan?'),
         content: Text(
-          'Pastikan cucian ${order.orderCode} telah diserahkan kepada ${order.customerName}.\n\n'
-          'Status akan diubah menjadi Selesai dan poin loyalti pelanggan akan ditambahkan secara otomatis.',
+          isEn
+              ? 'Make sure laundry ${order.orderCode} has been handed over to ${order.customerName}.\n\n'
+                  'Status will be changed to Completed and customer loyalty points will be added automatically.'
+              : 'Pastikan cucian ${order.orderCode} telah diserahkan kepada ${order.customerName}.\n\n'
+                  'Status akan diubah menjadi Selesai dan poin loyalti pelanggan akan ditambahkan secara otomatis.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(l10n.cancel, style: const TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -411,7 +413,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
               backgroundColor: AppTheme.success,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Ya, Selesaikan'),
+            child: Text(isEn ? 'Yes, Complete' : 'Ya, Selesaikan'),
           ),
         ],
       ),
@@ -429,7 +431,9 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pesanan ${order.orderCode} berhasil diselesaikan.'),
+          content: Text(
+            isEn ? 'Order ${order.orderCode} completed successfully.' : 'Pesanan ${order.orderCode} berhasil diselesaikan.',
+          ),
           backgroundColor: AppTheme.success,
         ),
       );
@@ -445,28 +449,36 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       if (!mounted) return;
       setState(() => _actionLoadingOrderIds.remove(order.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyelesaikan pesanan: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text(isEn ? 'Failed to complete order: $e' : 'Gagal menyelesaikan pesanan: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
 
-  /// Membatalkan pesanan yang belum dilunaskan. Status 'batal' final (L-06),
-  /// jadi konfirmasi dulu — tidak ada jalan untuk menghidupkan kembali.
+  /// Batalkan pesanan belum lunas dengan konfirmasi karena status batal bersifat final.
   Future<void> _handleCancelOrder(OrderModel order) async {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Batalkan Pesanan?'),
+        title: Text(isEn ? 'Cancel Order?' : 'Batalkan Pesanan?'),
         content: Text(
-          'Pesanan ${order.orderCode} atas nama ${order.customerName} akan dibatalkan.\n\n'
-          'Status Batal bersifat permanen dan tidak bisa dikembalikan. '
-          'Mesin yang dipakai akan dilepas bila pesanan sedang dicuci.',
+          isEn
+              ? 'Order ${order.orderCode} for ${order.customerName} will be cancelled.\n\n'
+                  'Cancelled status is permanent and cannot be undone. '
+                  'The assigned machine will be released if currently washing.'
+              : 'Pesanan ${order.orderCode} atas nama ${order.customerName} akan dibatalkan.\n\n'
+                  'Status Batal bersifat permanen dan tidak bisa dikembalikan. '
+                  'Mesin yang dipakai akan dilepas bila pesanan sedang dicuci.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Tidak', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(l10n.no, style: const TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -474,7 +486,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
               backgroundColor: AppTheme.danger,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Ya, Batalkan'),
+            child: Text(isEn ? 'Yes, Cancel' : 'Ya, Batalkan'),
           ),
         ],
       ),
@@ -492,7 +504,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Pesanan ${order.orderCode} dibatalkan.'),
+          content: Text(isEn ? 'Order ${order.orderCode} cancelled.' : 'Pesanan ${order.orderCode} dibatalkan.'),
           backgroundColor: AppTheme.danger,
         ),
       );
@@ -508,13 +520,17 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       if (!mounted) return;
       setState(() => _actionLoadingOrderIds.remove(order.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal membatalkan pesanan: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text(isEn ? 'Failed to cancel order: $e' : 'Gagal membatalkan pesanan: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
 
   /// Sinkronisasi status pembayaran Midtrans secara manual bila pelanggan sudah membayar via QRIS/VA.
   Future<void> _handleSyncPayment(OrderModel order) async {
+    final isEn = context.l10n.localeName == 'en';
     setState(() => _actionLoadingOrderIds.add(order.id));
 
     try {
@@ -526,9 +542,15 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       final isPaid = updated.paymentStatus == 'lunas';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isPaid
-              ? 'Pembayaran pesanan ${order.orderCode} berhasil diverifikasi LUNAS.'
-              : 'Status pembayaran masih belum lunas di gateway.'),
+          content: Text(
+            isPaid
+                ? (isEn
+                    ? 'Payment for order ${order.orderCode} verified as PAID.'
+                    : 'Pembayaran pesanan ${order.orderCode} berhasil diverifikasi LUNAS.')
+                : (isEn
+                    ? 'Payment is still unpaid at the gateway.'
+                    : 'Status pembayaran masih belum lunas di gateway.'),
+          ),
           backgroundColor: isPaid ? AppTheme.success : AppTheme.accent,
         ),
       );
@@ -544,13 +566,18 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
       if (!mounted) return;
       setState(() => _actionLoadingOrderIds.remove(order.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal cek status pembayaran: $e'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text(isEn ? 'Failed to check payment status: $e' : 'Gagal cek status pembayaran: $e'),
+          backgroundColor: AppTheme.danger,
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final isEn = l10n.localeName == 'en';
     return Scaffold(
       backgroundColor: const Color(0xFFEBF4FF),
       appBar: AppBar(
@@ -558,9 +585,9 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text(
-          'Pesanan & Estafet',
-          style: TextStyle(
+        title: Text(
+          isEn ? 'Orders & Relay' : 'Pesanan & Estafet',
+          style: const TextStyle(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 17,
@@ -569,7 +596,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppTheme.textPrimary),
-            tooltip: 'Segarkan Data',
+            tooltip: l10n.refreshData,
             onPressed: () => _loadOrders(reset: true),
           ),
         ],
@@ -603,7 +630,9 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Menampilkan ${_orders.length} dari $_totalOrders pesanan',
+                              isEn
+                                  ? 'Showing ${_orders.length} of $_totalOrders orders'
+                                  : 'Menampilkan ${_orders.length} dari $_totalOrders pesanan',
                               style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                             ),
                             if (_isLoading)
@@ -676,6 +705,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
   }
 
   Widget _buildSearchBar() {
+    final isEn = context.l10n.localeName == 'en';
     return FrostedGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
       borderRadius: 18,
@@ -686,7 +716,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
         style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
         decoration: InputDecoration(
           icon: const Icon(Icons.search_rounded, color: AppTheme.textSecondary, size: 20),
-          hintText: 'Cari kode order (CLN-...), nama, atau HP...',
+          hintText: isEn ? 'Search order code (CLN-...), name, or phone...' : 'Cari kode order (CLN-...), nama, atau HP...',
           hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
           border: InputBorder.none,
           isDense: true,
@@ -702,11 +732,21 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
   }
 
   Widget _buildFilterTabs() {
+    final l10n = context.l10n;
+    final filterTabs = [
+      ('semua', l10n.statusAll),
+      ('antre', l10n.statusQueue),
+      ('proses_cuci', l10n.statusWashing),
+      ('sedang_diproses', l10n.statusProcessing),
+      ('siap_diambil', l10n.statusReady),
+      ('selesai', l10n.statusDone),
+    ];
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
       child: Row(
-        children: _filterTabs.map((tab) {
+        children: filterTabs.map((tab) {
           final isSelected = _selectedStatus == tab.$1;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -755,6 +795,7 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isEn = context.l10n.localeName == 'en';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -774,15 +815,19 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
                 child: const Icon(Icons.inbox_rounded, size: 40, color: AppTheme.primary),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Tidak Ada Pesanan',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+              Text(
+                isEn ? 'No Orders' : 'Tidak Ada Pesanan',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
               ),
               const SizedBox(height: 6),
               Text(
                 _searchQuery.isNotEmpty
-                    ? 'Tidak ditemukan pesanan dengan kata kunci "$_searchQuery".'
-                    : 'Belum ada pesanan pada kategori filter ini.',
+                    ? (isEn
+                        ? 'No orders found matching "$_searchQuery".'
+                        : 'Tidak ditemukan pesanan dengan kata kunci "$_searchQuery".')
+                    : (isEn
+                        ? 'No orders in this filter category yet.'
+                        : 'Belum ada pesanan pada kategori filter ini.'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
               ),
@@ -793,8 +838,11 @@ class _KasirOrdersScreenState extends State<KasirOrdersScreen> {
     );
   }
 
-  Widget _buildErrorState() => StateErrorView(
-        message: _errorMessage ?? 'Terjadi kesalahan.',
-        onRetry: () => _loadOrders(reset: true),
-      );
+  Widget _buildErrorState() {
+    final isEn = context.l10n.localeName == 'en';
+    return StateErrorView(
+      message: _errorMessage ?? (isEn ? 'An error occurred.' : 'Terjadi kesalahan.'),
+      onRetry: () => _loadOrders(reset: true),
+    );
+  }
 }

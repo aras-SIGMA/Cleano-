@@ -1,17 +1,9 @@
 'use strict';
 
 const { v2: cloudinary } = require('cloudinary');
+const { HttpError } = require('../utils/response');
 
-// Foto bukti drop-off disimpan di Cloudinary, bukan di disk server.
-//
-// Di Vercel filesystem proyek read-only dan os.tmpdir() hilang antar-invoke,
-// jadi foto yang ditulis lokal akan lenyap sebelum pelanggan sempat membukanya.
-// Selain itu express.static() diabaikan Vercel — hanya folder public/ yang
-// disajikan, dan folder itu tidak bisa ditulis saat runtime.
-//
-// Kosongkan ketiga variabel CLOUDINARY_* untuk mode lokal: uploadMiddleware
-// lalu memakai disk seperti sebelumnya, sehingga pengembangan tidak wajib
-// punya akun Cloudinary.
+// Simpan foto ke Cloudinary; kosongkan variabel CLOUDINARY_* untuk mode disk lokal.
 const enabled = Boolean(
   process.env.CLOUDINARY_CLOUD_NAME
   && process.env.CLOUDINARY_API_KEY
@@ -27,30 +19,27 @@ if (enabled) {
   });
 }
 
-// Folder di akun Cloudinary. Semua foto drop-off masuk ke sini supaya mudah
-// dihapus massal bila suatu saat perlu.
+// Folder tujuan foto bukti drop-off di akun Cloudinary.
 const FOLDER = process.env.CLOUDINARY_FOLDER || 'cleano/orders';
 
-/**
- * Unggah satu berkas ke Cloudinary.
- * @param {string} filePath path sementara hasil multer
- * @returns {Promise<{url: string, publicId: string}>}
- */
-async function uploadImage(filePath) {
-  const res = await cloudinary.uploader.upload(filePath, {
-    folder: FOLDER,
-    resource_type: 'image',
-    // Batas dimensi di sisi Cloudinary, bukan hanya di multer: kuota akun
-    // perlu penjaganya sendiri bila nanti ada jalur unggah lain.
-    transformation: [{ width: 1600, height: 1600, crop: 'limit' }],
-  });
-  return { url: res.secure_url, publicId: res.public_id };
+/** Unggah berkas sementara multer ke Cloudinary lalu kembalikan url dan publicId. */
+async function uploadImage(filePath, { folder = FOLDER, maxDim = 1600 } = {}) {
+  try {
+    const res = await cloudinary.uploader.upload(filePath, {
+      folder,
+      resource_type: 'image',
+      timeout: 30000,
+      // Batasi dimensi foto di sisi Cloudinary untuk menjaga kuota akun.
+      transformation: [{ width: maxDim, height: maxDim, crop: 'limit' }],
+    });
+    return { url: res.secure_url, publicId: res.public_id };
+  } catch (err) {
+    const detail = err?.error?.message || err?.message || 'layanan tidak tersedia';
+    throw new HttpError(502, `Gagal mengunggah foto: ${detail}.`);
+  }
 }
 
-/**
- * Hapus foto yang sudah terunggah. Dipanggil saat order gagal dibuat supaya
- * tidak ada foto yatim yang menagih kuota.
- */
+/** Hapus foto Cloudinary jika pembuatan order gagal agar tidak yatim. */
 async function destroyImage(publicId) {
   if (!publicId) return;
   await cloudinary.uploader.destroy(publicId).catch(() => {});

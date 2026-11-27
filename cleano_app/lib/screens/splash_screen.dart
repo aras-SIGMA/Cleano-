@@ -1,10 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/router/app_router.dart';
 import '../core/theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../services/session_service.dart';
+import '../widgets/language_picker_sheet.dart';
 
 /// Layar pembuka (Splash / Welcome Screen) dengan pengecekan sesi otomatis.
 class SplashScreen extends StatefulWidget {
@@ -37,16 +39,21 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
 
     if (cachedUser != null) {
-      final destination = cachedUser.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
+      final destination = cachedUser.isKasir
+          ? AppRouter.kasir
+          : AppRouter.pelanggan;
       Navigator.of(context).pushReplacementNamed(destination);
 
       // Sinkronisasi profil terbaru di latar belakang tanpa memblokir startup
       unawaited(
-        AuthService.instance.getMe().then((fresh) async {
-          if (fresh != null) {
-            await SessionService.instance.updateUser(fresh);
-          }
-        }).catchError((_) {}),
+        AuthService.instance
+            .getMe()
+            .then((fresh) async {
+              if (fresh != null) {
+                await SessionService.instance.updateUser(fresh);
+              }
+            })
+            .catchError((_) {}),
       );
       return;
     }
@@ -59,7 +66,9 @@ class _SplashScreenState extends State<SplashScreen> {
       if (user != null) {
         await SessionService.instance.updateUser(user);
         if (!mounted) return;
-        final destination = user.isKasir ? AppRouter.kasir : AppRouter.pelanggan;
+        final destination = user.isKasir
+            ? AppRouter.kasir
+            : AppRouter.pelanggan;
         Navigator.of(context).pushReplacementNamed(destination);
         return;
       }
@@ -74,6 +83,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    // Pusatkan kolom dan batasi lebar 460 px pada layar lebar.
+    final horizontalPadding = width > 516 ? (width - 460) / 2 : 28.0;
+
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -87,7 +100,10 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            padding: EdgeInsets.symmetric(
+              horizontal: horizontalPadding,
+              vertical: 24,
+            ),
             child: Column(
               children: [
                 // Header Logo
@@ -138,7 +154,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Solusi manajemen laundry modern, cepat, dan terpercaya untuk kasir dan pelanggan.',
+                  context.l10n.splashSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
@@ -173,9 +189,9 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Login',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.login,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -197,9 +213,9 @@ class _SplashScreenState extends State<SplashScreen> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      child: const Text(
-                        'Sign up',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.signUp,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -216,4 +232,3 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 }
-

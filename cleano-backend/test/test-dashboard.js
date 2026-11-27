@@ -1,6 +1,4 @@
-// Uji B8: GET /api/dashboard/summary. Seluruhnya baca saja — tidak ada baris
-// yang perlu dibersihkan.
-// Jalankan: npm run test:dashboard
+// Uji B8 GET /api/dashboard/summary (hanya baca); jalankan npm run test:dashboard.
 require('dotenv').config({ quiet: true });
 
 const { pool } = require('../src/config/database');
@@ -77,8 +75,7 @@ async function get(path, { token } = {}) {
     ok('format tanggal YYYY-MM-DD', tanggal.every((t) => /^\d{4}-\d{2}-\d{2}$/.test(t)),
       tanggal.join(' '));
 
-    // Hari terakhir harus hari ini menurut MySQL (+07:00), bukan menurut jam mesin
-    // penguji. Kalau backend menyusun tanggal sendiri, keduanya bisa berbeda.
+    // Pastikan tanggal terakhir grafik sesuai hari ini menurut MySQL (+07:00).
     const [[{ hari_ini }]] = await pool.query("select date_format(curdate(), '%Y-%m-%d') as hari_ini");
     ok('hari terakhir = curdate() MySQL', tanggal[6] === hari_ini,
       `${tanggal[6]} vs ${hari_ini}`);
@@ -117,9 +114,7 @@ async function get(path, { token } = {}) {
     ok('total_weight_kg berupa angka', tren.every((r) => typeof r.total_weight_kg === 'number'),
       typeof tren[0]?.total_weight_kg);
 
-    // ---- order batal tidak dihitung ----
-    // Seeder tidak punya order batal, jadi yang diuji: hari ini omzetnya sama
-    // dengan jumlah total_price order lunas hari ini yang bukan batal.
+    // Pastikan order berstatus batal tidak ikut dihitung ke omzet.
     const [[hitung]] = await pool.query(
       `select coalesce(sum(total_price), 0) as n from orders
         where payment_status = 'lunas' and status != 'batal' and date(paid_at) = curdate()`,

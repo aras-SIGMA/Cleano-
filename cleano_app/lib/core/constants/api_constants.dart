@@ -5,10 +5,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ApiConstants {
   const ApiConstants._();
 
-  /// Base URL backend, tanpa trailing slash.
-  /// Otomatis menyesuaikan platform (Web/Desktop -> localhost, Android Emulator -> 10.0.2.2).
+  /// Base URL backend tanpa trailing slash, otomatis menyesuaikan platform aktif.
   static String get baseUrl {
-    var raw = dotenv.env['API_BASE_URL']?.trim() ?? '';
+    var raw = dotenv.isInitialized ? (dotenv.env['API_BASE_URL']?.trim() ?? '') : '';
     if (raw.isEmpty) {
       raw = 'http://10.0.2.2:3000';
     }
@@ -17,7 +16,8 @@ class ApiConstants {
       raw = raw.substring(0, raw.length - 1);
     }
 
-    final useAdbReverse = dotenv.env['USE_ADB_REVERSE']?.trim().toLowerCase() == 'true';
+    final useAdbReverse = dotenv.isInitialized &&
+        dotenv.env['USE_ADB_REVERSE']?.trim().toLowerCase() == 'true';
 
     if (kIsWeb ||
         defaultTargetPlatform == TargetPlatform.windows ||
@@ -33,12 +33,25 @@ class ApiConstants {
     return raw;
   }
 
+  /// Gabungkan path relatif media (`/uploads/...`) dengan [baseUrl].
+  static String? resolveMediaUrl(String? raw) {
+    final trimmed = raw?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    final normalized = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    return '$baseUrl$normalized';
+  }
+
   // --- path endpoint auth & user ---
   static const health = '/api/health';
   static const register = '/api/auth/register';
   static const login = '/api/auth/login';
+  static const changePassword = '/api/auth/change-password';
   static const userLookup = '/api/users/lookup';
   static const userMe = '/api/users/me';
+  static const userAvatar = '/api/users/me/avatar';
 
   // --- master data ---
   static const services = '/api/services';

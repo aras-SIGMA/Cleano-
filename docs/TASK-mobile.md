@@ -212,6 +212,19 @@ Branch `feature/mobile-export`
 
 ---
 
+## Fitur Tambahan — Profil, Keamanan & Ubah Bahasa Sistem
+
+- [x] `screens/kasir/kasir_profile_screen.dart` — redesign profil kasir (identitas shift, status konter, simulasi cetak struk, SOP kasir, kontak supervisor)
+- [x] `screens/pelanggan/pelanggan_profile_screen.dart` — profil pelanggan dengan integrasi modal Kartu Member QR (`MBR-XXXX`) dan fitur bagikan format pesan ke WhatsApp/kurir/keluarga
+- [x] `widgets/change_password_sheet.dart` — ubah kata sandi terhubung ke `PATCH /api/auth/change-password` (min. 8 karakter)
+- [x] Fitur ubah bahasa sistem (`id` / `en`):
+  - `l10n.yaml` + `lib/l10n/app_id.arb` + `lib/l10n/app_en.arb` (`flutter_localizations` + `generate: true`)
+  - `services/locale_service.dart` — `ValueNotifier<Locale>` persisten di `SharedPreferences`
+  - `widgets/language_picker_sheet.dart` — pemilih bahasa di profil kasir & pelanggan, memperbarui `MaterialApp.locale` dan `Formatters` tanggal secara reaktif
+  - `test/locale_service_test.dart`, `test/kasir_profile_test.dart`, `test/pelanggan_profile_test.dart`
+
+---
+
 ## Pemetaan TC → paket
 
 | TC | Paket |

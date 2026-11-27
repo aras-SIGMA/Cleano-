@@ -1,16 +1,8 @@
-// Uji B10: pengerasan. Header keamanan, batas body, rate limit, dan kebocoran
-// informasi di log.
-//
-// Limiter diuji dengan batas kecil (2) lalu dipulihkan. Server dijalankan di
-// dalam proses ini, jadi `require('../server')` cukup dipanggil sekali setelah
-// env di bawah diset.
-// Jalankan: npm run test:hardening
+// Uji B10 pengerasan: header keamanan, batas body, rate limit, dan logger.
 process.env.AUTH_LOGIN_LIMIT = '2';
 process.env.AUTH_REGISTER_LIMIT = '2';
 process.env.JSON_BODY_LIMIT = '2kb';
-// Satu hop proxy: tes mengirim X-Forwarded-For untuk memeriksa bahwa ember
-// rate limit benar-benar terpisah per IP. Tanpa ini, semua permintaan datang
-// sebagai 127.0.0.1 dan pemisahan per-IP tidak bisa diuji.
+// Gunakan 1 hop proxy agar pemisahan rate limit per IP teruji.
 process.env.TRUST_PROXY_HOPS = '1';
 
 require('dotenv').config({ quiet: true });
@@ -25,8 +17,7 @@ const ok = (name, pass, detail = '') => rows.push({ name, pass, detail });
 let server;
 let base;
 
-// Awalan email user uji. Dideklarasikan di luar try supaya finally bisa
-// menyapunya walau tes gagal sebelum baris registrasi dijalankan.
+// Awalan email uji di luar try agar selalu dibersihkan di finally.
 let awalanUji = null;
 
 async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
@@ -61,9 +52,7 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
       Boolean(health.headers.get('x-frame-options')),
       health.headers.get('x-frame-options'));
 
-    // ---- batas ukuran body ----
-    // JSON_BODY_LIMIT=2kb; body 8kb harus ditolak 413, bukan diterima lalu
-    // menghabiskan memori.
+    // Uji batas ukuran JSON body (2 KB) menolak payload 8 KB (413).
     const besar = JSON.stringify({ email: 'a@b.c', password: 'x'.repeat(8000) });
     const tooBig = await call('/api/auth/login', { method: 'POST', raw: besar });
     ok('body melebihi batas ditolak 413', tooBig.status === 413, `status ${tooBig.status}`);
@@ -72,9 +61,7 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
     ok('pesan 413 tidak membocorkan stack',
       !/at |node_modules|\.js:/.test(tooBig.json?.message ?? ''), tooBig.json?.message);
 
-    // ---- rate limit login ----
-    // Batas diset 2. Permintaan ke-3 harus 429. IP eksplisit dipakai supaya
-    // ember uji ini tidak tercampur dengan uji lain di berkas yang sama.
+    // Uji rate limit login menolak permintaan ke-3 dengan status 429.
     const sandiSalah = { email: 'kasir@cleano.id', password: 'salah-sekali' };
     const IP_A = '10.1.1.1';
     const r1 = await call('/api/auth/login', { method: 'POST', body: sandiSalah, ip: IP_A });
@@ -90,9 +77,7 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
     ok('pesan 429 menyebut durasi jendela', /15 menit/.test(r3.json?.message ?? ''),
       r3.json?.message);
 
-    // ---- ember terpisah per IP ----
-    // Kalau trust proxy salah, semua klien berbagi satu ember: satu penyerang
-    // mengunci seluruh pengguna. IP lain harus tetap punya kuota penuh.
+    // Pastikan ember rate limit terpisah antar alamat IP berbeda.
     const IP_B = '10.2.2.2';
     const lain1 = await call('/api/auth/login', { method: 'POST', body: sandiSalah, ip: IP_B });
     const lain2 = await call('/api/auth/login', { method: 'POST', body: sandiSalah, ip: IP_B });
@@ -105,23 +90,13 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
     ok('kuota IP pertama tidak ter-reset oleh IP lain', ulangA.status === 429,
       `status ${ulangA.status}`);
 
-    // ---- endpoint lain tidak ikut dibatasi ----
-    // Limiter hanya di /auth. Kalau dipasang global, satu penyerang bisa
-    // mengunci seluruh API dengan permintaan login yang gagal.
+    // Pastikan endpoint non-auth tidak ikut terkena pembatasan rate limit login.
     const sehat = [];
     for (let i = 0; i < 8; i += 1) sehat.push((await call('/api/health', { ip: IP_A })).status);
     ok('health tetap 200 walau kuota login habis', sehat.every((s) => s === 200),
       sehat.join(' '));
 
-    // ---- XFF berantai tidak bisa dipakai memalsukan IP ----
-    // TRUST_PROXY_HOPS=1: hanya hop paling kanan yang dipercaya sebagai IP klien.
-    // Dengan `trust proxy = true`, Express mengambil entri paling kiri — yang
-    // ditulis klien sendiri — sehingga penyerang cukup mengubah nilainya untuk
-    // mendapat ember baru setiap permintaan dan melewati batas sepenuhnya.
-    //
-    // Uji ini mengirim dua entri: kiri berubah-ubah, kanan tetap. Kalau hop
-    // dihitung benar, semuanya jatuh ke ember yang sama dan 429 muncul. Kalau
-    // `true`, tiap permintaan lolos dengan ember berbeda.
+    // Pastikan X-Forwarded-For berantai tetap memakai IP hop paling kanan yang tepercaya.
     const IP_PROXY = '10.9.9.9';
     const spoof = [];
     for (let i = 0; i < 4; i += 1) {
@@ -139,13 +114,7 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
     ok('login benar tetap diblokir selama jendela limiter', benar.status === 429,
       `status ${benar.status}`);
 
-    // ---- rate limit register ----
-    // Email dibekukan sekali: kalau daftar() memanggil Date.now() setiap kali,
-    // email yang dihapus di akhir tidak sama dengan yang tersimpan.
-    //
-    // Saat limiter sengaja dimatikan (uji mutasi), ketiga registrasi lolos dan
-    // ketiganya harus dibersihkan — karena itu penghapusan memakai awalan email,
-    // bukan daftar email yang "seharusnya" dibuat.
+    // Uji rate limit register dan bersihkan semua user uji berbasis awalan email.
     const cap = `${Date.now()}`;
     const AWALAN = `b10-${cap}-`;
     awalanUji = AWALAN;
@@ -161,15 +130,11 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
       `${g1.status} ${g2.status}`);
     ok('registrasi ketiga dibatasi 429', g3.status === 429, `status ${g3.status}`);
 
-    // Bersihkan seluruh user uji dari run ini, berapa pun yang lolos dibuat.
-    // Penghapusan per-id tidak aman: saat limiter sengaja dimatikan, jumlah yang
-    // lolos berubah dan sisanya akan tertinggal di DB.
+    // Hapus semua user uji berbasis awalan email demi keamanan uji mutasi.
     const [del] = await pool.query('delete from users where email like ?', [`${AWALAN}%`]);
     ok('user uji registrasi dibersihkan', del.affectedRows === 2, `${del.affectedRows} baris`);
 
-    // ---- log tidak membocorkan rahasia ----
-    // Logger diuji langsung: objek yang dilog tidak boleh memuat sandi atau
-    // token, karena log sering dikirim ke layanan pihak ketiga.
+    // Pastikan logger tidak pernah mencatat sandi maupun token ke log.
     const lines = [];
     const asli = { out: process.stdout.write, err: process.stderr.write };
     const tangkap = (buf) => { lines.push(String(buf)); return true; };
@@ -198,8 +163,7 @@ async function call(path, { method = 'GET', body, token, raw, ip } = {}) {
       !('password' in desc) && !('token' in desc),
       Object.keys(desc).join(','));
   } finally {
-    // Jaring pengaman: kalau tes gagal sebelum baris pembersihan tercapai,
-    // user uji tetap tidak boleh tertinggal.
+    // Jaring pengaman pembersihan user uji jika terjadi kegagalan di tengah tes.
     if (awalanUji) {
       await pool.query('delete from users where email like ?', [`${awalanUji}%`]).catch(() => {});
     }

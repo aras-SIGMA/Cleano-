@@ -5,6 +5,7 @@ import '../../core/theme/app_theme.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/session_service.dart';
+import '../../widgets/language_picker_sheet.dart';
 
 /// Layar Login Cleano dengan Fast Login pengembang dan banner galat yang jelas.
 class LoginScreen extends StatefulWidget {
@@ -72,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (_) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Terjadi kesalahan sistem. Silakan coba lagi.';
+          _errorMessage = context.l10n.systemError;
         });
       }
     } finally {
@@ -92,13 +93,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = width >= 900;
+    // Batasi lebar form 460 px dan pusatkan pada layar lebar.
+    final horizontalPadding = isDesktop ? (width - 460) / 2 : 24.0;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: isDesktop ? AppTheme.surfaceSubtle : Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: isDesktop ? AppTheme.surfaceSubtle : Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () {
             if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
@@ -110,7 +119,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: isDesktop ? 40 : 8,
+          ),
           child: Form(
             key: _formKey,
             child: Column(
@@ -128,10 +140,10 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 20),
 
                 // Title & Subtitle
-                const Text(
-                  'Welcome Back',
+                Text(
+                  context.l10n.welcomeBack,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w800,
                     color: AppTheme.primary,
@@ -139,10 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Masuk ke akun Anda untuk mengelola cucian dan mengakses promo menarik.',
+                Text(
+                  context.l10n.loginSubtitle,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: AppTheme.textSecondary,
                     height: 1.4,
@@ -190,8 +202,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.mail_outline_rounded, color: AppTheme.primary),
+                    labelText: context.l10n.emailLabel,
+                    prefixIcon: const Icon(
+                      Icons.mail_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -204,15 +219,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primary,
+                        width: 2,
+                      ),
                     ),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Email wajib diisi.';
+                      return context.l10n.emailRequired;
                     }
                     if (!value.contains('@') || !value.contains('.')) {
-                      return 'Format email tidak valid.';
+                      return context.l10n.emailInvalid;
                     }
                     return null;
                   },
@@ -226,8 +244,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _handleLogin(),
                   decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppTheme.primary),
+                    labelText: context.l10n.passwordLabel,
+                    prefixIcon: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppTheme.primary,
+                    ),
                     suffixIcon: IconButton(
                       icon: Icon(
                         _obscurePassword
@@ -251,15 +272,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: AppTheme.primary, width: 2),
+                      borderSide: const BorderSide(
+                        color: AppTheme.primary,
+                        width: 2,
+                      ),
                     ),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Password wajib diisi.';
+                      return context.l10n.passwordRequired;
                     }
                     if (value.length < 8) {
-                      return 'Password minimal 8 karakter.';
+                      return context.l10n.passwordMin8;
                     }
                     return null;
                   },
@@ -284,9 +308,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text(
-                      'Ingat saya',
-                      style: TextStyle(
+                    Text(
+                      context.l10n.rememberMe,
+                      style: const TextStyle(
                         fontSize: 14,
                         color: AppTheme.textPrimary,
                       ),
@@ -317,9 +341,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               strokeWidth: 2.5,
                             ),
                           )
-                        : const Text(
-                            'Login',
-                            style: TextStyle(
+                        : Text(
+                            context.l10n.login,
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w700,
                             ),
@@ -342,9 +366,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _fillFastLogin('kasir@cleano.id', 'password123'),
-                              icon: const Icon(Icons.store_mall_directory_rounded, size: 18),
-                              label: const Text('Kasir'),
+                              onPressed: () => _fillFastLogin(
+                                'kasir@cleano.id',
+                                'password123',
+                              ),
+                              icon: const Icon(
+                                Icons.store_mall_directory_rounded,
+                                size: 18,
+                              ),
+                              label: Text(context.l10n.cashier),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppTheme.primary,
                                 backgroundColor: Colors.white,
@@ -358,9 +388,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _fillFastLogin('rina@gmail.com', 'password123'),
+                              onPressed: () => _fillFastLogin(
+                                'rina@gmail.com',
+                                'password123',
+                              ),
                               icon: const Icon(Icons.person_rounded, size: 18),
-                              label: const Text('Pelanggan'),
+                              label: Text(context.l10n.customer),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppTheme.primary,
                                 backgroundColor: Colors.white,
@@ -374,9 +407,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        'Hanya selama masa pengembangan',
-                        style: TextStyle(
+                      Text(
+                        context.l10n.devOnlyNote,
+                        style: const TextStyle(
                           fontSize: 12,
                           fontStyle: FontStyle.italic,
                           color: AppTheme.textSecondary,
@@ -391,17 +424,21 @@ class _LoginScreenState extends State<LoginScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      "Don't have an account? ",
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+                    Text(
+                      context.l10n.noAccountQuestion,
+                      style: const TextStyle(
+                        color: AppTheme.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
                     GestureDetector(
                       onTap: () {
-                        Navigator.of(context).pushReplacementNamed(AppRouter.register);
+                        Navigator.of(context)
+                            .pushReplacementNamed(AppRouter.register);
                       },
-                      child: const Text(
-                        'Sign up',
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.signUp,
+                        style: const TextStyle(
                           color: AppTheme.primary,
                           fontWeight: FontWeight.w700,
                           fontSize: 14,

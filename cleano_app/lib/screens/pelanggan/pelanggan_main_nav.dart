@@ -4,17 +4,16 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/user_model.dart';
 import '../../services/auth_service.dart';
+import '../../services/locale_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/frosted_glass_card.dart';
+import '../../widgets/language_picker_sheet.dart';
 import '../../widgets/state_view.dart';
-import 'pelanggan_qr_card_screen.dart';
+import 'pelanggan_profile_screen.dart';
 import 'pelanggan_rewards_screen.dart';
 import 'pelanggan_tracking_screen.dart';
 
-/// Navigasi Utama Portal Pelanggan Cleano (3 Tab):
-/// - Tab 0: Lacak Cucian Real-Time (M7)
-/// - Tab 1: Kartu Member & QR (M8)
-/// - Tab 2: Hadiah & Saldo Poin Loyalti (M9)
+/// Navigasi utama Portal Pelanggan Cleano dengan 3 tab aktif.
 class PelangganMainNav extends StatefulWidget {
   const PelangganMainNav({super.key});
 
@@ -53,9 +52,14 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
       }
     } catch (_) {
       if (mounted) {
+        final isEn = LocaleService.instance.locale.value.languageCode == 'en';
         setState(() {
           _isLoading = false;
-          if (_user == null) _profileError = 'Gagal memuat profil. Periksa koneksi Anda.';
+          if (_user == null) {
+            _profileError = isEn
+                ? 'Failed to load profile. Check your connection.'
+                : 'Gagal memuat profil. Periksa koneksi Anda.';
+          }
         });
       }
     }
@@ -72,12 +76,12 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Konfirmasi Logout'),
-        content: const Text('Apakah Anda yakin ingin keluar dari akun pelanggan?'),
+        title: Text(ctx.l10n.logoutConfirmTitle),
+        content: Text(ctx.l10n.logoutConfirmPelanggan),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
+            child: Text(ctx.l10n.cancel),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -85,7 +89,7 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
               backgroundColor: AppTheme.danger,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Keluar'),
+            child: Text(ctx.l10n.logout),
           ),
         ],
       ),
@@ -109,10 +113,11 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
     }
 
     if (_user == null) {
+      final isEn = LocaleService.instance.locale.value.languageCode == 'en';
       return Scaffold(
         backgroundColor: const Color(0xFFEBF4FF),
         body: StateErrorView(
-          message: _profileError ?? 'Profil tidak tersedia.',
+          message: _profileError ?? (isEn ? 'Profile unavailable.' : 'Profil tidak tersedia.'),
           onRetry: () {
             setState(() {
               _isLoading = true;
@@ -126,8 +131,13 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
 
     final children = [
       PelangganTrackingScreen(user: _user, onLogout: _handleLogout),
-      PelangganQrCardScreen(user: _user, onLogout: _handleLogout),
       PelangganRewardsScreen(user: _user, onLogout: _handleLogout),
+      PelangganProfileScreen(
+        user: _user,
+        onLogout: _handleLogout,
+        onNavigateToRewards: () => _onTabChanged(1),
+        onUserUpdated: (updated) => setState(() => _user = updated),
+      ),
     ];
 
     return LayoutBuilder(
@@ -165,21 +175,21 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
                       ),
                     ),
                   ),
-                  destinations: const [
+                  destinations: [
                     NavigationRailDestination(
-                      icon: Icon(Icons.local_laundry_service_outlined),
-                      selectedIcon: Icon(Icons.local_laundry_service_rounded),
-                      label: Text('Lacak'),
+                      icon: const Icon(Icons.local_laundry_service_outlined),
+                      selectedIcon: const Icon(Icons.local_laundry_service_rounded),
+                      label: Text(context.l10n.navTracking),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.qr_code_2_outlined),
-                      selectedIcon: Icon(Icons.qr_code_2_rounded),
-                      label: Text('Kartu Member'),
+                      icon: const Icon(Icons.card_giftcard_outlined),
+                      selectedIcon: const Icon(Icons.card_giftcard_rounded),
+                      label: Text(context.l10n.navRewards),
                     ),
                     NavigationRailDestination(
-                      icon: Icon(Icons.card_giftcard_outlined),
-                      selectedIcon: Icon(Icons.card_giftcard_rounded),
-                      label: Text('Hadiah'),
+                      icon: const Icon(Icons.person_outline_rounded),
+                      selectedIcon: const Icon(Icons.person_rounded),
+                      label: Text(context.l10n.navAccount),
                     ),
                   ],
                 ),
@@ -209,10 +219,11 @@ class _PelangganMainNavState extends State<PelangganMainNav> {
   }
 
   Widget _buildFloatingBottomBar() {
+    final l10n = context.l10n;
     final items = [
-      (Icons.local_laundry_service_outlined, Icons.local_laundry_service_rounded, 'Lacak'),
-      (Icons.qr_code_2_outlined, Icons.qr_code_2_rounded, 'Kartu Member'),
-      (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, 'Hadiah'),
+      (Icons.local_laundry_service_outlined, Icons.local_laundry_service_rounded, l10n.navTracking),
+      (Icons.card_giftcard_outlined, Icons.card_giftcard_rounded, l10n.navRewards),
+      (Icons.person_outline_rounded, Icons.person_rounded, l10n.navAccount),
     ];
 
     return RepaintBoundary(

@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Latar belakang ambient aurora untuk layar kasir.
-///
-/// Dipakai bersama oleh beranda dan daftar pesanan supaya gradasinya tidak
-/// berbeda-beda antar layar.
+/// Latar belakang aurora untuk layar kasir agar gradasi selalu konsisten.
 class AmbientBackground extends StatelessWidget {
   const AmbientBackground({super.key});
 

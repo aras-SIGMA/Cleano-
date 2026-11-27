@@ -2,13 +2,14 @@
 
 require('dotenv').config({ quiet: true });
 
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 
 const { createLogger, describe } = require('./src/utils/logger');
 const { pool, ping } = require('./src/config/database');
+const { apiLimiter } = require('./src/middlewares/rateLimit');
+const { uploadDir } = require('./src/middlewares/uploadMiddleware');
 
 const log = createLogger('server');
 const authRoutes = require('./src/routes/authRoutes');
@@ -22,36 +23,39 @@ const dashboardRoutes = require('./src/routes/dashboardRoutes');
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Di belakang reverse proxy (Railway, Render, nginx, Cloudflare), IP asli ada di
-// X-Forwarded-For dan req.ip berisi IP proxy. Tanpa ini SEMUA pengguna berbagi
-// satu ember rate limit: setelah 10 percobaan login dari siapa pun, seluruh
-// pengguna terkunci 15 menit.
-//
-// Nilainya jumlah hop proxy yang boleh dipercaya, bukan `true`. `true` berarti
-// mempercayai X-Forwarded-For apa adanya, sehingga klien bisa memalsukan IP dan
-// melewati batas. Bawaan 0 = tidak ada proxy (pengembangan langsung).
+// Konfigurasi jumlah hop proxy agar rate limit memisahkan IP asli klien.
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 0);
 
-// Header keamanan. CSP dimatikan karena API ini tidak menyajikan HTML —
-// halaman yang dilindungi CSP adalah aplikasi Flutter/web, bukan respons JSON.
-// crossOriginResourcePolicy dibuat cross-origin agar Flutter Web (Chrome) bisa mengakses API.
+// Header keamanan Helmet: nonaktifkan CSP JSON dan izinkan akses lintas-origin.
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// Flutter mobile tidak mengirim Origin, jadi `cors()` terbuka aman untuk API
-// yang dijaga token. Batas origin dari env dipakai saat web dilayani terpisah.
+// Izinkan request tanpa Origin untuk mobile; batasi origin browser di produksi.
 const origins = (process.env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
-app.use(cors(origins.length ? { origin: origins } : {}));
+const isProd = process.env.NODE_ENV === 'production';
 
-// Batas ukuran body. Tanpa ini satu permintaan 100 MB menghabiskan memori
-// proses sebelum validasi sempat menolaknya. 1 MB jauh di atas body terbesar
-// yang sah (order + voucher_code), dan upload foto punya jalur multipart sendiri.
+function buildCorsOptions() {
+  if (origins.length) {
+    return {
+      origin: (origin, cb) => cb(null, !origin || origins.includes(origin)),
+    };
+  }
+  return isProd ? { origin: false } : {};
+}
+
+app.use(cors(buildCorsOptions()));
+
+// Batasi ukuran body JSON (default 1 MB) untuk mencegah banjir memori.
 app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || '1mb' }));
 
 // foto bukti drop-off disajikan statis (PRD-02 §5 non-goals)
-app.use('/uploads', express.static(path.resolve(__dirname, process.env.UPLOAD_DIR || 'uploads')));
+app.use('/uploads', express.static(uploadDir, {
+  setHeaders: (res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 
 app.get('/api/health', async (req, res) => {
   const db = await ping().then(() => 'ok').catch((err) => `down: ${err.code || err.message}`);
@@ -62,6 +66,7 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+app.use('/api', apiLimiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/services', serviceRoutes);
@@ -74,34 +79,41 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: `Rute ${req.method} ${req.originalUrl} tidak ditemukan.` });
 });
 
+const MULTER_MESSAGES = {
+  LIMIT_FIELD_VALUE: 'Isi kolom teks terlalu panjang.',
+  LIMIT_UNEXPECTED_FILE: 'Field berkas unggahan tidak sesuai (gunakan "image").',
+  LIMIT_FILE_COUNT: 'Maksimal 1 berkas foto per unggahan.',
+  LIMIT_PART_COUNT: 'Jumlah bagian formulir melebihi batas.',
+};
+
+function formatError(err, fromTrigger) {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`;
+  }
+  if (MULTER_MESSAGES[err.code]) return MULTER_MESSAGES[err.code];
+  if (err.name === 'MulterError') return 'Unggahan berkas tidak valid.';
+  if (err.type === 'entity.too.large') {
+    return `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.`;
+  }
+  if (fromTrigger) return err.sqlMessage || err.message || 'Terjadi kesalahan pada server.';
+  return err.message || 'Terjadi kesalahan pada server.';
+}
+
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  // SIGNAL SQLSTATE '45000' dari trigger = penolakan aturan bisnis, bukan
-  // kerusakan server. Tanpa ini pelanggan melihat 500 untuk hal yang sebenarnya
-  // salah input (poin kurang, promo nonaktif). err.sqlMessage adalah pesan yang
-  // ditulis trigger, jadi sudah berbahasa Indonesia dan layak ditampilkan.
+  // SQLSTATE '45000' dari trigger dipetakan ke HTTP 400 dengan pesan bisnis.
   const fromTrigger = err.sqlState === '45000' || err.errno === 1644
     || err.code === 'ER_SIGNAL_EXCEPTION';
-
-  const status = err.status
-    || (fromTrigger ? 400 : null)
-    || (err.code === 'LIMIT_FILE_SIZE' ? 400 : null)
-    || (err.code === 'LIMIT_FIELD_VALUE' ? 400 : 500);
-  const tooLarge = err.type === 'entity.too.large';
-
-  const message = err.code === 'LIMIT_FILE_SIZE'
-    ? `Ukuran foto melebihi ${process.env.MAX_IMAGE_MB || 2} MB.`
-    : err.code === 'LIMIT_FIELD_VALUE'
-      ? 'Isi kolom teks terlalu panjang.'
-      : tooLarge
-      ? `Ukuran body permintaan melebihi ${process.env.JSON_BODY_LIMIT || '1mb'}.`
-      : (fromTrigger ? err.sqlMessage || err.message : err.message) || 'Terjadi kesalahan pada server.';
+  const isMulter = err.name === 'MulterError';
+  const status = err.status || (fromTrigger || isMulter ? 400 : 500);
+  const message = formatError(err, fromTrigger);
 
   if (status >= 500) {
     log.error('permintaan gagal', { ...describe(err), method: req.method, path: req.originalUrl });
-  } else if (fromTrigger) {
-    // Penolakan aturan bisnis: berguna untuk melihat pelanggan mana yang
-    // kehabisan poin, tanpa membanjiri log error.
+    return res.status(status).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+  }
+  if (fromTrigger) {
+    // Catat penolakan aturan bisnis sebagai info tanpa memenuhi log error.
     log.warn('aturan bisnis menolak', {
       method: req.method, path: req.originalUrl, message, userId: req.user?.id,
     });
@@ -121,8 +133,16 @@ function shutdown(signal) {
   });
 }
 
-// hanya bind port & pasang handler shutdown kalau dijalankan langsung (bukan dipakai tes)
+// Bind port dan pasang handler shutdown hanya saat dijalankan langsung.
 if (require.main === module) {
+  const secret = process.env.JWT_SECRET || '';
+  if (isProd && secret.length < 32) {
+    log.error('JWT_SECRET harus minimal 32 karakter di produksi');
+    process.exit(1);
+  }
+  if (!isProd && secret.length < 32) {
+    log.warn('JWT_SECRET kurang dari 32 karakter; gunakan secret kuat untuk produksi');
+  }
   server = app.listen(PORT, () => {
     log.info('cleano api siap', { port: PORT });
   });
